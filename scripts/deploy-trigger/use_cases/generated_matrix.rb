@@ -18,6 +18,7 @@ module UseCases
         deployment_targets = []
 
         deploy_labels.each do |deploy_label|
+          puts "🏷️  Processing deploy label: #{deploy_label.service} (valid: #{deploy_label.valid?})"
           next unless deploy_label.valid?
 
           # Check if service is excluded from automation
@@ -28,11 +29,17 @@ module UseCases
 
           # Get available stacks by checking directory existence
           available_stacks = detect_available_stacks(deploy_label.service, target_environment, config)
+          puts "📦 Available stacks for #{deploy_label.service}: #{available_stacks}"
 
           # Generate targets for each available stack
           available_stacks.each do |stack|
             target = generate_deployment_target(deploy_label, target_environment, stack, config)
-            deployment_targets << target if target&.valid?
+            if target&.valid?
+              puts "✅ Generated deployment target: #{deploy_label.service}:#{target_environment}:#{stack}"
+              deployment_targets << target
+            else
+              puts "❌ Failed to generate target for: #{deploy_label.service}:#{target_environment}:#{stack}"
+            end
           end
         end
 
@@ -67,6 +74,7 @@ module UseCases
 
         # Get repository root by finding .git directory
         repo_root = find_repository_root
+        puts "🔍 Repository root detected: #{repo_root}"
 
         # Check all configured directory conventions
         config.directory_conventions.each do |stack, pattern|
@@ -76,10 +84,14 @@ module UseCases
 
           # Resolve path relative to repository root
           full_path = File.join(repo_root, dir_path)
+          puts "🔍 Checking directory: #{full_path}"
 
           # Check if directory exists
           if File.directory?(full_path)
+            puts "✅ Found #{stack} stack for #{service_name}:#{target_environment}"
             available_stacks << stack
+          else
+            puts "❌ Directory not found: #{full_path}"
           end
         end
 
@@ -195,6 +207,18 @@ module UseCases
 
       # Find repository root by looking for .git directory
       def find_repository_root(start_path = __dir__)
+        # Check if SOURCE_REPO_PATH environment variable is set (for composite actions)
+        if ENV['SOURCE_REPO_PATH']
+          source_repo_path = File.expand_path(ENV['SOURCE_REPO_PATH'], __dir__)
+          if File.directory?(source_repo_path)
+            git_path = File.join(source_repo_path, '.git')
+            if File.directory?(git_path) || File.file?(git_path)
+              return source_repo_path
+            end
+          end
+        end
+
+        # Default behavior: search for .git directory
         current_path = File.expand_path(start_path)
 
         loop do
@@ -213,7 +237,7 @@ module UseCases
 
         # Fallback: if .git not found, raise error with helpful message
         raise "Could not find repository root (.git directory) starting from #{start_path}. " \
-              "Make sure this script is run within a Git repository."
+              "Make sure this script is run within a Git repository or set SOURCE_REPO_PATH environment variable."
       end
     end
   end

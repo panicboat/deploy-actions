@@ -127,6 +127,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPOSITORY: ${{ inputs.repository }}
         WORKFLOW_CONFIG_PATH: shared/workflow-config.yaml
+        SOURCE_REPO_PATH: ../../source-repo
 
     - name: Parse deployment outputs
       id: parse
