@@ -45,3 +45,40 @@ jobs:
           bundle exec ruby deploy-trigger/bin/trigger test develop || true
         env:
           WORKFLOW_CONFIG_PATH: test-config.yaml
+
+      - name: Install jq for stack filtering test
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Test stack filtering logic
+        run: |
+          echo "🧪 Testing stack filtering logic"
+          
+          # Simulate deployment targets JSON
+          MOCK_TARGETS='[
+            {"service": "auth-service", "environment": "develop", "stack": "terragrunt"},
+            {"service": "auth-service", "environment": "develop", "stack": "kubernetes"},
+            {"service": "api-gateway", "environment": "develop", "stack": "terragrunt"}
+          ]'
+          
+          echo "Mock targets: ${MOCK_TARGETS}"
+          
+          # Test filtering
+          TERRAGRUNT_TARGETS=$(echo "${MOCK_TARGETS}" | jq -c '[.[] | select(.stack == "terragrunt")]')
+          KUBERNETES_TARGETS=$(echo "${MOCK_TARGETS}" | jq -c '[.[] | select(.stack == "kubernetes")]')
+          
+          echo "Terragrunt targets: ${TERRAGRUNT_TARGETS}"
+          echo "Kubernetes targets: ${KUBERNETES_TARGETS}"
+          
+          # Verify filtering worked
+          TG_COUNT=$(echo "${TERRAGRUNT_TARGETS}" | jq 'length')
+          K8S_COUNT=$(echo "${KUBERNETES_TARGETS}" | jq 'length')
+          
+          echo "Terragrunt count: ${TG_COUNT}"
+          echo "Kubernetes count: ${K8S_COUNT}"
+          
+          if [ "${TG_COUNT}" -eq 2 ] && [ "${K8S_COUNT}" -eq 1 ]; then
+            echo "✅ Stack filtering test passed"
+          else
+            echo "❌ Stack filtering test failed"
+            exit 1
+          fi

@@ -1,0 +1,200 @@
+name: 'Reusable Deploy Trigger'
+
+on:
+  workflow_call:
+    inputs:
+      event-type:
+        description: 'Event type: pull_request or push'
+        required: true
+        type: string
+      branch-name:
+        description: 'Branch name for push events'
+        required: false
+        type: string
+      pr-number:
+        description: 'PR number (from prepare job output or event)'
+        required: false
+        type: string
+      repository:
+        description: 'Repository name (owner/repo)'
+        required: true
+        type: string
+      config-path:
+        description: 'Path to workflow configuration file'
+        required: false
+        type: string
+        default: '.github/config/workflow-config.yaml'
+    secrets:
+      github-token:
+        description: 'GitHub token with appropriate permissions'
+        required: true
+    outputs:
+      targets:
+        description: 'Deployment targets JSON'
+        value: ${{ jobs.extract-targets.outputs.targets }}
+      has-targets:
+        description: 'Whether targets found'
+        value: ${{ jobs.extract-targets.outputs.has-targets }}
+      terragrunt-targets:
+        description: 'Terragrunt targets JSON'
+        value: ${{ jobs.extract-targets.outputs.terragrunt-targets }}
+      kubernetes-targets:
+        description: 'Kubernetes targets JSON'
+        value: ${{ jobs.extract-targets.outputs.kubernetes-targets }}
+      has-terragrunt:
+        description: 'Whether terragrunt targets exist'
+        value: ${{ jobs.extract-targets.outputs.has-terragrunt }}
+      has-kubernetes:
+        description: 'Whether kubernetes targets exist'
+        value: ${{ jobs.extract-targets.outputs.has-kubernetes }}
+      target-environment:
+        description: 'Target environment'
+        value: ${{ jobs.extract-targets.outputs.target-environment }}
+      safety-status:
+        description: 'Safety check status'
+        value: ${{ jobs.extract-targets.outputs.safety-status }}
+
+jobs:
+  extract-targets:
+    name: 'Extract Deployment Targets'
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.extract.outputs.targets }}
+      has-targets: ${{ steps.extract.outputs.has-targets }}
+      terragrunt-targets: ${{ steps.filter.outputs.terragrunt-targets }}
+      kubernetes-targets: ${{ steps.filter.outputs.kubernetes-targets }}
+      has-terragrunt: ${{ steps.filter.outputs.has-terragrunt }}
+      has-kubernetes: ${{ steps.filter.outputs.has-kubernetes }}
+      target-environment: ${{ steps.extract.outputs.target-environment }}
+      safety-status: ${{ steps.extract.outputs.safety-status }}
+    steps:
+      - name: Checkout deploy-actions
+        uses: actions/checkout@v4
+
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          token: ${{ secrets.github-token }}
+          path: source-repo
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+          working-directory: scripts
+
+      - name: Copy configuration from source repository
+        run: |
+          echo "📋 Copying configuration from source repository"
+          echo "Source path: source-repo/${{ inputs.config-path }}"
+          echo "Target path: scripts/shared/workflow-config.yaml"
+          
+          if [ ! -f "source-repo/${{ inputs.config-path }}" ]; then
+            echo "::error::Configuration file not found: ${{ inputs.config-path }}"
+            exit 1
+          fi
+          
+          cp "source-repo/${{ inputs.config-path }}" scripts/shared/workflow-config.yaml
+          echo "✅ Configuration copied successfully"
+
+      - name: Validate configuration
+        working-directory: scripts
+        run: |
+          echo "🔍 Validating configuration file"
+          bundle exec ruby config-manager/bin/config-manager validate
+        env:
+          WORKFLOW_CONFIG_PATH: shared/workflow-config.yaml
+
+      - name: Extract deployment targets
+        id: extract
+        working-directory: scripts
+        run: |
+          echo "🚀 Starting deployment target extraction"
+          echo "Event type: ${{ inputs.event-type }}"
+          echo "Branch: ${{ inputs.branch-name }}"
+          echo "PR: ${{ inputs.pr-number }}"
+          
+          if [ "${{ inputs.event-type }}" = "pull_request" ]; then
+            echo "Processing pull_request event"
+            if [ -z "${{ inputs.pr-number }}" ]; then
+              echo "::error::PR number is required for pull_request events"
+              exit 1
+            fi
+            bundle exec ruby deploy-trigger/bin/trigger from_pr ${{ inputs.pr-number }}
+          else
+            echo "Processing push event"
+            if [ -z "${{ inputs.pr-number }}" ]; then
+              echo "::error::No merged PR found - deployment stopped"
+              echo "has_targets=false" >> $GITHUB_OUTPUT
+              echo "safety_status=no_merged_pr" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            bundle exec ruby deploy-trigger/bin/trigger from_pr ${{ inputs.pr-number }}
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.github-token }}
+          GITHUB_REPOSITORY: ${{ inputs.repository }}
+          WORKFLOW_CONFIG_PATH: shared/workflow-config.yaml
+
+      - name: Parse deployment outputs
+        id: parse
+        run: |
+          echo "📊 Parsing deployment outputs"
+          echo "DEPLOYMENT_TARGETS: ${DEPLOYMENT_TARGETS:-[]}"
+          echo "HAS_TARGETS: ${HAS_TARGETS:-false}"
+          echo "TARGET_ENVIRONMENT: ${TARGET_ENVIRONMENT:-unknown}"
+          echo "SAFETY_STATUS: ${SAFETY_STATUS:-unknown}"
+          
+          # Set outputs from environment variables set by Ruby script
+          echo "targets=${DEPLOYMENT_TARGETS:-[]}" >> $GITHUB_OUTPUT
+          echo "has_targets=${HAS_TARGETS:-false}" >> $GITHUB_OUTPUT
+          echo "target_environment=${TARGET_ENVIRONMENT:-unknown}" >> $GITHUB_OUTPUT
+          echo "safety_status=${SAFETY_STATUS:-unknown}" >> $GITHUB_OUTPUT
+
+      - name: Filter targets by stack
+        id: filter
+        run: |
+          echo "🔍 Filtering targets by stack"
+          
+          # Parse deployment targets and filter by stack type
+          if [ "${DEPLOYMENT_TARGETS}" != "[]" ] && [ -n "${DEPLOYMENT_TARGETS}" ]; then
+            # Use jq to filter targets by stack type
+            TERRAGRUNT_TARGETS=$(echo "${DEPLOYMENT_TARGETS}" | jq -c '[.[] | select(.stack == "terragrunt")]')
+            KUBERNETES_TARGETS=$(echo "${DEPLOYMENT_TARGETS}" | jq -c '[.[] | select(.stack == "kubernetes")]')
+            
+            HAS_TERRAGRUNT=$(echo "${TERRAGRUNT_TARGETS}" | jq -c 'length > 0')
+            HAS_KUBERNETES=$(echo "${KUBERNETES_TARGETS}" | jq -c 'length > 0')
+          else
+            TERRAGRUNT_TARGETS="[]"
+            KUBERNETES_TARGETS="[]"
+            HAS_TERRAGRUNT="false"
+            HAS_KUBERNETES="false"
+          fi
+          
+          echo "terragrunt-targets=${TERRAGRUNT_TARGETS}" >> $GITHUB_OUTPUT
+          echo "kubernetes-targets=${KUBERNETES_TARGETS}" >> $GITHUB_OUTPUT
+          echo "has-terragrunt=${HAS_TERRAGRUNT}" >> $GITHUB_OUTPUT
+          echo "has-kubernetes=${HAS_KUBERNETES}" >> $GITHUB_OUTPUT
+          
+          echo "🎯 Stack filtering results:"
+          echo "  Terragrunt targets: ${TERRAGRUNT_TARGETS}"
+          echo "  Kubernetes targets: ${KUBERNETES_TARGETS}"
+          echo "  Has Terragrunt: ${HAS_TERRAGRUNT}"
+          echo "  Has Kubernetes: ${HAS_KUBERNETES}"
+        env:
+          DEPLOYMENT_TARGETS: ${{ steps.parse.outputs.targets }}
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "📊 Deploy trigger completed"
+          echo "Repository: ${{ inputs.repository }}"
+          echo "Event Type: ${{ inputs.event-type }}"
+          echo "Branch: ${{ inputs.branch-name }}"
+          echo "PR Number: ${{ inputs.pr-number }}"
+          echo "Has Targets: ${{ steps.parse.outputs.has_targets }}"
+          echo "Target Environment: ${{ steps.parse.outputs.target_environment }}"
+          echo "Safety Status: ${{ steps.parse.outputs.safety_status }}"
+          echo "Status: ${{ job.status }}"
