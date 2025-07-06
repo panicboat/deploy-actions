@@ -18,10 +18,13 @@ module Interfaces
         )
 
         set_action_outputs(
-          'deploy_labels' => deploy_labels.map(&:to_s).to_json,
-          'has_changes' => deploy_labels.any?.to_s,
-          'excluded_services' => excluded_services.to_json,
-          'has_excluded_services' => excluded_services.any?.to_s
+          'deploy-labels' => deploy_labels.map(&:to_s).to_json,
+          'labels-added' => labels_added.to_json,
+          'labels-removed' => labels_removed.to_json,
+          'services-detected' => deploy_labels.map(&:service).uniq.to_json,
+          'has-changes' => deploy_labels.any?.to_s,
+          'excluded-services' => excluded_services.to_json,
+          'has-excluded-services' => excluded_services.any?.to_s
         )
 
         puts "🏷️ Label Dispatch Completed"
@@ -179,8 +182,19 @@ module Interfaces
 
       # Set GitHub Actions step outputs
       def set_action_outputs(outputs)
-        outputs.each do |key, value|
-          puts "::set-output name=#{key}::#{value}"
+        github_output = ENV['GITHUB_OUTPUT']
+        if github_output && File.exist?(github_output)
+          # Use new GITHUB_OUTPUT format
+          outputs.each do |key, value|
+            File.open(github_output, 'a') do |file|
+              file.puts "#{key}=#{value}"
+            end
+          end
+        else
+          # Fallback to legacy format for local testing
+          outputs.each do |key, value|
+            puts "::set-output name=#{key}::#{value}"
+          end
         end
       end
     end

@@ -70,6 +70,8 @@ jobs:
     steps:
       - name: Checkout deploy-actions
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.github-token }}
 
       - name: Checkout source repository
         uses: actions/checkout@v4
@@ -90,12 +92,12 @@ jobs:
           echo "📋 Copying configuration from source repository"
           echo "Source path: source-repo/${{ inputs.config-path }}"
           echo "Target path: scripts/shared/workflow-config.yaml"
-          
+
           if [ ! -f "source-repo/${{ inputs.config-path }}" ]; then
             echo "::error::Configuration file not found: ${{ inputs.config-path }}"
             exit 1
           fi
-          
+
           cp "source-repo/${{ inputs.config-path }}" scripts/shared/workflow-config.yaml
           echo "✅ Configuration copied successfully"
 
@@ -115,7 +117,7 @@ jobs:
           echo "Event type: ${{ inputs.event-type }}"
           echo "Branch: ${{ inputs.branch-name }}"
           echo "PR: ${{ inputs.pr-number }}"
-          
+
           if [ "${{ inputs.event-type }}" = "pull_request" ]; then
             echo "Processing pull_request event"
             if [ -z "${{ inputs.pr-number }}" ]; then
@@ -146,7 +148,7 @@ jobs:
           echo "HAS_TARGETS: ${HAS_TARGETS:-false}"
           echo "TARGET_ENVIRONMENT: ${TARGET_ENVIRONMENT:-unknown}"
           echo "SAFETY_STATUS: ${SAFETY_STATUS:-unknown}"
-          
+
           # Set outputs from environment variables set by Ruby script
           echo "targets=${DEPLOYMENT_TARGETS:-[]}" >> $GITHUB_OUTPUT
           echo "has_targets=${HAS_TARGETS:-false}" >> $GITHUB_OUTPUT
@@ -157,13 +159,13 @@ jobs:
         id: filter
         run: |
           echo "🔍 Filtering targets by stack"
-          
+
           # Parse deployment targets and filter by stack type
           if [ "${DEPLOYMENT_TARGETS}" != "[]" ] && [ -n "${DEPLOYMENT_TARGETS}" ]; then
             # Use jq to filter targets by stack type
             TERRAGRUNT_TARGETS=$(echo "${DEPLOYMENT_TARGETS}" | jq -c '[.[] | select(.stack == "terragrunt")]')
             KUBERNETES_TARGETS=$(echo "${DEPLOYMENT_TARGETS}" | jq -c '[.[] | select(.stack == "kubernetes")]')
-            
+
             HAS_TERRAGRUNT=$(echo "${TERRAGRUNT_TARGETS}" | jq -c 'length > 0')
             HAS_KUBERNETES=$(echo "${KUBERNETES_TARGETS}" | jq -c 'length > 0')
           else
@@ -172,12 +174,12 @@ jobs:
             HAS_TERRAGRUNT="false"
             HAS_KUBERNETES="false"
           fi
-          
+
           echo "terragrunt-targets=${TERRAGRUNT_TARGETS}" >> $GITHUB_OUTPUT
           echo "kubernetes-targets=${KUBERNETES_TARGETS}" >> $GITHUB_OUTPUT
           echo "has-terragrunt=${HAS_TERRAGRUNT}" >> $GITHUB_OUTPUT
           echo "has-kubernetes=${HAS_KUBERNETES}" >> $GITHUB_OUTPUT
-          
+
           echo "🎯 Stack filtering results:"
           echo "  Terragrunt targets: ${TERRAGRUNT_TARGETS}"
           echo "  Kubernetes targets: ${KUBERNETES_TARGETS}"

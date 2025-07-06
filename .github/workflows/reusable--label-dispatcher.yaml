@@ -49,12 +49,12 @@ jobs:
           echo "📋 Copying configuration from source repository"
           echo "Source path: source-repo/${{ inputs.config-path }}"
           echo "Target path: scripts/shared/workflow-config.yaml"
-          
+
           if [ ! -f "source-repo/${{ inputs.config-path }}" ]; then
             echo "::error::Configuration file not found: ${{ inputs.config-path }}"
             exit 1
           fi
-          
+
           cp "source-repo/${{ inputs.config-path }}" scripts/shared/workflow-config.yaml
           echo "✅ Configuration copied successfully"
 
