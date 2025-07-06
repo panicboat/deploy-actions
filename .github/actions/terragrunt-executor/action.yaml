@@ -1,0 +1,152 @@
+name: 'Terragrunt Executor'
+description: 'Execute terragrunt plan or apply operations with AWS OIDC authentication'
+
+inputs:
+  github-token:
+    description: 'GitHub token with required permissions'
+    required: true
+  project-name:
+    description: 'Project name for terragrunt execution'
+    required: true
+  environment:
+    description: 'Environment name (develop, staging, production, etc.)'
+    required: true
+  action-type:
+    description: 'Action type: plan or apply'
+    required: true
+  plan-iam-role:
+    description: 'IAM role for plan operations'
+    required: true
+  apply-iam-role:
+    description: 'IAM role for apply operations'
+    required: true
+  aws-region:
+    description: 'AWS region'
+    required: true
+  working-directory:
+    description: 'Working directory for terragrunt execution'
+    required: true
+  repository:
+    description: 'Repository name (owner/repo)'
+    required: true
+
+outputs:
+  execution-status:
+    description: 'Execution status (success/failure)'
+    value: ${{ steps.parse-results.outputs.status }}
+  execution-output:
+    description: 'Execution output'
+    value: ${{ steps.parse-results.outputs.output }}
+  is-failed:
+    description: 'Whether execution failed'
+    value: ${{ steps.parse-results.outputs.is-failed }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout source repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.repository }}
+        token: ${{ inputs.github-token }}
+
+    - name: Validate working directory
+      shell: bash
+      run: |
+        echo "🔍 Validating working directory: ${{ inputs.working-directory }}"
+        echo "Repository: ${{ inputs.repository }}"
+        echo "Project: ${{ inputs.project-name }}"
+        echo "Environment: ${{ inputs.environment }}"
+        echo "Action Type: ${{ inputs.action-type }}"
+        
+        if [ ! -d "${{ inputs.working-directory }}" ]; then
+          echo "::error::Working directory '${{ inputs.working-directory }}' does not exist"
+          echo "This may indicate a configuration issue or the service structure has changed."
+          echo "Available directories:"
+          find . -type d -name "*terragrunt*" -o -name "*${{ inputs.project-name }}*" | head -10
+          exit 1
+        fi
+        
+        if [ ! -f "${{ inputs.working-directory }}/terragrunt.hcl" ]; then
+          echo "::warning::No terragrunt.hcl found in ${{ inputs.working-directory }}"
+          echo "This may be expected depending on the project structure."
+        fi
+        
+        echo "✅ Working directory validated: ${{ inputs.working-directory }}"
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.action-type == 'plan' && inputs.plan-iam-role || inputs.apply-iam-role }}
+        aws-region: ${{ inputs.aws-region }}
+        role-session-name: GitHubActions-Terragrunt-${{ inputs.action-type }}-${{ inputs.environment }}
+        audience: sts.amazonaws.com
+
+    - name: Verify AWS credentials
+      shell: bash
+      run: |
+        echo "🔐 Verifying AWS credentials"
+        echo "Role: ${{ inputs.action-type == 'plan' && inputs.plan-iam-role || inputs.apply-iam-role }}"
+        echo "Region: ${{ inputs.aws-region }}"
+        echo "Session: GitHubActions-Terragrunt-${{ inputs.action-type }}-${{ inputs.environment }}"
+        aws sts get-caller-identity
+        echo "✅ AWS credentials configured successfully"
+
+    - name: Execute Terragrunt
+      id: terragrunt
+      uses: gruntwork-io/terragrunt-action@v2
+      with:
+        tf_version: '1.12.2'
+        tg_version: '0.81.6'
+        tg_command: ${{ inputs.action-type }}
+        tg_add_approve: ${{ inputs.action-type == 'apply' && '1' || '' }}
+        tg_dir: ${{ inputs.working-directory }}
+      continue-on-error: true
+      env:
+        TF_INPUT: false
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        AWS_DEFAULT_REGION: ${{ inputs.aws-region }}
+
+    - name: Parse execution results
+      if: always()
+      id: parse-results
+      shell: bash
+      run: |
+        echo "📊 Parsing Terragrunt execution results"
+        echo "Outcome: ${{ steps.terragrunt.outcome }}"
+        echo "Action Type: ${{ inputs.action-type }}"
+        
+        # Determine status
+        if [ "${{ steps.terragrunt.outcome }}" = "success" ]; then
+          STATUS="success"
+          IS_FAILED="false"
+        else
+          STATUS="failure"
+          IS_FAILED="true"
+        fi
+        
+        # Get output (truncate if too long)
+        OUTPUT="${{ steps.terragrunt.outputs.tg_action_output }}"
+        if [ ${#OUTPUT} -gt 10000 ]; then
+          OUTPUT="${OUTPUT:0:10000}... (truncated)"
+        fi
+        
+        # Set outputs
+        echo "status=$STATUS" >> $GITHUB_OUTPUT
+        echo "is-failed=$IS_FAILED" >> $GITHUB_OUTPUT
+        echo "output=$OUTPUT" >> $GITHUB_OUTPUT
+        
+        echo "📊 Execution Summary:"
+        echo "Status: $STATUS"
+        echo "Action: ${{ inputs.action-type }}"
+        echo "Project: ${{ inputs.project-name }}"
+        echo "Environment: ${{ inputs.environment }}"
+        echo "Output Length: ${#OUTPUT} characters"
+        
+        if [ "$IS_FAILED" = "true" ]; then
+          echo "❌ Terragrunt execution failed"
+          echo "Output preview:"
+          echo "$OUTPUT" | head -10
+        else
+          echo "✅ Terragrunt execution completed successfully"
+        fi
