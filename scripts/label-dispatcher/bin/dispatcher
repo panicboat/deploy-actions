@@ -1,0 +1,131 @@
+#!/usr/bin/env ruby
+
+# CLI interface for label dispatcher functionality
+# Provides commands for detecting and managing deployment labels
+
+require_relative '../application'
+require 'thor'
+
+class LabelDispatcherCLI < Thor
+  desc "dispatch PR_NUMBER", "Detect changed services and update PR labels"
+
+  def dispatch(pr_number = nil)
+    controller = LabelDispatcherContainer.resolve(:label_dispatcher_controller)
+
+    if ENV['GITHUB_ACTIONS'] && !pr_number
+      puts "::error::PR number is required in GitHub Actions environment"
+      exit 1
+    end
+
+    if pr_number
+      puts "🤖 Fetching base and head refs from GitHub API for PR ##{pr_number}"
+    end
+
+    controller.dispatch_labels(pr_number: pr_number&.to_i)
+  end
+
+  desc "test", "Test label detection without PR interaction"
+  option :base_ref, desc: "Base git reference for comparison"
+  option :head_ref, desc: "Head git reference for comparison"
+
+  def test
+    controller = LabelDispatcherContainer.resolve(:label_dispatcher_controller)
+
+    # Set default values for testing
+    base_ref = options[:base_ref]
+    head_ref = options[:head_ref]
+
+    # If no refs provided, test with current working directory changes
+    if base_ref.nil? && head_ref.nil?
+      puts "🧪 Testing with current working directory changes"
+      puts "Tip: Use --base-ref and --head-ref to test with specific git references"
+    else
+      puts "🧪 Testing with base: #{base_ref || 'nil'}, head: #{head_ref || 'nil'}"
+    end
+
+    controller.test_detection(
+      base_ref: base_ref,
+      head_ref: head_ref
+    )
+  end
+
+  desc "simulate PR_NUMBER", "Simulate GitHub Actions environment locally"
+
+  def simulate(pr_number)
+    controller = LabelDispatcherContainer.resolve(:label_dispatcher_controller)
+    controller.simulate_github_actions(pr_number: pr_number.to_i)
+  end
+
+  desc "auto PR_NUMBER", "Fully automatic label dispatch using API information"
+
+  def auto(pr_number)
+    puts "🤖 The 'auto' command is deprecated. Use 'dispatch' instead."
+    puts "Redirecting to dispatch command..."
+    dispatch(pr_number)
+  end
+
+  desc "validate_env", "Validate environment configuration"
+
+  def validate_env
+    required_vars = %w[GITHUB_TOKEN GITHUB_REPOSITORY]
+    missing_vars = required_vars.reject { |var| ENV[var] }
+
+    if missing_vars.any?
+      puts "::error::Missing required environment variables: #{missing_vars.join(', ')}"
+      exit 1
+    end
+
+    puts "✅ Environment is properly configured"
+    puts "Repository: #{ENV['GITHUB_REPOSITORY']}"
+    puts "Token present: #{ENV['GITHUB_TOKEN'] ? 'Yes' : 'No'}"
+
+    # Test GitHub API connection
+    begin
+      container = LabelDispatcherContainer.configure
+      if container[:github_client]
+        puts "✅ GitHub API client initialized successfully"
+      else
+        puts "⚠️  GitHub API client not available (normal for local testing without credentials)"
+      end
+    rescue => error
+      puts "❌ GitHub API client initialization failed: #{error.message}"
+    end
+  end
+
+  desc "help_usage", "Show usage examples and tips"
+
+  def help_usage
+    puts <<~USAGE
+      📋 Label Dispatcher Usage Examples
+
+      🚀 Basic Usage:
+      # Automatic mode - fetches everything from GitHub API
+      #{File.basename($0)} dispatch PR_NUMBER
+
+      🧪 Testing:
+      # Test with current branch
+      #{File.basename($0)} test
+
+      # Test with specific refs
+      #{File.basename($0)} test --base-ref=main --head-ref=feature/auth
+
+      🎭 Simulation:
+      # Simulate GitHub Actions environment
+      #{File.basename($0)} simulate PR_NUMBER
+
+      ⚙️  Environment:
+      # Check environment setup
+      #{File.basename($0)} validate_env
+
+      💡 Tips:
+      - The dispatch command automatically fetches base/head refs from GitHub API
+      - Test mode works without GitHub API credentials
+      - All commands work from both shared/ and label-dispatcher/ directories
+
+      🔗 GitHub Actions Integration:
+      The workflow will use: #{File.basename($0)} dispatch ${{ github.event.pull_request.number }}
+    USAGE
+  end
+end
+
+LabelDispatcherCLI.start(ARGV)

@@ -1,0 +1,47 @@
+name: 'Test Label Dispatcher (Temporary)'
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-mode:
+        description: 'Test mode'
+        required: false
+        default: 'local'
+
+jobs:
+  test-local:
+    name: 'Test Local Scripts'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout deploy-actions
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+          working-directory: scripts
+
+      - name: Test config manager
+        working-directory: scripts
+        run: |
+          echo "🧪 Testing config manager"
+          bundle exec ruby config-manager/bin/config-manager template > test-config.yaml
+          WORKFLOW_CONFIG_PATH=test-config.yaml bundle exec ruby config-manager/bin/config-manager validate
+
+      - name: Test label dispatcher (dry run)
+        working-directory: scripts
+        run: |
+          echo "🧪 Testing label dispatcher (without GitHub API)"
+          bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=feature/test || true
+        env:
+          WORKFLOW_CONFIG_PATH: test-config.yaml
+
+      - name: Test deploy trigger (dry run)  
+        working-directory: scripts
+        run: |
+          echo "🧪 Testing deploy trigger (without GitHub API)"
+          bundle exec ruby deploy-trigger/bin/trigger test develop || true
+        env:
+          WORKFLOW_CONFIG_PATH: test-config.yaml

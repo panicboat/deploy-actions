@@ -1,0 +1,228 @@
+#!/usr/bin/env ruby
+
+# CLI interface for configuration management functionality
+# Provides commands for validating and managing workflow configuration
+
+require_relative '../application'
+require 'thor'
+
+class ConfigManagerCLI < Thor
+  desc "validate", "Validate workflow configuration file"
+
+  def validate
+    controller = ConfigManagerContainer.resolve(:config_manager_controller)
+    controller.validate_configuration
+  end
+
+  desc "show", "Show parsed configuration in readable format"
+
+  def show
+    controller = ConfigManagerContainer.resolve(:config_manager_controller)
+    controller.show_configuration
+  end
+
+  desc "test SERVICE_NAME ENVIRONMENT", "Test service configuration for specific service and environment"
+
+  def test(service_name, environment)
+    controller = ConfigManagerContainer.resolve(:config_manager_controller)
+    controller.test_service_configuration(
+      service_name: service_name,
+      environment: environment
+    )
+  end
+
+  desc "diagnostics", "Run comprehensive diagnostic checks"
+
+  def diagnostics
+    controller = ConfigManagerContainer.resolve(:config_manager_controller)
+    controller.run_diagnostics
+  end
+
+  desc "template", "Generate configuration template with examples"
+
+  def template
+    controller = ConfigManagerContainer.resolve(:config_manager_controller)
+    controller.generate_config_template
+  end
+
+  desc "check_file", "Check if configuration file exists and is readable"
+
+  def check_file
+    config_path = 'shared/workflow-config.yaml'
+
+    if File.exist?(config_path)
+      puts "✅ Configuration file exists: #{config_path}"
+
+      begin
+        content = File.read(config_path)
+        puts "✅ File is readable (#{content.length} bytes)"
+
+        require 'yaml'
+        YAML.load(content)
+        puts "✅ File contains valid YAML"
+      rescue => error
+        puts "❌ File is not valid YAML: #{error.message}"
+        exit 1
+      end
+    else
+      puts "❌ Configuration file not found: #{config_path}"
+      puts "   Use 'config-manager template' to generate a template"
+      exit 1
+    end
+  end
+
+  desc "environments", "List all configured environments"
+
+  def environments
+    begin
+      controller = ConfigManagerContainer.resolve(:config_manager_controller)
+      config_client = ConfigManagerContainer.resolve(:config_client)
+      config = config_client.load_workflow_config
+
+      puts "🌍 Configured Environments:"
+      config.environments.each do |env_name, env_config|
+        puts "  #{env_name}:"
+        puts "    AWS Region: #{env_config['aws_region']}"
+        puts "    IAM Plan Role: #{env_config['iam_role_plan']}"
+        puts "    IAM Apply Role: #{env_config['iam_role_apply']}"
+        puts ""
+      end
+    rescue => error
+      puts "❌ Failed to load environments: #{error.message}"
+      exit 1
+    end
+  end
+
+  desc "services", "List all configured services"
+
+  def services
+    begin
+      config_client = ConfigManagerContainer.resolve(:config_client)
+      config = config_client.load_workflow_config
+
+      puts "🔧 Configured Services:"
+      if config.services.empty?
+        puts "  No services explicitly configured"
+        puts "  Services will be auto-discovered from directory structure"
+      else
+        automated_services = []
+        excluded_services = []
+
+        config.services.each do |service_name, service_config|
+          if service_config['exclude_from_automation'] == true
+            excluded_services << { name: service_name, config: service_config }
+          else
+            automated_services << { name: service_name, config: service_config }
+          end
+        end
+
+        if automated_services.any?
+          puts "  ✅ Automated Services (#{automated_services.length}):"
+          automated_services.each do |service|
+            puts "    #{service[:name]}:"
+            if service[:config]['directory_conventions']
+              service[:config]['directory_conventions'].each do |stack, pattern|
+                puts "      #{stack}: #{pattern}"
+              end
+            else
+              puts "      Using default directory conventions"
+            end
+          end
+          puts ""
+        end
+
+        if excluded_services.any?
+          puts "  ⚠️  Excluded Services (#{excluded_services.length}):"
+          excluded_services.each do |service|
+            exclusion_config = service[:config]['exclusion_config'] || {}
+            reason = exclusion_config['reason'] || 'No reason specified'
+            type = exclusion_config['type'] || 'unspecified'
+
+            puts "    #{service[:name]} (#{type}):"
+            puts "      Reason: #{reason}"
+            if service[:config]['directory_conventions']
+              puts "      Directory conventions: configured (for future migration)"
+            else
+              puts "      Directory conventions: not configured"
+            end
+          end
+        end
+      end
+    rescue => error
+      puts "❌ Failed to load services: #{error.message}"
+      exit 1
+    end
+  end
+
+  desc "excluded_services", "List services excluded from automation"
+
+  def excluded_services
+    begin
+      config_client = ConfigManagerContainer.resolve(:config_client)
+      config = config_client.load_workflow_config
+
+      excluded_services = config.services.select { |_, service_config|
+        service_config['exclude_from_automation'] == true
+      }
+
+      if excluded_services.empty?
+        puts "✅ No services are excluded from automation"
+        return
+      end
+
+      puts "⚠️  Excluded Services (#{excluded_services.length}):"
+
+      # Group by exclusion type
+      by_type = excluded_services.group_by { |_, service_config|
+        service_config.dig('exclusion_config', 'type') || 'unspecified'
+      }
+
+      by_type.each do |type, services|
+        puts "  #{type.capitalize} (#{services.length}):"
+        services.each do |service_name, service_config|
+          exclusion_config = service_config['exclusion_config'] || {}
+          reason = exclusion_config['reason'] || 'No reason specified'
+
+          puts "    - #{service_name}: #{reason}"
+        end
+        puts ""
+      end
+
+      puts "📋 Total excluded: #{excluded_services.length} services"
+      puts "📋 Total configured: #{config.services.length} services"
+      puts "📋 Automation coverage: #{((config.services.length - excluded_services.length).to_f / config.services.length * 100).round(1)}%"
+
+    rescue => error
+      puts "❌ Failed to load excluded services: #{error.message}"
+      exit 1
+    end
+  end
+
+  desc "safety_checks", "Show safety check configuration"
+
+  def safety_checks
+    begin
+      config_client = ConfigManagerContainer.resolve(:config_client)
+      config = config_client.load_workflow_config
+
+      safety_config = config.raw_config['safety_checks'] || {}
+
+      puts "🚨 Safety Check Configuration:"
+      puts "  Require Merged PR: #{safety_config['require_merged_pr'] || 'not configured'}"
+      puts "  Fail on Missing PR: #{safety_config['fail_on_missing_pr'] || 'not configured'}"
+      puts "  Max Retry Attempts: #{safety_config['max_retry_attempts'] || 'not configured'}"
+      puts "  Allowed Direct Push Branches: #{(safety_config['allowed_direct_push_branches'] || []).join(', ')}"
+
+      if safety_config['require_merged_pr']
+        puts "\n✅ Safety checks are enabled - deployments require PR workflow"
+      else
+        puts "\n⚠️  Safety checks are disabled - direct pushes may trigger deployments"
+      end
+    rescue => error
+      puts "❌ Failed to load safety configuration: #{error.message}"
+      exit 1
+    end
+  end
+end
+
+ConfigManagerCLI.start(ARGV)
