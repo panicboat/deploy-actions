@@ -110,47 +110,48 @@ runs:
     - name: Parse execution results
       if: always()
       id: parse-results
-      shell: bash
-      run: |
-        echo "📊 Parsing Terragrunt execution results"
-        echo "Outcome: ${{ steps.terragrunt.outcome }}"
-        echo "Action Type: ${{ inputs.action-type }}"
-        
-        # Determine status
-        if [ "${{ steps.terragrunt.outcome }}" = "success" ]; then
-          STATUS="success"
-          IS_FAILED="false"
-        else
-          STATUS="failure"
-          IS_FAILED="true"
-        fi
-        
-        # Get output (truncate if too long)
-        OUTPUT="${{ steps.terragrunt.outputs.tg_action_output }}"
-        if [ ${#OUTPUT} -gt 10000 ]; then
-          OUTPUT="${OUTPUT:0:10000}... (truncated)"
-        fi
-        
-        # Set outputs using multiline format to handle special characters
-        echo "status=$STATUS" >> $GITHUB_OUTPUT
-        echo "is-failed=$IS_FAILED" >> $GITHUB_OUTPUT
-        {
-          echo "output<<EOF"
-          echo "$OUTPUT"
-          echo "EOF"
-        } >> $GITHUB_OUTPUT
-        
-        echo "📊 Execution Summary:"
-        echo "Status: $STATUS"
-        echo "Action: ${{ inputs.action-type }}"
-        echo "Project: ${{ inputs.project-name }}"
-        echo "Environment: ${{ inputs.environment }}"
-        echo "Output Length: ${#OUTPUT} characters"
-        
-        if [ "$IS_FAILED" = "true" ]; then
-          echo "❌ Terragrunt execution failed"
-          echo "Output preview:"
-          echo "$OUTPUT" | head -10
-        else
-          echo "✅ Terragrunt execution completed successfully"
-        fi
+      uses: actions/github-script@v7
+      with:
+        script: |
+          console.log('📊 Parsing Terragrunt execution results');
+          console.log('Exit Code: ${{ steps.terragrunt.outputs.tg_action_exit_code }}');
+          console.log('Action Type: ${{ inputs.action-type }}');
+          
+          // Determine status and failure state using exit code
+          const exitCode = '${{ steps.terragrunt.outputs.tg_action_exit_code }}';
+          const status = exitCode === '0' ? '✅ Success' : `❌ Failed (exit code: ${exitCode})`;
+          const isFailed = exitCode !== '0' ? 'true' : 'false';
+          
+          // URL decode the content
+          let output;
+          try {
+            const encoded = `${{ steps.terragrunt.outputs.tg_action_output }}`.trim();
+            
+            if (!encoded) {
+              output = '${{ inputs.action-type }} execution completed. See workflow logs for detailed output.';
+            } else {
+              // URL decode the content
+              const decoded = decodeURIComponent(encoded);
+              
+              // Truncate if too long
+              const maxLength = 30000;
+              if (decoded.length > maxLength) {
+                output = decoded.substring(0, maxLength) + '... (output truncated, see workflow logs for full details)';
+              } else {
+                output = decoded;
+              }
+            }
+          } catch (error) {
+            output = `Error processing output: ${error.message}. See workflow logs for detailed output.`;
+          }
+          
+          // Set outputs
+          core.setOutput('status', status);
+          core.setOutput('is-failed', isFailed);
+          core.setOutput('output', output);
+          
+          console.log('📊 Execution Summary:');
+          console.log(`Status: ${status}`);
+          console.log('Action: ${{ inputs.action-type }}');
+          console.log('Project: ${{ inputs.project-name }}');
+          console.log('Environment: ${{ inputs.environment }}');
