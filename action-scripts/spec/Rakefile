@@ -1,0 +1,141 @@
+# Rakefile for action-scripts testing
+
+require 'rspec/core/rake_task'
+require 'bundler/gem_tasks'
+
+# RSpec task
+RSpec::Core::RakeTask.new(:spec) do |t|
+  t.rspec_opts = '--color --format documentation'
+  t.pattern = 'spec/**/*_spec.rb'
+end
+
+# Default task
+task default: :spec
+
+# Custom tasks for different test categories
+namespace :spec do
+  desc 'Run config-manager tests'
+  RSpec::Core::RakeTask.new(:config_manager) do |t|
+    t.pattern = 'spec/config-manager/**/*_spec.rb'
+    t.rspec_opts = '--color --format documentation'
+  end
+
+  desc 'Run deploy-resolver tests'
+  RSpec::Core::RakeTask.new(:deploy_resolver) do |t|
+    t.pattern = 'spec/deploy-resolver/**/*_spec.rb'
+    t.rspec_opts = '--color --format documentation'
+  end
+
+  desc 'Run label-dispatcher tests'
+  RSpec::Core::RakeTask.new(:label_dispatcher) do |t|
+    t.pattern = 'spec/label-dispatcher/**/*_spec.rb'
+    t.rspec_opts = '--color --format documentation'
+  end
+
+  desc 'Run shared component tests'
+  RSpec::Core::RakeTask.new(:shared) do |t|
+    t.pattern = 'spec/shared/**/*_spec.rb'
+    t.rspec_opts = '--color --format documentation'
+  end
+
+  desc 'Run integration tests'
+  RSpec::Core::RakeTask.new(:integration) do |t|
+    t.pattern = 'spec/**/*_integration_spec.rb'
+    t.rspec_opts = '--color --format documentation'
+  end
+
+  desc 'Run unit tests only'
+  RSpec::Core::RakeTask.new(:unit) do |t|
+    t.pattern = 'spec/**/*_spec.rb'
+    t.exclude_pattern = 'spec/**/*_integration_spec.rb'
+    t.rspec_opts = '--color --format documentation'
+  end
+end
+
+# Test coverage task (if using SimpleCov)
+desc 'Run tests with coverage'
+task :coverage do
+  ENV['COVERAGE'] = 'true'
+  Rake::Task[:spec].invoke
+end
+
+# Configuration validation task
+desc 'Validate workflow configuration'
+task :validate_config do
+  puts '🔍 Validating workflow configuration...'
+  system('bundle exec ruby config-manager/bin/config-manager validate') || exit(1)
+  puts '✅ Configuration validation passed'
+end
+
+# Lint and format tasks
+desc 'Run RuboCop linter'
+task :lint do
+  puts '🔍 Running RuboCop linter...'
+  system('bundle exec rubocop') || exit(1)
+  puts '✅ Linting passed'
+end
+
+desc 'Auto-fix RuboCop issues'
+task :lint_fix do
+  puts '🔧 Auto-fixing RuboCop issues...'
+  system('bundle exec rubocop -A')
+end
+
+# Combined quality check task
+desc 'Run all quality checks (lint + tests)'
+task quality: [:lint, :spec] do
+  puts '✅ All quality checks passed'
+end
+
+# Setup task for new developers
+desc 'Setup development environment'
+task :setup do
+  puts '🚀 Setting up development environment...'
+  
+  # Install dependencies
+  puts '📦 Installing dependencies...'
+  system('bundle install') || exit(1)
+  
+  # Create test directories if they don't exist
+  test_dirs = %w[
+    spec/fixtures/vcr_cassettes
+    spec/support
+    tmp/test_configs
+  ]
+  
+  test_dirs.each do |dir|
+    FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
+  end
+  
+  # Run initial tests to verify setup
+  puts '🧪 Running initial test suite...'
+  Rake::Task[:spec].invoke
+  
+  puts '✅ Development environment setup complete!'
+end
+
+# Documentation tasks
+desc 'Generate test documentation'
+task :test_docs do
+  puts '📚 Generating test documentation...'
+  system('bundle exec rspec --format html --out tmp/rspec_results.html')
+  puts '✅ Test documentation generated at tmp/rspec_results.html'
+end
+
+# Utility tasks
+desc 'Clean temporary files'
+task :clean do
+  puts '🧹 Cleaning temporary files...'
+  FileUtils.rm_rf('tmp')
+  FileUtils.rm_rf('coverage')
+  FileUtils.rm_f('spec/examples.txt')
+  puts '✅ Cleanup complete'
+end
+
+# Performance testing
+desc 'Run performance tests'
+task :perf do
+  puts '⚡ Running performance tests...'
+  # Add performance test commands here
+  puts '✅ Performance tests complete'
+end

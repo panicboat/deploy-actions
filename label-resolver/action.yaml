@@ -1,0 +1,149 @@
+name: 'Deploy Resolver'
+description: 'Resolve deployment targets from PR labels and branch information'
+author: 'panicboat'
+
+branding:
+  icon: 'git-pull-request'
+  color: 'blue'
+
+inputs:
+  action-type:
+    description: 'Action type: plan or apply'
+    required: true
+  pr-number:
+    description: 'PR number (from prepare job output or event)'
+    required: false
+  repository:
+    description: 'Repository name (owner/repo)'
+    required: true
+  github-token:
+    description: 'GitHub token with appropriate permissions'
+    required: true
+  config-path:
+    description: 'Path to workflow configuration file'
+    required: false
+    default: 'workflow-config.yaml'
+  deploy-actions-repository:
+    description: 'Deploy actions repository to use'
+    required: false
+    default: 'panicboat/deploy-actions'
+
+outputs:
+  targets:
+    description: 'Deployment targets JSON'
+    value: ${{ steps.extract.outputs.targets }}
+  has-targets:
+    description: 'Whether targets found'
+    value: ${{ steps.extract.outputs.has-targets }}
+  target-environment:
+    description: 'Target environment'
+    value: ${{ steps.extract.outputs.target-environment }}
+  safety-status:
+    description: 'Safety check status'
+    value: ${{ steps.extract.outputs.safety-status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout deploy-actions
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.deploy-actions-repository }}
+        path: deploy-actions
+
+    - name: Checkout source repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.repository }}
+        token: ${{ inputs.github-token }}
+        path: source-repo
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.4'
+        bundler-cache: true
+        working-directory: deploy-actions/action-scripts
+
+    - name: Copy configuration from source repository
+      shell: bash
+      run: |
+        echo "📋 Copying configuration from source repository"
+        echo "Source path: source-repo/${{ inputs.config-path }}"
+        echo "Target path: deploy-actions/action-scripts/workflow-config.yaml"
+
+        if [ ! -f "source-repo/${{ inputs.config-path }}" ]; then
+          echo "::error::Configuration file not found: ${{ inputs.config-path }}"
+          exit 1
+        fi
+
+        cp "source-repo/${{ inputs.config-path }}" deploy-actions/action-scripts/workflow-config.yaml
+        echo "✅ Configuration copied successfully"
+
+    - name: Validate configuration
+      shell: bash
+      working-directory: deploy-actions/action-scripts
+      run: |
+        echo "🔍 Validating configuration file"
+        bundle exec ruby config-manager/bin/config-manager validate
+      env:
+        WORKFLOW_CONFIG_PATH: workflow-config.yaml
+
+    - name: Resolve deployment targets
+      id: extract
+      shell: bash
+      working-directory: deploy-actions/action-scripts
+      run: |
+        echo "🚀 Starting deployment target resolution"
+        echo "Action type: ${{ inputs.action-type }}"
+        echo "PR: ${{ inputs.pr-number }}"
+
+        if [ "${{ inputs.action-type }}" = "plan" ]; then
+          echo "Processing plan event"
+          if [ -z "${{ inputs.pr-number }}" ]; then
+            echo "::error::PR number is required for plan events"
+            exit 1
+          fi
+          bundle exec ruby deploy-resolver/bin/resolver resolve ${{ inputs.pr-number }}
+        else
+          echo "Processing apply event"
+          if [ -z "${{ inputs.pr-number }}" ]; then
+            echo "::error::No merged PR found - deployment stopped"
+            echo "has-targets=false" >> $GITHUB_OUTPUT
+            echo "safety-status=no_merged_pr" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          bundle exec ruby deploy-resolver/bin/resolver resolve ${{ inputs.pr-number }}
+        fi
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ inputs.repository }}
+        WORKFLOW_CONFIG_PATH: workflow-config.yaml
+        SOURCE_REPO_PATH: ${{ github.workspace }}/source-repo
+
+    - name: Parse deployment outputs
+      id: parse
+      shell: bash
+      run: |
+        echo "📊 Parsing deployment outputs"
+        echo "DEPLOYMENT_TARGETS: ${DEPLOYMENT_TARGETS:-[]}"
+        echo "HAS_TARGETS: ${HAS_TARGETS:-false}"
+        echo "TARGET_ENVIRONMENT: ${TARGET_ENVIRONMENT:-unknown}"
+        echo "SAFETY_STATUS: ${SAFETY_STATUS:-unknown}"
+      env:
+        DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
+        HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
+        TARGET_ENVIRONMENT: ${{ steps.extract.outputs.target-environment }}
+        SAFETY_STATUS: ${{ steps.extract.outputs.safety-status }}
+
+    - name: Report results
+      if: always()
+      shell: bash
+      run: |
+        echo "📊 Deploy resolver completed"
+        echo "Repository: ${{ inputs.repository }}"
+        echo "Action type: ${{ inputs.action-type }}"
+        echo "PR Number: ${{ inputs.pr-number }}"
+        echo "Has Targets: ${{ steps.extract.outputs.has-targets }}"
+        echo "Target Environment: ${{ steps.extract.outputs.target-environment }}"
+        echo "Safety Status: ${{ steps.extract.outputs.safety-status }}"
