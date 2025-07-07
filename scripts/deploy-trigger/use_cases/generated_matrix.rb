@@ -18,32 +18,22 @@ module UseCases
         deployment_targets = []
 
         deploy_labels.each do |deploy_label|
-          puts "🏷️  Processing deploy label: #{deploy_label.service} (valid: #{deploy_label.valid?})"
           next unless deploy_label.valid?
 
           # Check if service is excluded from automation
           if service_excluded_from_automation?(deploy_label.service, config)
-            puts "⚠️  Skipping matrix generation for excluded service: #{deploy_label.service}"
             next
           end
 
           # Get available stacks by checking directory existence
           available_stacks = detect_available_stacks(deploy_label.service, target_environment, config)
-          puts "📦 Available stacks for #{deploy_label.service}: #{available_stacks}"
 
           # Generate targets for each available stack
           available_stacks.each do |stack|
             target = generate_deployment_target(deploy_label, target_environment, stack, config)
-            if target&.valid?
-              puts "✅ Generated deployment target: #{deploy_label.service}:#{target_environment}:#{stack}"
-              deployment_targets << target
-            else
-              puts "❌ Failed to generate target for: #{deploy_label.service}:#{target_environment}:#{stack}"
-            end
+            deployment_targets << target if target&.valid?
           end
         end
-
-        puts "📊 Matrix generation completed: #{deployment_targets.length} targets"
         
         Entities::Result.success(
           deployment_targets: deployment_targets,
@@ -240,78 +230,7 @@ module UseCases
           puts "❌ SOURCE_REPO_PATH not set or empty, using default .git search"
         end
         
-        # Composite action fallback: try source-repo first, then other paths
-        puts "🔍 Trying composite action fallback paths..."
-        
-        # First priority: look for source-repo specifically
-        # Based on GitHub Actions logs: /home/runner/work/monorepo/monorepo/source-repo
-        # From script location: /home/runner/work/monorepo/monorepo/deploy-actions/scripts/deploy-trigger/use_cases/
-        
-        # Try absolute path first (inferred from current working directory)
-        current_pwd = Dir.pwd  # /home/runner/work/monorepo/monorepo/deploy-actions/scripts
-        workspace_root = File.dirname(File.dirname(current_pwd))  # Go up 2 levels to get workspace root
-        absolute_source_repo = File.join(workspace_root, 'source-repo')
-        puts "🔍 Trying absolute source-repo path: #{absolute_source_repo}"
-        
-        if File.directory?(absolute_source_repo)
-          service_path = File.join(absolute_source_repo, 'nignx-app')
-          if File.directory?(service_path)
-            puts "✅ Found service directory at absolute path: #{service_path}"
-            return absolute_source_repo
-          end
-        end
-        
-        # Fallback to relative paths
-        source_repo_paths = [
-          '../../../source-repo',      # This should be the correct one
-          '../../../../source-repo',   # Try one more level up
-          '../../source-repo', 
-          '../source-repo'
-        ]
-        
-        source_repo_paths.each do |fallback_path|
-          test_path = File.expand_path(fallback_path, __dir__)
-          puts "🔍 Testing source-repo path: #{test_path}"
-          
-          if File.directory?(test_path)
-            # Check if it contains nignx-app directory (service existence check)
-            service_path = File.join(test_path, 'nignx-app')
-            if File.directory?(service_path)
-              puts "✅ Found service directory at: #{service_path}, using as repo root: #{test_path}"
-              return test_path
-            end
-            
-            # Also check for .git as secondary validation
-            git_path = File.join(test_path, '.git')
-            if File.directory?(git_path) || File.file?(git_path)
-              puts "✅ Found git repository at source-repo path: #{test_path}"
-              return test_path
-            end
-          end
-        end
-        
-        # Second priority: check parent directories for actual workspace root
-        workspace_paths = [
-          '../../../..',  # Go up to runner workspace root
-          '../../..'      # Alternative workspace path
-        ]
-        
-        workspace_paths.each do |fallback_path|
-          test_path = File.expand_path(fallback_path, __dir__)
-          puts "🔍 Testing workspace path: #{test_path}"
-          
-          if File.directory?(test_path)
-            # Check if it contains source-repo directory
-            source_repo_in_workspace = File.join(test_path, 'source-repo')
-            if File.directory?(source_repo_in_workspace)
-              service_path = File.join(source_repo_in_workspace, 'nignx-app')
-              if File.directory?(service_path)
-                puts "✅ Found source-repo with service in workspace: #{source_repo_in_workspace}"
-                return source_repo_in_workspace
-              end
-            end
-          end
-        end
+        puts "❌ SOURCE_REPO_PATH not found, unable to locate source repository"
 
         # Default behavior: search for .git directory
         current_path = File.expand_path(start_path)
