@@ -240,32 +240,75 @@ module UseCases
           puts "❌ SOURCE_REPO_PATH not set or empty, using default .git search"
         end
         
-        # Composite action fallback: try common relative paths
+        # Composite action fallback: try source-repo first, then other paths
         puts "🔍 Trying composite action fallback paths..."
-        fallback_paths = [
-          '../../../source-repo',
+        
+        # First priority: look for source-repo specifically
+        # Based on GitHub Actions logs: /home/runner/work/monorepo/monorepo/source-repo
+        # From script location: /home/runner/work/monorepo/monorepo/deploy-actions/scripts/deploy-trigger/use_cases/
+        
+        # Try absolute path first (inferred from current working directory)
+        current_pwd = Dir.pwd  # /home/runner/work/monorepo/monorepo/deploy-actions/scripts
+        workspace_root = File.dirname(File.dirname(current_pwd))  # Go up 2 levels to get workspace root
+        absolute_source_repo = File.join(workspace_root, 'source-repo')
+        puts "🔍 Trying absolute source-repo path: #{absolute_source_repo}"
+        
+        if File.directory?(absolute_source_repo)
+          service_path = File.join(absolute_source_repo, 'nignx-app')
+          if File.directory?(service_path)
+            puts "✅ Found service directory at absolute path: #{service_path}"
+            return absolute_source_repo
+          end
+        end
+        
+        # Fallback to relative paths
+        source_repo_paths = [
+          '../../../source-repo',      # This should be the correct one
+          '../../../../source-repo',   # Try one more level up
           '../../source-repo', 
-          '../source-repo',
-          '../../../..',  # Go up to runner workspace
-          '../../..'      # Alternative path
+          '../source-repo'
         ]
         
-        fallback_paths.each do |fallback_path|
+        source_repo_paths.each do |fallback_path|
           test_path = File.expand_path(fallback_path, __dir__)
-          puts "🔍 Testing fallback path: #{test_path}"
+          puts "🔍 Testing source-repo path: #{test_path}"
           
           if File.directory?(test_path)
-            git_path = File.join(test_path, '.git')
-            if File.directory?(git_path) || File.file?(git_path)
-              puts "✅ Found git repository at fallback path: #{test_path}"
-              return test_path
-            end
-            
             # Check if it contains nignx-app directory (service existence check)
             service_path = File.join(test_path, 'nignx-app')
             if File.directory?(service_path)
               puts "✅ Found service directory at: #{service_path}, using as repo root: #{test_path}"
               return test_path
+            end
+            
+            # Also check for .git as secondary validation
+            git_path = File.join(test_path, '.git')
+            if File.directory?(git_path) || File.file?(git_path)
+              puts "✅ Found git repository at source-repo path: #{test_path}"
+              return test_path
+            end
+          end
+        end
+        
+        # Second priority: check parent directories for actual workspace root
+        workspace_paths = [
+          '../../../..',  # Go up to runner workspace root
+          '../../..'      # Alternative workspace path
+        ]
+        
+        workspace_paths.each do |fallback_path|
+          test_path = File.expand_path(fallback_path, __dir__)
+          puts "🔍 Testing workspace path: #{test_path}"
+          
+          if File.directory?(test_path)
+            # Check if it contains source-repo directory
+            source_repo_in_workspace = File.join(test_path, 'source-repo')
+            if File.directory?(source_repo_in_workspace)
+              service_path = File.join(source_repo_in_workspace, 'nignx-app')
+              if File.directory?(service_path)
+                puts "✅ Found source-repo with service in workspace: #{source_repo_in_workspace}"
+                return source_repo_in_workspace
+              end
             end
           end
         end
