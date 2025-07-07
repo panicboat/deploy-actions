@@ -58,8 +58,9 @@ module Interfaces
 
         set_action_outputs(
           'targets' => matrix_items.to_json,
-          'has_targets' => deployment_targets.any?.to_s,
-          'target_environment' => target_environment
+          'has-targets' => deployment_targets.any?.to_s,
+          'target-environment' => target_environment,
+          'safety-status' => safety_status
         )
 
         puts "🚀 Deployment Matrix Generated"
