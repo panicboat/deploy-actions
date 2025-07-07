@@ -30,18 +30,6 @@ outputs:
   has-targets:
     description: 'Whether targets found'
     value: ${{ steps.extract.outputs.has-targets }}
-  terragrunt-targets:
-    description: 'Terragrunt targets JSON'
-    value: ${{ steps.filter.outputs.terragrunt-targets }}
-  kubernetes-targets:
-    description: 'Kubernetes targets JSON'
-    value: ${{ steps.filter.outputs.kubernetes-targets }}
-  has-terragrunt:
-    description: 'Whether terragrunt targets exist'
-    value: ${{ steps.filter.outputs.has-terragrunt }}
-  has-kubernetes:
-    description: 'Whether kubernetes targets exist'
-    value: ${{ steps.filter.outputs.has-kubernetes }}
   target-environment:
     description: 'Target environment'
     value: ${{ steps.extract.outputs.target-environment }}
@@ -138,20 +126,11 @@ runs:
         echo "HAS_TARGETS: ${HAS_TARGETS:-false}"
         echo "TARGET_ENVIRONMENT: ${TARGET_ENVIRONMENT:-unknown}"
         echo "SAFETY_STATUS: ${SAFETY_STATUS:-unknown}"
-
-    - name: Filter targets by stack
-      id: filter
-      shell: bash
-      run: |
-        echo "🏗️ Filtering deployment targets by stack"
-        
-        # Parse DEPLOYMENT_TARGETS and filter by stack
-        echo "terragrunt-targets=${TERRAGRUNT_TARGETS:-[]}" >> $GITHUB_OUTPUT
-        echo "kubernetes-targets=${KUBERNETES_TARGETS:-[]}" >> $GITHUB_OUTPUT
-        echo "has-terragrunt=${HAS_TERRAGRUNT:-false}" >> $GITHUB_OUTPUT
-        echo "has-kubernetes=${HAS_KUBERNETES:-false}" >> $GITHUB_OUTPUT
       env:
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
+        HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
+        TARGET_ENVIRONMENT: ${{ steps.extract.outputs.target-environment }}
+        SAFETY_STATUS: ${{ steps.extract.outputs.safety-status }}
 
     - name: Report results
       if: always()
