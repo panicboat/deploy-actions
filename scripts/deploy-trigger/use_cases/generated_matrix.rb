@@ -43,13 +43,18 @@ module UseCases
           end
         end
 
+        puts "📊 Matrix generation completed: #{deployment_targets.length} targets"
+        
         Entities::Result.success(
           deployment_targets: deployment_targets,
           has_deployments: deployment_targets.any?,
           total_targets: deployment_targets.length
         )
       rescue => error
-        Entities::Result.failure(error_message: error.message)
+        puts "❌ Matrix generation failed: #{error.message}"
+        puts "Error backtrace:"
+        puts error.backtrace.first(10).join("\n")
+        Entities::Result.failure(error_message: "Matrix generation failed: #{error.message}")
       end
 
       private
@@ -73,6 +78,8 @@ module UseCases
         available_stacks = []
 
         # Get repository root by finding .git directory
+        puts "🔍 Current working directory: #{Dir.pwd}"
+        puts "🔍 Script directory (__dir__): #{__dir__}"
         repo_root = find_repository_root
         puts "🔍 Repository root detected: #{repo_root}"
 
@@ -207,13 +214,58 @@ module UseCases
 
       # Find repository root by looking for .git directory
       def find_repository_root(start_path = __dir__)
+        puts "🔍 SOURCE_REPO_PATH env var: #{ENV['SOURCE_REPO_PATH'].inspect}"
+        
         # Check if SOURCE_REPO_PATH environment variable is set (for composite actions)
-        if ENV['SOURCE_REPO_PATH']
+        if ENV['SOURCE_REPO_PATH'] && !ENV['SOURCE_REPO_PATH'].empty?
           source_repo_path = File.expand_path(ENV['SOURCE_REPO_PATH'], __dir__)
+          puts "🔍 Expanded source_repo_path: #{source_repo_path}"
+          puts "🔍 Directory exists: #{File.directory?(source_repo_path)}"
+          
           if File.directory?(source_repo_path)
             git_path = File.join(source_repo_path, '.git')
+            puts "🔍 Checking git path: #{git_path}"
+            puts "🔍 Git directory exists: #{File.directory?(git_path) || File.file?(git_path)}"
+            
             if File.directory?(git_path) || File.file?(git_path)
+              puts "✅ Using SOURCE_REPO_PATH as repository root: #{source_repo_path}"
               return source_repo_path
+            else
+              puts "❌ No .git found in SOURCE_REPO_PATH, falling back to default search"
+            end
+          else
+            puts "❌ SOURCE_REPO_PATH directory does not exist, falling back to default search"
+          end
+        else
+          puts "❌ SOURCE_REPO_PATH not set or empty, using default .git search"
+        end
+        
+        # Composite action fallback: try common relative paths
+        puts "🔍 Trying composite action fallback paths..."
+        fallback_paths = [
+          '../../../source-repo',
+          '../../source-repo', 
+          '../source-repo',
+          '../../../..',  # Go up to runner workspace
+          '../../..'      # Alternative path
+        ]
+        
+        fallback_paths.each do |fallback_path|
+          test_path = File.expand_path(fallback_path, __dir__)
+          puts "🔍 Testing fallback path: #{test_path}"
+          
+          if File.directory?(test_path)
+            git_path = File.join(test_path, '.git')
+            if File.directory?(git_path) || File.file?(git_path)
+              puts "✅ Found git repository at fallback path: #{test_path}"
+              return test_path
+            end
+            
+            # Check if it contains nignx-app directory (service existence check)
+            service_path = File.join(test_path, 'nignx-app')
+            if File.directory?(service_path)
+              puts "✅ Found service directory at: #{service_path}, using as repo root: #{test_path}"
+              return test_path
             end
           end
         end

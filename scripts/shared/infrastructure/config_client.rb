@@ -1,6 +1,8 @@
 # Configuration client for loading and parsing YAML configuration files
 # Handles workflow configuration loading with validation
 
+require 'yaml'
+
 module Infrastructure
   class ConfigClient
     def initialize(config_path: nil)
