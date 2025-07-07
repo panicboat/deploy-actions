@@ -131,10 +131,14 @@ runs:
           OUTPUT="${OUTPUT:0:10000}... (truncated)"
         fi
         
-        # Set outputs
+        # Set outputs using multiline format to handle special characters
         echo "status=$STATUS" >> $GITHUB_OUTPUT
         echo "is-failed=$IS_FAILED" >> $GITHUB_OUTPUT
-        echo "output=$OUTPUT" >> $GITHUB_OUTPUT
+        {
+          echo "output<<EOF"
+          echo "$OUTPUT"
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
         
         echo "📊 Execution Summary:"
         echo "Status: $STATUS"
