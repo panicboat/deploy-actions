@@ -66,19 +66,11 @@ runs:
         working-directory: deploy-actions/action-scripts
 
     - name: Copy configuration from source repository
-      shell: bash
-      run: |
-        echo "📋 Copying configuration from source repository"
-        echo "Source path: source-repo/${{ inputs.config-path }}"
-        echo "Target path: deploy-actions/action-scripts/workflow-config.yaml"
-
-        if [ ! -f "source-repo/${{ inputs.config-path }}" ]; then
-          echo "::error::Configuration file not found: ${{ inputs.config-path }}"
-          exit 1
-        fi
-
-        cp "source-repo/${{ inputs.config-path }}" deploy-actions/action-scripts/workflow-config.yaml
-        echo "✅ Configuration copied successfully"
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const copyConfiguration = require('./copy-configuration.js');
+          await copyConfiguration({ core, inputs: ${{ toJSON(inputs) }} });
 
     - name: Validate configuration
       shell: bash
@@ -123,27 +115,33 @@ runs:
 
     - name: Parse deployment outputs
       id: parse
-      shell: bash
-      run: |
-        echo "📊 Parsing deployment outputs"
-        echo "DEPLOYMENT_TARGETS: ${DEPLOYMENT_TARGETS:-[]}"
-        echo "HAS_TARGETS: ${HAS_TARGETS:-false}"
-        echo "TARGET_ENVIRONMENT: ${TARGET_ENVIRONMENT:-unknown}"
-        echo "SAFETY_STATUS: ${SAFETY_STATUS:-unknown}"
+      uses: actions/github-script@v7
       env:
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
         HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
         TARGET_ENVIRONMENT: ${{ steps.extract.outputs.target-environment }}
         SAFETY_STATUS: ${{ steps.extract.outputs.safety-status }}
+      with:
+        script: |
+          const parseOutputs = require('./parse-deployment-outputs.js');
+          await parseOutputs({ core, context });
 
     - name: Report results
       if: always()
-      shell: bash
-      run: |
-        echo "📊 Deploy resolver completed"
-        echo "Repository: ${{ inputs.repository }}"
-        echo "Action type: ${{ inputs.action-type }}"
-        echo "PR Number: ${{ inputs.pr-number }}"
-        echo "Has Targets: ${{ steps.extract.outputs.has-targets }}"
-        echo "Target Environment: ${{ steps.extract.outputs.target-environment }}"
-        echo "Safety Status: ${{ steps.extract.outputs.safety-status }}"
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const reportResults = require('./report-results.js');
+          await reportResults({ 
+            core, 
+            inputs: ${{ toJSON(inputs) }}, 
+            steps: {
+              extract: {
+                outputs: {
+                  'has-targets': '${{ steps.extract.outputs.has-targets }}',
+                  'target-environment': '${{ steps.extract.outputs.target-environment }}',
+                  'safety-status': '${{ steps.extract.outputs.safety-status }}'
+                }
+              }
+            }
+          });

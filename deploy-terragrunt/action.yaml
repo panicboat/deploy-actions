@@ -87,14 +87,11 @@ runs:
         audience: sts.amazonaws.com
 
     - name: Verify AWS credentials
-      shell: bash
-      run: |
-        echo "🔐 Verifying AWS credentials"
-        echo "Role: ${{ inputs.action-type == 'plan' && inputs.plan-iam-role || inputs.apply-iam-role }}"
-        echo "Region: ${{ inputs.aws-region }}"
-        echo "Session: GitHubActions-Terragrunt-${{ inputs.action-type }}-${{ inputs.environment }}"
-        aws sts get-caller-identity
-        echo "✅ AWS credentials configured successfully"
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const verifyCredentials = require('./verify-aws-credentials.js');
+          await verifyCredentials({ core, inputs: ${{ toJSON(inputs) }} });
 
     - name: Execute Terragrunt
       id: terragrunt
