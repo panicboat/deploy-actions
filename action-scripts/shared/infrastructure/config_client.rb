@@ -7,19 +7,29 @@ module Infrastructure
   class ConfigClient
     def initialize(config_path: nil)
       @config_path = config_path || ENV['WORKFLOW_CONFIG_PATH'] || 'workflow-config.yaml'
+      @config_cache = nil
     end
 
     # Load workflow configuration from YAML file
     def load_workflow_config
+      return @config_cache if @config_cache
+
       unless File.exist?(@config_path)
         raise "Configuration file not found: #{@config_path}"
       end
 
-      config_data = YAML.load_file(@config_path)
-      validate_config!(config_data)
-      Entities::WorkflowConfig.new(config_data)
-    rescue => error
-      raise "Failed to load configuration from #{@config_path}: #{error.message}"
+      begin
+        content = File.read(@config_path)
+        config_data = YAML.safe_load(content)
+        validate_config!(config_data)
+        @config_cache = Entities::WorkflowConfig.new(config_data)
+      rescue Errno::EACCES
+        raise "Permission denied accessing configuration file: #{@config_path}"
+      rescue Psych::SyntaxError => e
+        raise "YAML parsing error at line #{e.line}: #{e.message}"
+      rescue => error
+        raise "Failed to load configuration from #{@config_path}: #{error.message}"
+      end
     end
 
     # Validate configuration file and return result
@@ -45,7 +55,17 @@ module Infrastructure
       end
     end
 
+    # Clear configuration cache (useful for testing)
+    def clear_cache
+      @config_cache = nil
+    end
+
     private
+
+    # Get the configuration file path
+    def config_file_path
+      @config_path
+    end
 
     # Build validation summary for successful validation
     def build_validation_summary(config)
@@ -87,7 +107,7 @@ module Infrastructure
       # Validate new directory_conventions structure
       conventions = config_data['directory_conventions']
       raise "directory_conventions must be a Hash" unless conventions.is_a?(Hash)
-      raise "directory_conventions must have 'root' key" unless conventions['root']
+      raise "directory_conventions must have 'root' key" unless conventions.key?('root')
       raise "directory_conventions must have 'stacks' key" unless conventions['stacks']
 
       stacks = conventions['stacks']

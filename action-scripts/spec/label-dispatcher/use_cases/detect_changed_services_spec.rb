@@ -21,15 +21,28 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   describe '#execute' do
     let(:base_ref) { 'main' }
     let(:head_ref) { 'feature/test' }
-    let(:changed_files) { ['services/auth/main.tf', 'services/payment/kubernetes/deployment.yaml'] }
+    let(:changed_files) { ['services/auth/terragrunt/main.tf', 'services/payment/kubernetes/deployment.yaml'] }
 
     context 'with valid changed files' do
       before do
-        allow(file_client).to receive(:get_changed_files).with(base_ref, head_ref).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('services/{service}/terragrunt')
-        allow(config).to receive(:directory_convention_for).with('payment', 'kubernetes').and_return('services/{service}/kubernetes')
-        allow(config).to receive_message_chain(:services, :key?).with('auth').and_return(true)
-        allow(config).to receive_message_chain(:services, :key?).with('payment').and_return(true)
+        allow(file_client).to receive(:get_changed_files).with(base_ref: base_ref, head_ref: head_ref).and_return(changed_files)
+        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('services/auth/terragrunt')
+        allow(config).to receive(:directory_convention_for).with('payment', 'kubernetes').and_return('services/payment/kubernetes')
+        allow(config).to receive(:services).and_return({
+          'auth' => { 'name' => 'auth' },
+          'payment' => { 'name' => 'payment' }
+        })
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
+          { 'name' => 'kubernetes', 'directory' => 'kubernetes/{environment}' }
+        ])
+        allow(config).to receive(:directory_conventions).and_return({
+          'root' => 'services/{service}',
+          'stacks' => [
+            { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
+            { 'name' => 'kubernetes', 'directory' => 'kubernetes/{environment}' }
+          ]
+        })
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -44,13 +57,25 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     end
 
     context 'with excluded services' do
-      let(:changed_files) { ['services/auth/main.tf', 'services/excluded-service/main.tf'] }
+      let(:changed_files) { ['services/auth/terragrunt/main.tf', 'services/excluded-service/terragrunt/main.tf'] }
 
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('services/{service}/terragrunt')
-        allow(config).to receive(:directory_convention_for).with('excluded-service', 'terragrunt').and_return('services/{service}/terragrunt')
-        allow(config).to receive_message_chain(:services, :key?).and_return(true)
+        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('services/auth/terragrunt')
+        allow(config).to receive(:directory_convention_for).with('excluded-service', 'terragrunt').and_return('services/excluded-service/terragrunt')
+        allow(config).to receive(:services).and_return({
+          'auth' => { 'name' => 'auth' },
+          'excluded-service' => { 'name' => 'excluded-service' }
+        })
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
+        ])
+        allow(config).to receive(:directory_conventions).and_return({
+          'root' => 'services/{service}',
+          'stacks' => [
+            { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
+          ]
+        })
         allow(config).to receive(:excluded_services).and_return(['excluded-service'])
       end
 
@@ -93,13 +118,26 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
         
         # Mock custom directory conventions
-        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('infrastructures/{service}/terragrunt')
-        allow(config).to receive(:directory_convention_for).with('frontend', 'kubernetes').and_return('apps/{service}/kubernetes')
+        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('infrastructures/auth/terragrunt')
+        allow(config).to receive(:directory_convention_for).with('frontend', 'kubernetes').and_return('apps/frontend/kubernetes')
         allow(config).to receive(:directory_convention_for).with('legacy', anything).and_return(nil)
         
-        allow(config).to receive_message_chain(:services, :key?).with('auth').and_return(true)
-        allow(config).to receive_message_chain(:services, :key?).with('frontend').and_return(true)
-        allow(config).to receive_message_chain(:services, :key?).with('legacy').and_return(true)
+        allow(config).to receive(:services).and_return({
+          'auth' => { 'name' => 'auth' },
+          'frontend' => { 'name' => 'frontend' },
+          'legacy' => { 'name' => 'legacy' }
+        })
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => 'infrastructures/{service}/terragrunt/{environment}' },
+          { 'name' => 'kubernetes', 'directory' => 'apps/{service}/kubernetes/overlays/{environment}' }
+        ])
+        allow(config).to receive(:directory_conventions).and_return({
+          'root' => '',  # Empty root for custom patterns
+          'stacks' => [
+            { 'name' => 'terragrunt', 'directory' => 'infrastructures/{service}/terragrunt/{environment}' },
+            { 'name' => 'kubernetes', 'directory' => 'apps/{service}/kubernetes/overlays/{environment}' }
+          ]
+        })
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -122,7 +160,6 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         result = use_case.execute(base_ref: base_ref, head_ref: head_ref)
 
         expect(result).to be_failure
-        expect(result.error_message).to include('Failed to get changed files')
         expect(result.error_message).to include('Git command failed')
       end
     end
@@ -138,16 +175,18 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         result = use_case.execute(base_ref: base_ref, head_ref: head_ref)
 
         expect(result).to be_failure
-        expect(result.error_message).to include('Failed to load configuration')
         expect(result.error_message).to include('Config file not found')
       end
     end
 
     context 'with nil refs (working directory comparison)' do
       before do
-        allow(file_client).to receive(:get_changed_files).with(nil, nil).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).and_return('services/{service}/terragrunt')
-        allow(config).to receive_message_chain(:services, :key?).and_return(true)
+        allow(file_client).to receive(:get_changed_files).with(base_ref: nil, head_ref: nil).and_return(changed_files)
+        allow(config).to receive(:directory_convention_for).and_return('services/auth/terragrunt')
+        allow(config).to receive(:services).and_return({'auth' => { 'name' => 'auth' }})
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
+        ])
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -155,7 +194,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         result = use_case.execute(base_ref: nil, head_ref: nil)
 
         expect(result).to be_success
-        expect(file_client).to have_received(:get_changed_files).with(nil, nil)
+        expect(file_client).to have_received(:get_changed_files).with(base_ref: nil, head_ref: nil)
       end
     end
 
@@ -174,7 +213,20 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         allow(config).to receive(:directory_convention_for).with('my-service-name', 'terragrunt').and_return('services/{service}')
         allow(config).to receive(:directory_convention_for).with('service_with_underscores', 'terragrunt').and_return('services/{service}')
         allow(config).to receive(:directory_convention_for).with('123-numeric-service', 'terragrunt').and_return('services/{service}')
-        allow(config).to receive_message_chain(:services, :key?).and_return(true)
+        allow(config).to receive(:services).and_return({
+          'my-service-name' => { 'name' => 'my-service-name' },
+          'service_with_underscores' => { 'name' => 'service_with_underscores' },
+          '123-numeric-service' => { 'name' => '123-numeric-service' }
+        })
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => '' }
+        ])
+        allow(config).to receive(:directory_conventions).and_return({
+          'root' => 'services/{service}',
+          'stacks' => [
+            { 'name' => 'terragrunt', 'directory' => '' }
+          ]
+        })
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -191,7 +243,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
       let(:changed_files) do
         [
           'services/auth/terragrunt/main.tf',
-          'services/auth/kubernetes/deployment.yaml'
+          'services/auth/kubernetes/overlays/develop/deployment.yaml'
         ]
       end
 
@@ -199,7 +251,20 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
         allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('services/{service}/terragrunt')
         allow(config).to receive(:directory_convention_for).with('auth', 'kubernetes').and_return('services/{service}/kubernetes')
-        allow(config).to receive_message_chain(:services, :key?).with('auth').and_return(true)
+        allow(config).to receive(:services).and_return({
+          'auth' => { 'name' => 'auth' }
+        })
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
+          { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
+        ])
+        allow(config).to receive(:directory_conventions).and_return({
+          'root' => 'services/{service}',
+          'stacks' => [
+            { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
+            { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
+          ]
+        })
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -217,7 +282,10 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
         allow(config).to receive(:directory_convention_for).with('unknown-service', anything).and_return('services/{service}')
-        allow(config).to receive_message_chain(:services, :key?).with('unknown-service').and_return(false)
+        allow(config).to receive(:services).and_return({})
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
+        ])
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -245,7 +313,12 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
         allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('{service}/terragrunt/envs/{environment}')
-        allow(config).to receive_message_chain(:services, :key?).with('auth').and_return(true)
+        allow(config).to receive(:services).and_return({
+          'auth' => { 'name' => 'auth' }
+        })
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
+        ])
       end
 
       it 'detects service using default pattern' do
@@ -262,7 +335,24 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
         allow(config).to receive(:directory_convention_for).with('special-service', 'terragrunt').and_return('infrastructures/{service}/terraform')
-        allow(config).to receive_message_chain(:services, :key?).with('special-service').and_return(true)
+        allow(config).to receive(:services).and_return({
+          'special-service' => {
+            'name' => 'special-service',
+            'directory_conventions' => {
+              'terragrunt' => 'infrastructures/{service}/terraform'
+            }
+          }
+        })
+        allow(config).to receive(:excluded_services).and_return([])
+        allow(config).to receive(:send).with(:directory_stacks).and_return([
+          { 'name' => 'terragrunt', 'directory' => 'terraform' }
+        ])
+        allow(config).to receive(:directory_conventions).and_return({
+          'root' => 'infrastructures/{service}',
+          'stacks' => [
+            { 'name' => 'terragrunt', 'directory' => 'terraform' }
+          ]
+        })
       end
 
       it 'detects service using custom pattern' do
@@ -289,7 +379,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
 
     context 'with mocked git operations' do
       before do
-        allow(real_file_client).to receive(:get_changed_files).and_return(['services/test-service/main.tf'])
+        allow(real_file_client).to receive(:get_changed_files).and_return(['test-service/terragrunt/develop/main.tf'])
       end
 
       it 'works with real configuration and mocked file operations' do

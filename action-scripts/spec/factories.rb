@@ -18,15 +18,23 @@ FactoryBot.define do
   end
 
   factory :deployment_target, class: 'Entities::DeploymentTarget' do
-    service_name { "test-service" }
+    service { "test-service" }
     environment { "develop" }
     stack { "terragrunt" }
+    working_directory { "test-service/terragrunt/develop" }
+    aws_region { "ap-northeast-1" }
+    iam_role_plan { "arn:aws:iam::123456789012:role/plan-role" }
+    iam_role_apply { "arn:aws:iam::123456789012:role/apply-role" }
     
     initialize_with do
       new(
-        service_name: service_name,
+        service: service,
         environment: environment,
-        stack: stack
+        stack: stack,
+        working_directory: working_directory,
+        aws_region: aws_region,
+        iam_role_plan: iam_role_plan,
+        iam_role_apply: iam_role_apply
       )
     end
     

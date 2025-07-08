@@ -210,9 +210,6 @@ module UseCases
           service: deploy_label.service,
           environment: target_environment,
           stack: stack,
-          iam_role_plan: env_config['iam_role_plan'],
-          iam_role_apply: env_config['iam_role_apply'],
-          aws_region: env_config['aws_region'],
           working_directory: working_dir
         )
       end

@@ -86,7 +86,9 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
         allow(config).to receive(:excluded_services).and_return(['excluded-service'])
         allow(config).to receive(:environment_config).with(target_environment).and_return({
           'environment' => 'develop',
-          'aws_region' => 'ap-northeast-1'
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         })
         
         # Mock directory conventions for both services
@@ -181,7 +183,9 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
       let(:env_config) do
         {
           'environment' => 'develop',
-          'aws_region' => 'ap-northeast-1'
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         }
       end
 
@@ -192,6 +196,7 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
           { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
         ])
         allow(config).to receive(:services).and_return({ 'test-service' => {} })
+        allow(config).to receive(:excluded_services).and_return([])
         allow(config).to receive(:directory_convention_for).with('test-service', 'terragrunt').and_return('custom/{service}/terraform/environments/{environment}')
         allow(config).to receive(:directory_convention_for).with('test-service', 'kubernetes').and_return(nil) # Only terragrunt
         
@@ -237,7 +242,10 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
 
       before do
         allow(config).to receive(:environment_config).with(target_environment).and_return({
-          'environment' => 'develop'
+          'environment' => 'develop',
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         })
         allow(config).to receive(:send).with(:directory_stacks).and_return([
           { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },

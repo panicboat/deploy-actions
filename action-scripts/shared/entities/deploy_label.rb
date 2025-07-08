@@ -10,6 +10,21 @@ module Entities
       parse_label!
     end
 
+    # Get the original label string
+    def label_string
+      @raw_label
+    end
+
+    # Get the service name
+    def service_name
+      service
+    end
+
+    # Check if this is deploy:all label
+    def deploy_all?
+      service == 'all'
+    end
+
     # Factory method to create deploy label from service name
     def self.from_service(service:)
       new("deploy:#{service}")
@@ -17,7 +32,11 @@ module Entities
 
     # Convert to string representation
     def to_s
-      "deploy:#{service}"
+      if service
+        "deploy:#{service}"
+      else
+        @raw_label
+      end
     end
 
     # Check if the deploy label is valid
@@ -43,6 +62,8 @@ module Entities
 
     # Parse the raw label string into components
     def parse_label!
+      return unless @raw_label
+
       parts = @raw_label.split(':')
 
       return unless parts.length == 2 && parts[0] == 'deploy'

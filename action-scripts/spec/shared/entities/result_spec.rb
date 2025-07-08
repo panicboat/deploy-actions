@@ -75,7 +75,7 @@ RSpec.describe Entities::Result do
       it 'raises error when no error message provided' do
         expect {
           described_class.failure(some_data: 'value')
-        }.to raise_error(ArgumentError, /error_message is required/)
+        }.to raise_error(ArgumentError, /missing keyword: :error_message/)
       end
     end
   end
@@ -181,12 +181,11 @@ RSpec.describe Entities::Result do
     subject(:result) { described_class.success(data: { key: 'value' }) }
 
     it 'prevents modification of result state' do
-      expect { result.instance_variable_set(:@success, false) }.not_to change { result.success? }
+      expect { result.instance_variable_set(:@success, false) }.to raise_error(FrozenError)
     end
 
-    it 'data can be mutable if originally mutable' do
-      result.data[:new_key] = 'new_value'
-      expect(result.data[:new_key]).to eq('new_value')
+    it 'data is frozen and cannot be modified' do
+      expect { result.data[:new_key] = 'new_value' }.to raise_error(FrozenError)
     end
   end
 
@@ -294,7 +293,7 @@ RSpec.describe Entities::Result do
       it 'maintains success status regardless of data content' do
         expect(result).to be_success
         expect(result.success).to be false  # The data attribute
-        expect(result.error_message).to eq('This should not affect success status')
+        expect(result.error_message).to be_nil  # Success results don't have error messages
       end
     end
   end

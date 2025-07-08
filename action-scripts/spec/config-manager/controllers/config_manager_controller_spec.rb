@@ -135,7 +135,8 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         allow(config).to receive_message_chain(:services, :[]).with(service_name).and_return({
           'name' => service_name
         })
-        allow(config).to receive(:directory_convention_for).and_return('services/{service}/terragrunt/envs/{environment}')
+        allow(config).to receive(:directory_convention_for).with(service_name, 'terragrunt').and_return('services/{service}/terragrunt/envs/{environment}')
+        allow(config).to receive(:directory_convention_for).with(service_name, 'kubernetes').and_return('services/{service}/kubernetes/overlays/{environment}')
         allow(presenter).to receive(:present_service_test_result)
       end
 
@@ -198,8 +199,11 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       allow(File).to receive(:exist?).and_return(true)
       
       # Mock git status
-      allow(controller).to receive(:`).with('git status --porcelain 2>/dev/null').and_return('')
-      allow(controller).to receive(:$?).and_return(double(success?: true))
+      status_mock = double('Process::Status', success?: true)
+      allow(controller).to receive(:`).with('git status --porcelain 2>/dev/null') do
+        $? = status_mock
+        ''
+      end
       
       # Mock environment variables
       allow(ENV).to receive(:[]).and_call_original

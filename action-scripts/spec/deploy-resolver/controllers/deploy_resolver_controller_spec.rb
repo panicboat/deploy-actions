@@ -3,11 +3,11 @@
 require 'spec_helper'
 
 RSpec.describe Interfaces::Controllers::DeployResolverController do
-  let(:determine_target_environment_use_case) { double('DetermineTargetEnvironment') }
-  let(:get_labels_use_case) { double('GetLabels') }
-  let(:validate_deployment_safety_use_case) { double('ValidateDeploymentSafety') }
-  let(:generate_matrix_use_case) { double('GenerateMatrix') }
-  let(:presenter) { double('Presenter') }
+  let(:determine_target_environment_use_case) { spy('DetermineTargetEnvironment') }
+  let(:get_labels_use_case) { spy('GetLabels') }
+  let(:validate_deployment_safety_use_case) { spy('ValidateDeploymentSafety') }
+  let(:generate_matrix_use_case) { spy('GenerateMatrix') }
+  let(:presenter) { spy('Presenter') }
 
   subject(:controller) do
     described_class.new(
@@ -197,9 +197,9 @@ RSpec.describe Interfaces::Controllers::DeployResolverController do
 
       # Verify environment setup
       expect(ENV).to have_received(:[]=).with('GITHUB_ACTIONS', 'true')
-      expect(ENV).to have_received(:[]=).with('GITHUB_ENV', '/tmp/github_env')
+      expect(ENV).to have_received(:[]=).with('GITHUB_ENV', original_github_env)
       expect(ENV).to have_received(:[]=).with('GITHUB_REF_NAME', branch_name)
-      expect(File).to have_received(:write).with('/tmp/github_env', '')
+      expect(File).to have_received(:write).with(original_github_env, '')
 
       # Verify resolve call
       expect(controller).to have_received(:resolve_from_labels).with(pr_number: 999)

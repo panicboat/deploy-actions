@@ -70,9 +70,11 @@ module Interfaces
           # Test directory conventions
           terragrunt_dir = config.directory_convention_for(service_name, 'terragrunt')
             &.gsub('{service}', service_name)
+            &.gsub('{environment}', environment)
 
           kubernetes_dir = config.directory_convention_for(service_name, 'kubernetes')
             &.gsub('{service}', service_name)
+            &.gsub('{environment}', environment)
 
           @presenter.present_service_test_result(
             service_name: service_name,

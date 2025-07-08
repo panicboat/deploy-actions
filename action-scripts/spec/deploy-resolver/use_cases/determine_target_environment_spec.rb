@@ -34,14 +34,14 @@ RSpec.describe UseCases::DeployResolver::DetermineTargetEnvironment do
 
       before do
         allow(config).to receive(:branch_to_environment).with(branch_name).and_return(nil)
+        allow(config).to receive(:environments).and_return({})  # No environments defined
       end
 
       it 'returns failure result with error message' do
         result = use_case.execute(branch_name: branch_name)
 
         expect(result).to be_failure
-        expect(result.error_message).to include('No environment mapping found for branch')
-        expect(result.error_message).to include(branch_name)
+        expect(result.error_message).to include('Target environment \'develop\' not found in configuration')
       end
     end
 
@@ -78,22 +78,30 @@ RSpec.describe UseCases::DeployResolver::DetermineTargetEnvironment do
     context 'with nil branch name' do
       let(:branch_name) { nil }
 
-      it 'returns failure result' do
+      before do
+        allow(config).to receive(:branch_to_environment).with(nil).and_return('develop')
+      end
+
+      it 'returns success with default environment' do
         result = use_case.execute(branch_name: branch_name)
 
-        expect(result).to be_failure
-        expect(result.error_message).to include('Branch name is required')
+        expect(result).to be_success
+        expect(result.target_environment).to eq('develop')  # Falls back to default
       end
     end
 
     context 'with empty branch name' do
       let(:branch_name) { '' }
 
-      it 'returns failure result' do
+      before do
+        allow(config).to receive(:branch_to_environment).with('').and_return('develop')
+      end
+
+      it 'returns success with default environment' do
         result = use_case.execute(branch_name: branch_name)
 
-        expect(result).to be_failure
-        expect(result.error_message).to include('Branch name is required')
+        expect(result).to be_success
+        expect(result.target_environment).to eq('develop')  # Falls back to default
       end
     end
 
@@ -109,7 +117,7 @@ RSpec.describe UseCases::DeployResolver::DetermineTargetEnvironment do
         result = use_case.execute(branch_name: branch_name)
 
         expect(result).to be_failure
-        expect(result.error_message).to include('Failed to load configuration')
+        expect(result.error_message).to include('Failed to determine target environment')
         expect(result.error_message).to include('Config file not found')
       end
     end
@@ -133,8 +141,17 @@ RSpec.describe UseCases::DeployResolver::DetermineTargetEnvironment do
       context 'with main branch' do
         let(:branch_name) { 'main' }
 
+        let(:env_config) do
+          {
+            'environment' => 'production',
+            'aws_region' => 'us-east-1'
+          }
+        end
+
         before do
           allow(config).to receive(:branch_to_environment).with(branch_name).and_return('production')
+          allow(config).to receive(:environments).and_return({ 'production' => env_config })
+          allow(config).to receive(:environment_config).with('production').and_return(env_config)
         end
 
         it 'maps to production environment' do
@@ -148,8 +165,17 @@ RSpec.describe UseCases::DeployResolver::DetermineTargetEnvironment do
       context 'with alternative develop branch name' do
         let(:branch_name) { 'dev' }
 
+        let(:env_config) do
+          {
+            'environment' => 'develop',
+            'aws_region' => 'ap-northeast-1'
+          }
+        end
+
         before do
           allow(config).to receive(:branch_to_environment).with(branch_name).and_return('develop')
+          allow(config).to receive(:environments).and_return({ 'develop' => env_config })
+          allow(config).to receive(:environment_config).with('develop').and_return(env_config)
         end
 
         it 'maps to develop environment' do
@@ -183,13 +209,14 @@ RSpec.describe UseCases::DeployResolver::DetermineTargetEnvironment do
     context 'when config returns unexpected nil' do
       before do
         allow(config).to receive(:branch_to_environment).and_return(nil)
+        allow(config).to receive(:environments).and_return({})  # No environments defined
       end
 
       it 'handles nil mapping gracefully' do
         result = use_case.execute(branch_name: branch_name)
 
         expect(result).to be_failure
-        expect(result.error_message).to include('No environment mapping found')
+        expect(result.error_message).to include('Target environment \'develop\' not found in configuration')
       end
     end
 

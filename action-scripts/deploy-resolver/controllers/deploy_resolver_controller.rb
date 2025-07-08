@@ -90,6 +90,8 @@ module Interfaces
             puts "\n📋 Generated Environment Variables:"
             puts File.read(ENV['GITHUB_ENV'])
           end
+        rescue => error
+          puts "🧪 Test completed with error: #{error.message}"
         ensure
           ENV['GITHUB_ACTIONS'] = original_github_actions
           ENV['GITHUB_ENV'] = original_github_env

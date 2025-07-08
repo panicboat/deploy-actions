@@ -123,6 +123,7 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
         allow(detect_services_use_case).to receive(:execute).and_return(detection_result)
         allow(presenter).to receive(:present_error)
         allow(controller).to receive(:get_pr_info_from_api).and_return({})
+        allow(manage_labels_use_case).to receive(:execute)
       end
 
       it 'presents error and stops processing' do
@@ -290,9 +291,19 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     let(:pr_number) { 123 }
 
     before do
+      # Mock ENV reading to return original values initially
       allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return('original_value')
       allow(ENV).to receive(:[]).with('GITHUB_ENV').and_return('/original/path')
-      allow(ENV).to receive(:[]=)
+      
+      # Mock ENV assignment and ensure it updates the return value
+      allow(ENV).to receive(:[]=).with('GITHUB_ACTIONS', 'true')
+      allow(ENV).to receive(:[]=).with('GITHUB_ENV', '/tmp/github_env') do
+        # After assignment, make ENV['GITHUB_ENV'] return the new value
+        allow(ENV).to receive(:[]).with('GITHUB_ENV').and_return('/tmp/github_env')
+      end
+      allow(ENV).to receive(:[]=).with('GITHUB_ACTIONS', 'original_value')
+      allow(ENV).to receive(:[]=).with('GITHUB_ENV', '/original/path')
+      
       allow(File).to receive(:write)
       allow(File).to receive(:exist?).and_return(true)
       allow(File).to receive(:read).and_return('TEST_VAR=test_value')

@@ -241,7 +241,7 @@ RSpec.describe Entities::WorkflowConfig do
       end
 
       it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/environment.*required/)
+        expect { workflow_config.validate! }.to raise_error(/Environment.*missing required field: environment/)
       end
     end
   end

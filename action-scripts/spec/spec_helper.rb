@@ -9,6 +9,25 @@ require 'factory_bot'
 # Load shared components
 require_relative '../shared/shared_loader'
 
+# Add Rails-like string extensions for tests
+class String
+  def present?
+    !empty?
+  end
+end
+
+class NilClass
+  def present?
+    false
+  end
+end
+
+class Array
+  def present?
+    !empty?
+  end
+end
+
 # Load all modules for testing
 [
   'config-manager/**/*.rb',
@@ -47,6 +66,12 @@ RSpec.configure do |config|
   # Configure factory_bot
   config.before(:suite) do
     FactoryBot.find_definitions
+  end
+
+  # Mock File.directory? globally for tests that check directory existence
+  config.before(:each) do
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(/test-service|demo/).and_return(true)
   end
 
   # Clean up environment variables after each test

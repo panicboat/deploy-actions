@@ -10,9 +10,8 @@ module UseCases
       # Execute target environment determination
       def execute(branch_name:)
         config = @config_client.load_workflow_config
-        branch_patterns = config.raw_config['branch_patterns'] || {}
-
-        target_environment = branch_patterns[branch_name] || 'develop'
+        
+        target_environment = config.branch_to_environment(branch_name) || 'develop'
 
         # Validate environment exists in configuration
         unless config.environments.key?(target_environment)

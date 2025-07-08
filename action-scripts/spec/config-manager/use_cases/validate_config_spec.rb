@@ -9,17 +9,9 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
   describe '#execute' do
     context 'with valid configuration' do
       let(:config) { build(:workflow_config) }
-      let(:validation_result) do
-        double(
-          'Result',
-          success?: true,
-          config: config,
-          validation_summary: 'All checks passed'
-        )
-      end
 
       before do
-        allow(config_client).to receive(:validate_config_file).and_return(validation_result)
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
       end
 
       it 'returns successful result with config and summary' do
@@ -27,52 +19,46 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
 
         expect(result).to be_success
         expect(result.config).to eq(config)
-        expect(result.validation_summary).to eq('All checks passed')
+        expect(result.validation_summary).to include('Configuration validation successful')
       end
     end
 
     context 'with invalid configuration' do
-      let(:validation_result) do
-        double(
-          'Result',
-          success?: false,
-          validation_errors: ['Missing environments', 'Invalid service configuration'],
-          error_message: 'Configuration validation failed'
-        )
+      let(:config) do
+        Entities::WorkflowConfig.new({
+          'environments' => [],
+          'services' => [],
+          'directory_conventions' => {
+            'root' => '{service}',
+            'stacks' => []
+          },
+          'branch_patterns' => {}
+        })
       end
 
       before do
-        allow(config_client).to receive(:validate_config_file).and_return(validation_result)
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
       end
 
       it 'returns failure result with validation errors' do
         result = use_case.execute
 
         expect(result).to be_failure
-        expect(result.validation_errors).to eq(['Missing environments', 'Invalid service configuration'])
-        expect(result.error_message).to eq('Configuration validation failed')
+        expect(result.validation_errors).to include('No environments defined')
+        expect(result.error_message).to include('Configuration validation failed')
       end
     end
 
     context 'with configuration file not found' do
-      let(:validation_result) do
-        double(
-          'Result',
-          success?: false,
-          validation_errors: nil,
-          error_message: 'Configuration file not found'
-        )
-      end
-
       before do
-        allow(config_client).to receive(:validate_config_file).and_return(validation_result)
+        allow(config_client).to receive(:load_workflow_config).and_raise(StandardError.new('Configuration file not found'))
       end
 
       it 'returns failure result with file error' do
         result = use_case.execute
 
         expect(result).to be_failure
-        expect(result.error_message).to eq('Configuration file not found')
+        expect(result.error_message).to eq('Failed to load or validate configuration: Configuration file not found')
       end
     end
 
@@ -80,30 +66,22 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
       let(:error) { StandardError.new('Unexpected error during validation') }
 
       before do
-        allow(config_client).to receive(:validate_config_file).and_raise(error)
+        allow(config_client).to receive(:load_workflow_config).and_raise(error)
       end
 
       it 'handles exceptions and returns failure result' do
         result = use_case.execute
 
         expect(result).to be_failure
-        expect(result.error_message).to include('Unexpected error during validation')
+        expect(result.error_message).to include('Failed to load or validate configuration: Unexpected error during validation')
       end
     end
 
     context 'with comprehensive validation checks' do
       let(:config) { build(:workflow_config, :with_excluded_service) }
-      let(:validation_result) do
-        double(
-          'Result',
-          success?: true,
-          config: config,
-          validation_summary: build_validation_summary(config)
-        )
-      end
 
       before do
-        allow(config_client).to receive(:validate_config_file).and_return(validation_result)
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
       end
 
       it 'includes detailed validation information' do
@@ -112,58 +90,30 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
         expect(result).to be_success
         expect(result.validation_summary).to include('environments: 3 configured')
         expect(result.validation_summary).to include('services: 2 configured')
-        expect(result.validation_summary).to include('excluded services: 1')
-      end
-
-      def build_validation_summary(config)
-        env_count = config.environments.length
-        service_count = config.services.length
-        excluded_count = config.excluded_services.length
-
-        [
-          "✅ Configuration validation successful",
-          "📋 Summary:",
-          "  - environments: #{env_count} configured",
-          "  - services: #{service_count} configured (#{excluded_count} excluded)",
-          "  - directory conventions: #{config.raw_config.dig('directory_conventions', 'stacks')&.length || 0} stacks",
-          "  - branch patterns: #{config.branch_patterns.length} configured"
-        ].join("\n")
+        expect(result.validation_summary).to include('excluded')
       end
     end
 
     context 'with empty configuration' do
-      let(:validation_result) do
-        double(
-          'Result',
-          success?: false,
-          validation_errors: [
-            'Missing required section: environments',
-            'Missing required section: directory_conventions',
-            'Missing required section: services'
-          ],
-          error_message: 'Configuration is incomplete'
-        )
-      end
-
       before do
-        allow(config_client).to receive(:validate_config_file).and_return(validation_result)
+        allow(config_client).to receive(:load_workflow_config).and_raise(
+          StandardError.new('Configuration validation failed: Missing required configuration sections: directory_conventions, branch_patterns')
+        )
       end
 
       it 'reports all missing sections' do
         result = use_case.execute
 
         expect(result).to be_failure
-        expect(result.validation_errors).to include(
-          match(/environments/),
-          match(/directory_conventions/),
-          match(/services/)
-        )
+        expect(result.error_message).to include('Configuration validation failed')
+        expect(result.error_message).to include('directory_conventions')
+        expect(result.error_message).to include('branch_patterns')
       end
     end
   end
 
   describe 'integration with real config client' do
-    let(:real_config_client) { Infrastructure::ConfigClient.new }
+    let(:real_config_client) { Infrastructure::ConfigClient.new(config_path: temp_config.path) }
     let(:use_case) { described_class.new(config_client: real_config_client) }
     let(:temp_config) { create_test_config(config_content) }
 

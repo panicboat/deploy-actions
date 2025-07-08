@@ -122,12 +122,13 @@ module UseCases
           return errors
         end
 
-        # Validate root pattern
-        unless conventions['root']
+        # Validate root pattern (can be empty string)
+        unless conventions.key?('root')
           errors << "Directory conventions missing required 'root' field"
         end
 
-        unless conventions['root']&.include?('{service}')
+        # Only validate {service} placeholder if root is not empty
+        if conventions['root'] && !conventions['root'].empty? && !conventions['root'].include?('{service}')
           errors << "Directory conventions root must include {service} placeholder"
         end
 
@@ -260,7 +261,7 @@ module UseCases
           service_config.dig('exclusion_config', 'type') || 'unspecified'
         }
 
-        {
+        summary_data = {
           environments_count: config.environments.length,
           services_count: config.services.length,
           excluded_services_count: excluded_services.length,
@@ -268,6 +269,15 @@ module UseCases
           directory_stacks_count: config.send(:directory_stacks).length,
           branch_patterns_count: config.branch_patterns.length
         }
+
+        [
+          "✅ Configuration validation successful",
+          "📋 Summary:",
+          "  - environments: #{summary_data[:environments_count]} configured",
+          "  - services: #{summary_data[:services_count]} configured (#{summary_data[:excluded_services_count]} excluded)",
+          "  - directory stacks: #{summary_data[:directory_stacks_count]} configured",
+          "  - branch patterns: #{summary_data[:branch_patterns_count]} configured"
+        ].join("\n")
       end
     end
   end

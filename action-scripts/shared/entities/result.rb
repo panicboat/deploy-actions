@@ -7,8 +7,9 @@ module Entities
 
     def initialize(success:, data: {}, error_message: nil)
       @success = success
-      @data = data
+      @data = data.freeze
       @error_message = error_message
+      freeze
     end
 
     # Create a successful result with data
@@ -18,6 +19,9 @@ module Entities
 
     # Create a failed result with error message and optional additional data
     def self.failure(error_message:, **additional_data)
+      if error_message.nil? || error_message.to_s.strip.empty?
+        raise ArgumentError, "error_message is required and cannot be empty"
+      end
       new(success: false, data: additional_data, error_message: error_message)
     end
 
@@ -36,7 +40,7 @@ module Entities
       if data.key?(method_name)
         data[method_name]
       else
-        super
+        nil
       end
     end
 
