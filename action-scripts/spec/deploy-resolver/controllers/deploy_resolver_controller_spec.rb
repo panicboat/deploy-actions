@@ -145,16 +145,16 @@ RSpec.describe Interfaces::Controllers::DeployResolverController do
   end
 
   describe '#test_deployment_workflow' do
-    let(:branch_name) { 'develop' }
+    let(:pr_number) { 123 }
 
     before do
       allow(controller).to receive(:resolve_from_labels)
     end
 
-    it 'tests deployment workflow with test PR number' do
-      controller.test_deployment_workflow(branch_name: branch_name)
+    it 'tests deployment workflow with given PR number' do
+      controller.test_deployment_workflow(pr_number: pr_number)
 
-      expect(controller).to have_received(:resolve_from_labels).with(pr_number: 999)
+      expect(controller).to have_received(:resolve_from_labels).with(pr_number: pr_number)
     end
 
     context 'when resolve_from_labels raises error' do
@@ -166,7 +166,7 @@ RSpec.describe Interfaces::Controllers::DeployResolverController do
       end
 
       it 'catches and reports error' do
-        controller.test_deployment_workflow(branch_name: branch_name)
+        controller.test_deployment_workflow(pr_number: pr_number)
 
         expect(controller).to have_received(:puts).with(/Test completed with error.*Test error/)
       end
@@ -174,15 +174,13 @@ RSpec.describe Interfaces::Controllers::DeployResolverController do
   end
 
   describe '#simulate_github_actions' do
-    let(:branch_name) { 'develop' }
+    let(:pr_number) { 123 }
     let(:original_github_actions) { 'original_value' }
     let(:original_github_env) { '/original/path' }
-    let(:original_github_ref_name) { 'original_branch' }
 
     before do
       allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return(original_github_actions)
       allow(ENV).to receive(:[]).with('GITHUB_ENV').and_return(original_github_env)
-      allow(ENV).to receive(:[]).with('GITHUB_REF_NAME').and_return(original_github_ref_name)
       allow(ENV).to receive(:[]=)
       allow(File).to receive(:write)
       allow(File).to receive(:exist?).and_return(true)
@@ -193,25 +191,23 @@ RSpec.describe Interfaces::Controllers::DeployResolverController do
     end
 
     it 'simulates GitHub Actions environment' do
-      controller.simulate_github_actions(branch_name: branch_name)
+      controller.simulate_github_actions(pr_number: pr_number)
 
       # Verify environment setup
       expect(ENV).to have_received(:[]=).with('GITHUB_ACTIONS', 'true')
-      expect(ENV).to have_received(:[]=).with('GITHUB_ENV', original_github_env)
-      expect(ENV).to have_received(:[]=).with('GITHUB_REF_NAME', branch_name)
-      expect(File).to have_received(:write).with(original_github_env, '')
+      expect(ENV).to have_received(:[]=).with('GITHUB_ENV', '/tmp/github_env')
+      expect(File).to have_received(:write).with(anything, '')
 
       # Verify resolve call
-      expect(controller).to have_received(:resolve_from_labels).with(pr_number: 999)
+      expect(controller).to have_received(:resolve_from_labels).with(pr_number: pr_number)
 
       # Verify environment restoration
       expect(ENV).to have_received(:[]=).with('GITHUB_ACTIONS', original_github_actions)
       expect(ENV).to have_received(:[]=).with('GITHUB_ENV', original_github_env)
-      expect(ENV).to have_received(:[]=).with('GITHUB_REF_NAME', original_github_ref_name)
     end
 
     it 'displays generated environment variables' do
-      controller.simulate_github_actions(branch_name: branch_name)
+      controller.simulate_github_actions(pr_number: pr_number)
 
       expect(controller).to have_received(:puts).with(/Generated Environment Variables/)
       expect(controller).to have_received(:puts).with('TEST_VAR=test_value')
@@ -223,7 +219,7 @@ RSpec.describe Interfaces::Controllers::DeployResolverController do
       end
 
       it 'does not try to read environment file' do
-        controller.simulate_github_actions(branch_name: branch_name)
+        controller.simulate_github_actions(pr_number: pr_number)
 
         expect(File).not_to have_received(:read)
       end
@@ -233,13 +229,12 @@ RSpec.describe Interfaces::Controllers::DeployResolverController do
       allow(controller).to receive(:resolve_from_labels).and_raise(StandardError.new('Test error'))
 
       expect {
-        controller.simulate_github_actions(branch_name: branch_name)
+        controller.simulate_github_actions(pr_number: pr_number)
       }.not_to raise_error
 
       # Verify cleanup happened
       expect(ENV).to have_received(:[]=).with('GITHUB_ACTIONS', original_github_actions)
       expect(ENV).to have_received(:[]=).with('GITHUB_ENV', original_github_env)
-      expect(ENV).to have_received(:[]=).with('GITHUB_REF_NAME', original_github_ref_name)
       expect(File).to have_received(:delete).with('/tmp/github_env')
     end
   end

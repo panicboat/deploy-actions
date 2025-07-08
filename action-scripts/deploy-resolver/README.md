@@ -26,16 +26,16 @@ The Deploy Resolver provides a CLI interface through `bin/resolver`:
 bundle exec ruby deploy-resolver/bin/resolver resolve PR_NUMBER
 
 # Test deployment workflow
-bundle exec ruby deploy-resolver/bin/resolver test BRANCH_NAME
+bundle exec ruby deploy-resolver/bin/resolver test PR_NUMBER
 
 # Simulate GitHub Actions environment
-bundle exec ruby deploy-resolver/bin/resolver simulate BRANCH_NAME
+bundle exec ruby deploy-resolver/bin/resolver simulate PR_NUMBER
 
 # Validate environment configuration
 bundle exec ruby deploy-resolver/bin/resolver validate_env
 
 # Debug workflow step-by-step
-bundle exec ruby deploy-resolver/bin/resolver debug BRANCH_NAME
+bundle exec ruby deploy-resolver/bin/resolver debug PR_NUMBER
 ```
 
 ### Workflow Integration
@@ -191,11 +191,11 @@ The resolver provides detailed error handling:
 ### Testing
 
 ```bash
-# Test with specific branch
-bundle exec ruby deploy-resolver/bin/resolver test develop
+# Test with specific PR
+bundle exec ruby deploy-resolver/bin/resolver test 123
 
 # Debug step-by-step
-bundle exec ruby deploy-resolver/bin/resolver debug develop
+bundle exec ruby deploy-resolver/bin/resolver debug 123
 
 # Validate environment setup
 bundle exec ruby deploy-resolver/bin/resolver validate_env

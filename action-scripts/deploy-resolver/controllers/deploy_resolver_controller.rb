@@ -60,31 +60,29 @@ module Interfaces
       end
 
       # Test deployment workflow without actual execution
-      def test_deployment_workflow(branch_name:)
-        puts "🧪 Testing deployment workflow for branch: #{branch_name}"
+      def test_deployment_workflow(pr_number:)
+        puts "🧪 Testing deployment workflow for PR: #{pr_number}"
 
         begin
-          resolve_from_labels(pr_number: 999)
+          resolve_from_labels(pr_number: pr_number)
         rescue => error
           puts "Test completed with error (expected in test mode): #{error.message}"
         end
       end
 
       # Simulate GitHub Actions environment for testing
-      def simulate_github_actions(branch_name:)
+      def simulate_github_actions(pr_number:)
         puts "🎭 Simulating GitHub Actions environment..."
 
         original_github_actions = ENV['GITHUB_ACTIONS']
         original_github_env = ENV['GITHUB_ENV']
-        original_github_ref_name = ENV['GITHUB_REF_NAME']
 
         ENV['GITHUB_ACTIONS'] = 'true'
         ENV['GITHUB_ENV'] = '/tmp/github_env'
-        ENV['GITHUB_REF_NAME'] = branch_name
         File.write(ENV['GITHUB_ENV'], '')
 
         begin
-          resolve_from_labels(pr_number: 999)
+          resolve_from_labels(pr_number: pr_number)
 
           if File.exist?(ENV['GITHUB_ENV'])
             puts "\n📋 Generated Environment Variables:"
@@ -95,9 +93,61 @@ module Interfaces
         ensure
           ENV['GITHUB_ACTIONS'] = original_github_actions
           ENV['GITHUB_ENV'] = original_github_env
-          ENV['GITHUB_REF_NAME'] = original_github_ref_name
           File.delete('/tmp/github_env') if File.exist?('/tmp/github_env')
         end
+      end
+
+      # Debug deployment workflow step by step
+      def debug_deployment_workflow(pr_number:)
+        current_branch = ENV['GITHUB_REF_NAME'] || 'develop'
+        
+        puts "Step 1: Getting PR labels..."
+        pr_result = get_pr_labels_directly(pr_number)
+        if pr_result.failure?
+          puts "❌ Failed to get PR labels: #{pr_result.error_message}"
+          return
+        end
+        
+        puts "✅ Found #{pr_result.deploy_labels.length} deploy labels: #{pr_result.deploy_labels.map(&:to_s)}"
+        
+        puts "\nStep 2: Determining target environment from current branch (#{current_branch})..."
+        env_result = @determine_target_environment.execute(branch_name: current_branch)
+        if env_result.failure?
+          puts "❌ Failed to determine environment: #{env_result.error_message}"
+          return
+        end
+        
+        puts "✅ Target environment: #{env_result.target_environment}"
+        
+        puts "\nStep 3: Validating deployment safety..."
+        safety_result = @validate_deployment_safety.execute(
+          deploy_labels: pr_result.deploy_labels,
+          pr_number: pr_number,
+          branch_name: current_branch
+        )
+        if safety_result.failure?
+          puts "❌ Safety validation failed: #{safety_result.error_message}"
+          return
+        end
+        
+        puts "✅ Safety validation passed: #{safety_result.safety_status}"
+        
+        puts "\nStep 4: Generating deployment matrix..."
+        matrix_result = @generate_matrix.execute(
+          deploy_labels: pr_result.deploy_labels,
+          target_environment: env_result.target_environment
+        )
+        if matrix_result.failure?
+          puts "❌ Matrix generation failed: #{matrix_result.error_message}"
+          return
+        end
+        
+        puts "✅ Generated #{matrix_result.deployment_targets.length} deployment targets:"
+        matrix_result.deployment_targets.each do |target|
+          puts "  - #{target.service}:#{target.environment}:#{target.stack} (#{target.working_directory})"
+        end
+        
+        puts "\n🎯 Debug completed successfully!"
       end
 
       private

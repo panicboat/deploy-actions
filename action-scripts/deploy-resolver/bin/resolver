@@ -14,18 +14,18 @@ class DeployResolverCLI < Thor
     controller.resolve_from_labels(pr_number: pr_number.to_i)
   end
 
-  desc "test BRANCH_NAME", "Test deployment workflow without execution"
+  desc "test PR_NUMBER", "Test deployment workflow without execution"
 
-  def test(branch_name)
+  def test(pr_number)
     controller = DeployResolverContainer.resolve(:deploy_resolver_controller)
-    controller.test_deployment_workflow(branch_name: branch_name)
+    controller.test_deployment_workflow(pr_number: pr_number.to_i)
   end
 
-  desc "simulate BRANCH_NAME", "Simulate GitHub Actions environment locally"
+  desc "simulate PR_NUMBER", "Simulate GitHub Actions environment locally"
 
-  def simulate(branch_name)
+  def simulate(pr_number)
     controller = DeployResolverContainer.resolve(:deploy_resolver_controller)
-    controller.simulate_github_actions(branch_name: branch_name)
+    controller.simulate_github_actions(pr_number: pr_number.to_i)
   end
 
   desc "validate_env", "Validate environment configuration for deployments"
@@ -45,29 +45,15 @@ class DeployResolverCLI < Thor
     puts "Current branch: #{`git branch --show-current`.strip rescue 'unknown'}"
   end
 
-  desc "debug BRANCH_NAME", "Debug deployment workflow step by step"
+  desc "debug PR_NUMBER", "Debug deployment workflow step by step"
 
-  def debug(branch_name)
+  def debug(pr_number)
     puts "🔍 Debug Mode: Deploy Resolver Workflow"
-    puts "Branch: #{branch_name}"
+    puts "PR Number: #{pr_number}"
     puts ""
 
     controller = DeployResolverContainer.resolve(:deploy_resolver_controller)
-
-    # Step-by-step debugging
-    puts "Step 1: Determining target environment..."
-    determine_env = DeployResolverContainer.resolve(:determine_target_environment)
-    env_result = determine_env.execute(branch_name: branch_name)
-
-    if env_result.success?
-      puts "✅ Target environment: #{env_result.target_environment}"
-    else
-      puts "❌ Failed: #{env_result.error_message}"
-      return
-    end
-
-    puts "\nStep 2: Searching for merged PR..."
-    puts "Note: Full debugging requires GitHub API access"
+    controller.debug_deployment_workflow(pr_number: pr_number.to_i)
   end
 end
 
