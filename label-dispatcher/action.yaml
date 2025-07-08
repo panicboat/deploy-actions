@@ -1,0 +1,109 @@
+name: 'Label Dispatcher'
+description: 'Dispatch labels based on PR changes'
+author: 'panicboat'
+
+branding:
+  icon: 'tag'
+  color: 'green'
+
+inputs:
+  pr-number:
+    description: 'Pull request number'
+    required: true
+  repository:
+    description: 'Repository name (owner/repo)'
+    required: true
+  github-token:
+    description: 'GitHub token with pull-requests: write permission'
+    required: true
+  config-path:
+    description: 'Path to workflow configuration file'
+    required: false
+    default: 'workflow-config.yaml'
+  deploy-actions-repository:
+    description: 'Deploy actions repository to use'
+    required: false
+    default: 'panicboat/deploy-actions'
+
+outputs:
+  labels-added:
+    description: 'Labels that were added to the PR'
+    value: ${{ steps.dispatch.outputs.labels-added }}
+  labels-removed:
+    description: 'Labels that were removed from the PR'
+    value: ${{ steps.dispatch.outputs.labels-removed }}
+  services-detected:
+    description: 'Services detected from the changes'
+    value: ${{ steps.dispatch.outputs.services-detected }}
+  has-changes:
+    description: 'Whether any changes were detected'
+    value: ${{ steps.dispatch.outputs.has-changes }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout deploy-actions
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.deploy-actions-repository }}
+        path: deploy-actions
+
+    - name: Checkout source repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.repository }}
+        token: ${{ inputs.github-token }}
+        path: source-repo
+        fetch-depth: 0
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.4'
+        bundler-cache: true
+        working-directory: deploy-actions/action-scripts
+
+    - name: Copy configuration from source repository
+      shell: bash
+      run: |
+        echo "📋 Copying configuration from source repository"
+        echo "Source path: source-repo/${{ inputs.config-path }}"
+        echo "Target path: deploy-actions/action-scripts/workflow-config.yaml"
+
+        if [ ! -f "source-repo/${{ inputs.config-path }}" ]; then
+          echo "::error::Configuration file not found: ${{ inputs.config-path }}"
+          exit 1
+        fi
+
+        cp "source-repo/${{ inputs.config-path }}" deploy-actions/action-scripts/workflow-config.yaml
+        echo "✅ Configuration copied successfully"
+
+    - name: Validate configuration
+      shell: bash
+      working-directory: deploy-actions/action-scripts
+      run: |
+        echo "🔍 Validating configuration file"
+        bundle exec ruby config-manager/bin/config-manager validate
+      env:
+        WORKFLOW_CONFIG_PATH: workflow-config.yaml
+
+    - name: Dispatch labels
+      id: dispatch
+      shell: bash
+      working-directory: deploy-actions/action-scripts
+      run: |
+        echo "🚀 Starting label dispatch for PR #${{ inputs.pr-number }}"
+        bundle exec ruby label-dispatcher/bin/dispatcher dispatch ${{ inputs.pr-number }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ inputs.repository }}
+        WORKFLOW_CONFIG_PATH: workflow-config.yaml
+
+    - name: Report results
+      if: always()
+      shell: bash
+      run: |
+        echo "📊 Label dispatch completed"
+        echo "Repository: ${{ inputs.repository }}"
+        echo "PR Number: ${{ inputs.pr-number }}"
+        echo "Status: ${{ job.status }}"
