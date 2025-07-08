@@ -95,26 +95,12 @@ branch_patterns:
   staging: staging
   production: production
 
-# 安全性チェック
-safety_checks:
-  require_merged_pr: true
-  fail_on_missing_pr: true
-  max_retry_attempts: 3
-  allowed_direct_push_branches: []
-
 # 環境設定
 environments:
   - environment: develop
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-# サービス設定
-services:
-  - name: my-service
-    directory_conventions:
-      terragrunt: "services/{service}/terragrunt/envs/{environment}"
-      kubernetes: "services/{service}/kubernetes/overlays/{environment}"
 ```
 
 ## アーキテクチャ

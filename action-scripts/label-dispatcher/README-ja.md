@@ -104,11 +104,6 @@ directory_conventions:
 
 # サービス固有の設定
 services:
-  - name: my-service
-    directory_conventions:
-      terragrunt: "services/{service}/terragrunt/envs/{environment}"
-      kubernetes: "services/{service}/kubernetes/overlays/{environment}"
-
   - name: excluded-service
     exclude_from_automation: true
     exclusion_config:

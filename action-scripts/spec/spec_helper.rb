@@ -91,7 +91,7 @@ RSpec.configure do |config|
         record: :once,
         allow_unused_http_interactions: false
       }
-      
+
       # Filter sensitive data
       vcr_config.filter_sensitive_data('<GITHUB_TOKEN>') { ENV['GITHUB_TOKEN'] }
       vcr_config.filter_sensitive_data('<GITHUB_REPOSITORY>') { ENV['GITHUB_REPOSITORY'] }
@@ -139,9 +139,6 @@ module SpecHelpers
             directory: "kubernetes/overlays/{environment}"
 
       services:
-        - name: test-service
-          directory_conventions:
-            terragrunt: "services/{service}/terragrunt/envs/{environment}"
         - name: excluded-service
           exclude_from_automation: true
           exclusion_config:
