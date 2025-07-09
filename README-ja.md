@@ -60,9 +60,9 @@ PRラベルとブランチ情報をGitHub Actions自動化のためのデプロ�
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Label Resolver
+### Deploy Resolver
 ```yaml
-- uses: panicboat/deploy-actions/label-resolver@main
+- uses: panicboat/deploy-actions/deploy-resolver@main
   with:
     action-type: plan  # または apply
     pr-number: ${{ github.event.pull_request.number }}
@@ -70,9 +70,9 @@ PRラベルとブランチ情報をGitHub Actions自動化のためのデプロ�
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Deploy Terragrunt
+### Apply Terragrunt
 ```yaml
-- uses: panicboat/deploy-actions/deploy-terragrunt@main
+- uses: panicboat/deploy-actions/apply-terragrunt@main
   with:
     deployment-targets: ${{ steps.resolve.outputs.deployment-targets }}
     action-type: plan  # または apply
@@ -193,7 +193,7 @@ jobs:
     steps:
       - name: Resolve Deployment Targets
         id: resolve
-        uses: panicboat/deploy-actions/label-resolver@main
+        uses: panicboat/deploy-actions/deploy-resolver@main
         with:
           action-type: plan
           pr-number: ${{ github.event.pull_request.number }}
@@ -201,7 +201,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy with Terragrunt
-        uses: panicboat/deploy-actions/deploy-terragrunt@main
+        uses: panicboat/deploy-actions/apply-terragrunt@main
         with:
           deployment-targets: ${{ steps.resolve.outputs.deployment-targets }}
           action-type: plan
