@@ -58,7 +58,8 @@ runs:
       uses: actions/github-script@v7
       with:
         script: |
-          const validateWorkingDirectory = require('./validate-working-directory.js');
+          const path = require('path');
+          const validateWorkingDirectory = require(path.join(process.env.GITHUB_ACTION_PATH, 'validate-working-directory.js'));
           await validateWorkingDirectory({ core, inputs: ${{ toJSON(inputs) }} });
 
     - name: Configure AWS credentials
@@ -73,7 +74,8 @@ runs:
       uses: actions/github-script@v7
       with:
         script: |
-          const verifyCredentials = require('./verify-aws-credentials.js');
+          const path = require('path');
+          const verifyCredentials = require(path.join(process.env.GITHUB_ACTION_PATH, 'verify-aws-credentials.js'));
           await verifyCredentials({ core, inputs: ${{ toJSON(inputs) }} });
 
     - name: Execute Terragrunt
@@ -97,7 +99,8 @@ runs:
       uses: actions/github-script@v7
       with:
         script: |
-          const parseResults = require('./parse-results.js');
+          const path = require('path');
+          const parseResults = require(path.join(process.env.GITHUB_ACTION_PATH, 'parse-results.js'));
           await parseResults({
             core,
             inputs: ${{ toJSON(inputs) }},
