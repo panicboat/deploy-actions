@@ -128,7 +128,7 @@ runs:
           <details>
           <summary>📋 Terragrunt Output</summary>
 
-          ```
+          ```hcl
           ${{ steps.parse-results.outputs.output }}
           ```
           </details>
