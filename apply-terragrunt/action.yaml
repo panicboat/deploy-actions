@@ -18,11 +18,8 @@ inputs:
   action-type:
     description: 'Action type: plan or apply'
     required: true
-  plan-iam-role:
-    description: 'IAM role for plan operations'
-    required: true
-  apply-iam-role:
-    description: 'IAM role for apply operations'
+  iam-role:
+    description: 'IAM role for plan/apply operations'
     required: true
   aws-region:
     description: 'AWS region'
@@ -67,7 +64,7 @@ runs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ inputs.action-type == 'plan' && inputs.plan-iam-role || inputs.apply-iam-role }}
+        role-to-assume: ${{ inputs.iam-role }}
         aws-region: ${{ inputs.aws-region }}
         role-session-name: GitHubActions-Terragrunt-${{ inputs.action-type }}-${{ inputs.environment }}
         audience: sts.amazonaws.com
