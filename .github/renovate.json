@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:base", ":semanticCommits"],
+  "semanticCommitScope": "{{packageFileDir}}",
+  "timezone": "Asia/Tokyo",
+  "labels": ["🤖 renovate"],
+  "assigneesFromCodeOwners": false,
+  "reviewersFromCodeOwners": true,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": true,
+  "prConcurrentLimit": 15,
+  "prHourlyLimit": 5,
+  "branchPrefix": "renovate/",
+
+  "schedule": ["before 4am every weekday"],
+  "minimumReleaseAge": "1 day",
+
+  "packageRules": [
+    {
+      "description": "Base rule - packageFileDir and depName separation",
+      "matchPaths": ["**"],
+      "automerge": true,
+      "groupName": "{{packageFileDir}} {{depName}}"
+    },
+
+    {
+      "description": "🚫 Major updates - disable automerge",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["📈 major-update"]
+    }
+  ]
+}
