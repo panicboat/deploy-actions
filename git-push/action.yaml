@@ -44,6 +44,12 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd $GITHUB_ACTION_PATH
+        npm install
+
     - name: Validate inputs
       uses: actions/github-script@v7
       with:
