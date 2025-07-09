@@ -70,7 +70,11 @@ module Interfaces
           puts "✅ Configuration is valid".colorize(:green)
           if summary
             puts "Summary:"
-            summary.each { |key, value| puts "  #{key}: #{value}" }
+            if summary.is_a?(String)
+              puts summary
+            else
+              summary.each { |key, value| puts "  #{key}: #{value}" }
+            end
           end
         else
           puts "❌ Configuration validation failed".colorize(:red)
