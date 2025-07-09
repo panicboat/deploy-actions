@@ -98,7 +98,7 @@ runs:
       uses: peter-evans/create-pull-request@v7
       with:
         token: ${{ inputs.github-token }}
-        path: target-repository
+        path: generated-manifests
         commit-message: |
           auto: update ${{ inputs.service-name }} for ${{ inputs.environment }}
 
