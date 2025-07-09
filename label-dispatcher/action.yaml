@@ -67,7 +67,7 @@ runs:
       uses: actions/github-script@v7
       with:
         script: |
-          const copyConfiguration = require('./copy-configuration.js');
+          const copyConfiguration = require('./deploy-actions/label-dispatcher/copy-configuration.js');
           await copyConfiguration({ core, inputs: ${{ toJSON(inputs) }} });
 
     - name: Validate configuration
@@ -96,5 +96,5 @@ runs:
       uses: actions/github-script@v7
       with:
         script: |
-          const reportResults = require('./report-results.js');
+          const reportResults = require('./deploy-actions/label-dispatcher/report-results.js');
           await reportResults({ core, context, inputs: ${{ toJSON(inputs) }} });
