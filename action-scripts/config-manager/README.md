@@ -34,6 +34,9 @@ bundle exec ruby config-manager/bin/config-manager environments
 # List all services
 bundle exec ruby config-manager/bin/config-manager services
 
+# List services excluded from automation
+bundle exec ruby config-manager/bin/config-manager excluded_services
+
 # Test specific service configuration
 bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME ENVIRONMENT
 
@@ -42,6 +45,9 @@ bundle exec ruby config-manager/bin/config-manager diagnostics
 
 # Generate configuration template
 bundle exec ruby config-manager/bin/config-manager template
+
+# Check if configuration file exists and is readable
+bundle exec ruby config-manager/bin/config-manager check_file
 ```
 
 ### Configuration File
@@ -137,6 +143,15 @@ bundle exec ruby config-manager/bin/config-manager test my-service develop
 
 # Run full diagnostics
 bundle exec ruby config-manager/bin/config-manager diagnostics
+
+# List all environments
+bundle exec ruby config-manager/bin/config-manager environments
+
+# List all services
+bundle exec ruby config-manager/bin/config-manager services
+
+# List services excluded from automation
+bundle exec ruby config-manager/bin/config-manager excluded_services
 ```
 
 ## Output Formats

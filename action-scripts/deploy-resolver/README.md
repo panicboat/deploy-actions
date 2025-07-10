@@ -139,7 +139,7 @@ The Deploy Resolver follows a clean architecture pattern:
 - `DetermineTargetEnvironment`: Maps branches to environments
 - `GetLabels`: Extracts deployment labels from PR
 - `ValidateDeploymentSafety`: Enforces safety rules
-- `GenerateMatrix`: Creates deployment matrices
+- `GeneratedMatrix`: Creates deployment matrices
 
 ### Infrastructure
 - `GitHubClient`: GitHub API interactions

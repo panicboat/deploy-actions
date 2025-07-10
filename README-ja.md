@@ -54,8 +54,7 @@ PRラベルとブランチ情報をGitHub Actions自動化のためのデプロ�
 ```yaml
 - uses: panicboat/deploy-actions/label-dispatcher@main
   with:
-    base-ref: ${{ github.event.pull_request.base.ref }}
-    head-ref: ${{ github.head_ref }}
+    pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -173,8 +172,7 @@ jobs:
       - name: Dispatch Labels
         uses: panicboat/deploy-actions/label-dispatcher@main
         with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-ref: ${{ github.head_ref }}
+          pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```

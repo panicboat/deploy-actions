@@ -34,6 +34,9 @@ bundle exec ruby config-manager/bin/config-manager environments
 # 全サービスの一覧表示
 bundle exec ruby config-manager/bin/config-manager services
 
+# 自動化から除外されたサービスの一覧表示
+bundle exec ruby config-manager/bin/config-manager excluded_services
+
 # 特定サービス設定のテスト
 bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME ENVIRONMENT
 
@@ -42,6 +45,9 @@ bundle exec ruby config-manager/bin/config-manager diagnostics
 
 # 設定テンプレートの生成
 bundle exec ruby config-manager/bin/config-manager template
+
+# 設定ファイルの存在確認と読み込み可能性チェック
+bundle exec ruby config-manager/bin/config-manager check_file
 ```
 
 ### 設定ファイル
@@ -137,6 +143,15 @@ bundle exec ruby config-manager/bin/config-manager test my-service develop
 
 # 完全な診断実行
 bundle exec ruby config-manager/bin/config-manager diagnostics
+
+# 全環境の一覧表示
+bundle exec ruby config-manager/bin/config-manager environments
+
+# 全サービスの一覧表示
+bundle exec ruby config-manager/bin/config-manager services
+
+# 自動化から除外されたサービスの一覧表示
+bundle exec ruby config-manager/bin/config-manager excluded_services
 ```
 
 ## 出力フォーマット

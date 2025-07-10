@@ -26,16 +26,16 @@ Deploy Resolverは`bin/resolver`を通じてCLIインターフェースを提供
 bundle exec ruby deploy-resolver/bin/resolver resolve PR_NUMBER
 
 # デプロイワークフローのテスト
-bundle exec ruby deploy-resolver/bin/resolver test BRANCH_NAME
+bundle exec ruby deploy-resolver/bin/resolver test PR_NUMBER
 
 # GitHub Actions環境のシミュレーション
-bundle exec ruby deploy-resolver/bin/resolver simulate BRANCH_NAME
+bundle exec ruby deploy-resolver/bin/resolver simulate PR_NUMBER
 
 # 環境設定の検証
 bundle exec ruby deploy-resolver/bin/resolver validate_env
 
 # ステップバイステップのデバッグ
-bundle exec ruby deploy-resolver/bin/resolver debug BRANCH_NAME
+bundle exec ruby deploy-resolver/bin/resolver debug PR_NUMBER
 ```
 
 ### ワークフロー統合
@@ -70,19 +70,19 @@ bundle exec ruby deploy-resolver/bin/resolver debug BRANCH_NAME
 
 ### 3. 安全性検証
 
-デプロイ安全性ルールを適用：
-- デプロイにマージ済みPRを要求
-- PR情報の可用性を検証
-- 安全性設定に対してチェック
-- 直接プッシュデプロイを防止（設定可能）
+基本的なデプロイ検証を提供：
+- デプロイラベルの存在を検証
+- ブランチ情報の可用性をチェック
+- 後方互換性のために成功を返す（安全性チェックは簡略化）
 
 ### 4. マトリックス生成
 
 並列実行用のデプロイマトリックスを作成：
 - サービスをデプロイスタック別にグループ化（Terragrunt、Kubernetes）
+- 階層ディレクトリ規則を使用
 - 環境固有のIAMロールを含む
-- ディレクトリパス規則を提供
-- サービス固有の設定を処理
+- サービス固有のディレクトリオーバーライドを処理
+- 除外されていないすべてのサービスの`deploy:all`をサポート
 
 ## 設定
 
@@ -95,12 +95,37 @@ branch_patterns:
   staging: staging
   production: production
 
+# ディレクトリ規則（階層構造）
+directory_conventions:
+  root: "{service}"
+  stacks:
+    - name: terragrunt
+      directory: "terragrunt/{environment}"
+    - name: kubernetes
+      directory: "kubernetes/overlays/{environment}"
+
 # 環境設定
 environments:
   - environment: develop
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+  - environment: staging
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::ACCOUNT:role/staging-plan-role
+    iam_role_apply: arn:aws:iam::ACCOUNT:role/staging-apply-role
+  - environment: production
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
+    iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
+
+# サービス設定
+services:
+  - name: excluded-service
+    exclude_from_automation: true
+    exclusion_config:
+      reason: "手動デプロイが必要"
+      type: "permanent"
 ```
 
 ## アーキテクチャ
@@ -114,7 +139,7 @@ Deploy Resolverはクリーンアーキテクチャパターンに従います�
 - `DetermineTargetEnvironment`: ブランチを環境にマッピング
 - `GetLabels`: PRからデプロイラベルを抽出
 - `ValidateDeploymentSafety`: 安全性ルールの適用
-- `GenerateMatrix`: デプロイマトリックスの作成
+- `GeneratedMatrix`: デプロイマトリックスの作成
 
 ### Infrastructure
 - `GitHubClient`: GitHub APIとのやり取り
@@ -161,11 +186,11 @@ SAFETY_STATUS=passed
 ### テスト
 
 ```bash
-# 特定ブランチでのテスト
-bundle exec ruby deploy-resolver/bin/resolver test develop
+# 特定PRでのテスト
+bundle exec ruby deploy-resolver/bin/resolver test 123
 
 # ステップバイステップのデバッグ
-bundle exec ruby deploy-resolver/bin/resolver debug develop
+bundle exec ruby deploy-resolver/bin/resolver debug 123
 
 # 環境設定の検証
 bundle exec ruby deploy-resolver/bin/resolver validate_env

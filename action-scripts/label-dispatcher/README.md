@@ -37,7 +37,7 @@ bundle exec ruby label-dispatcher/bin/dispatcher simulate PR_NUMBER
 # Validate environment configuration
 bundle exec ruby label-dispatcher/bin/dispatcher validate_env
 
-# Show usage examples
+# Show usage examples and tips
 bundle exec ruby label-dispatcher/bin/dispatcher help_usage
 ```
 
