@@ -6,19 +6,19 @@ module.exports = async ({ core, inputs }) => {
     core.info('📋 Preparing source file');
     
     const sourceFile = inputs['source-file'];
-    const serviceName = inputs['service-name'];
-    const environment = inputs['environment'];
+    const targetPath = inputs['target-path'];
     
     // ターゲットリポジトリでの配置先パス（generated-manifests ディレクトリ内）
     const workspaceDir = 'generated-manifests';
-    const targetDir = path.join(workspaceDir, environment);
-    const targetFile = `${serviceName}.yaml`;
-    const targetPath = path.join(targetDir, targetFile);
+    const fullTargetPath = path.join(workspaceDir, targetPath);
+    const targetDir = path.dirname(fullTargetPath);
+    const targetFile = path.basename(fullTargetPath);
     
     core.info(`Source: ${sourceFile}`);
+    core.info(`Target path: ${targetPath}`);
+    core.info(`Full target path: ${fullTargetPath}`);
     core.info(`Target directory: ${targetDir}`);
     core.info(`Target file: ${targetFile}`);
-    core.info(`Target path: ${targetPath}`);
     
     // ターゲットディレクトリの作成
     if (!fs.existsSync(targetDir)) {
@@ -27,18 +27,15 @@ module.exports = async ({ core, inputs }) => {
     }
     
     // ソースファイルのコピー
-    fs.copyFileSync(sourceFile, targetPath);
-    core.info(`Copied file to: ${targetPath}`);
+    fs.copyFileSync(sourceFile, fullTargetPath);
+    core.info(`Copied file to: ${fullTargetPath}`);
     
     // ファイルサイズの確認
-    const stats = fs.statSync(targetPath);
+    const stats = fs.statSync(fullTargetPath);
     core.info(`Target file size: ${stats.size} bytes`);
     
-    // 相対パスを出力（PRの説明で使用）
-    const relativePath = path.join(environment, targetFile);
-    
     // 出力の設定
-    core.setOutput('target-file', relativePath);
+    core.setOutput('target-file', targetPath);
     core.setOutput('target-directory', targetDir);
     core.setOutput('target-filename', targetFile);
     

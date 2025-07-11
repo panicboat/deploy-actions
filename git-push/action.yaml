@@ -7,14 +7,17 @@ branding:
   color: 'blue'
 
 inputs:
-  source-file:
-    description: 'Path to source file to push'
-    required: true
   service-name:
-    description: 'Service name for file organization'
+    description: 'Service name for PR title and labels'
     required: true
   environment:
-    description: 'Environment name (develop, staging, production, etc.)'
+    description: 'Environment name for PR title and labels'
+    required: true
+  pr-number:
+    description: 'Pull request number for source PR reference (optional)'
+    required: false
+  source-file:
+    description: 'Path to source file to push'
     required: true
   target-repository:
     description: 'Target repository for file push (e.g., panicboat/generated-manifests)'
@@ -23,12 +26,12 @@ inputs:
     description: 'Target branch for file push'
     required: false
     default: 'main'
+  target-path:
+    description: 'Target path within generated-manifests (e.g., develop/services/nginx-app.yaml)'
+    required: true
   github-token:
     description: 'GitHub token with required permissions'
     required: true
-  pr-number:
-    description: 'Pull request number for source PR reference (optional)'
-    required: false
 
 outputs:
   pr-number:
