@@ -131,14 +131,17 @@ module SpecHelpers
           iam_role_apply: arn:aws:iam::123456789012:role/production-apply-role
 
       directory_conventions:
-        root: "{service}"
-        stacks:
-          - name: terragrunt
-            directory: "terragrunt/{environment}"
-          - name: kubernetes
-            directory: "kubernetes/overlays/{environment}"
+        - root: "{service}"
+          stacks:
+            - name: terragrunt
+              directory: "terragrunt/{environment}"
+            - name: kubernetes
+              directory: "kubernetes/overlays/{environment}"
 
       services:
+        - name: demo
+          directory_conventions:
+            terragrunt: "services/{service}/terragrunt/envs/{environment}"
         - name: excluded-service
           exclude_from_automation: true
           exclusion_config:

@@ -97,12 +97,12 @@ branch_patterns:
 
 # ディレクトリ規則（階層構造）
 directory_conventions:
-  root: "{service}"
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/overlays/{environment}"
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
 
 # 環境設定
 environments:

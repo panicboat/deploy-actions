@@ -95,12 +95,12 @@ PRラベルを自動的に管理：
 ```yaml
 # サービス検出用のディレクトリ規則（階層構造）
 directory_conventions:
-  root: "{service}"
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/overlays/{environment}"
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
 
 # サービス固有の設定
 services:

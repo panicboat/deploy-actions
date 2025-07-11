@@ -72,19 +72,21 @@ FactoryBot.define do
             'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply-role'
           }
         ],
-        'directory_conventions' => {
-          'root' => '{service}',
-          'stacks' => [
-            {
-              'name' => 'terragrunt',
-              'directory' => 'terragrunt/{environment}'
-            },
-            {
-              'name' => 'kubernetes',
-              'directory' => 'kubernetes/overlays/{environment}'
-            }
-          ]
-        },
+        'directory_conventions' => [
+          {
+            'root' => '{service}',
+            'stacks' => [
+              {
+                'name' => 'terragrunt',
+                'directory' => 'terragrunt/{environment}'
+              },
+              {
+                'name' => 'kubernetes',
+                'directory' => 'kubernetes/overlays/{environment}'
+              }
+            ]
+          }
+        ],
         'services' => [
           {
             'name' => 'test-service'

@@ -14,8 +14,8 @@ module UseCases
         config = @config_client.load_workflow_config
         changed_files = @file_client.get_changed_files(base_ref: base_ref, head_ref: head_ref)
 
-        # Discover all services from file changes
-        all_discovered_services = discover_services(changed_files, config)
+        # Discover all services from file changes using pattern matching
+        all_discovered_services = discover_services_from_patterns(changed_files, config)
 
         # Filter out excluded services
         filtered_services = filter_excluded_services(all_discovered_services, config, changed_files)
@@ -77,34 +77,16 @@ module UseCases
       end
 
       # Discover services from changed files and configuration
-      def discover_services(changed_files, config)
+      def discover_services_from_patterns(changed_files, config)
         services = Set.new
 
-        # Discover services from directory patterns using hierarchical structure
-        stacks = config.send(:directory_stacks) || []
+        # Get all possible directory patterns from configuration
+        patterns = config.all_directory_patterns
         
-        stacks.each do |stack_config|
-          stack_directory = stack_config['directory']
-          next unless stack_directory
-          
-          # Build full pattern using root + stack directory
-          root_pattern = config.directory_conventions['root']
-          full_pattern = if root_pattern.nil? || root_pattern.empty?
-                          stack_directory
-                        else
-                          "#{root_pattern}/#{stack_directory}"
-                        end
-          
-          # Only process if the full pattern contains {service}
-          next unless full_pattern.include?('{service}')
-          
-          pattern_services = discover_services_from_pattern(changed_files, full_pattern)
+        patterns.each do |pattern|
+          pattern_services = discover_services_from_pattern(changed_files, pattern)
           services.merge(pattern_services)
         end
-
-        # Discover services from existing directory structure
-        filesystem_services = discover_services_from_filesystem(changed_files)
-        services.merge(filesystem_services)
 
         services.to_a.reject { |service| service.start_with?('.') }
       end
@@ -120,7 +102,9 @@ module UseCases
 
         services = Set.new
         changed_files.each do |file|
-          if match = file.match(/\A#{regex_pattern}/)
+          # Try to match the pattern against the file path
+          # The pattern might not include all parts of the file path
+          if match = file.match(/#{regex_pattern}/)
             service_name = match[1]
             services << service_name unless service_name.start_with?('.')
           end
@@ -129,41 +113,6 @@ module UseCases
         services
       end
 
-      # Discover services from existing filesystem structure
-      def discover_services_from_filesystem(changed_files)
-        services = Set.new
-
-        changed_files.each do |file|
-          # Extract service name from file path (first directory component)
-          path_parts = file.split('/')
-          next if path_parts.empty?
-
-          potential_service = path_parts.first
-          next if potential_service.start_with?('.')
-
-          # Check if this looks like a service directory
-          if looks_like_service_directory?(potential_service)
-            services << potential_service
-          end
-        end
-
-        services
-      end
-
-
-      # Check if a directory name looks like a service directory
-      def looks_like_service_directory?(dir_name)
-        # Skip common non-service directories
-        excluded_dirs = %w[
-          .github docs scripts tests spec bin lib config public assets
-          platform infrastructure shared common utils tools services
-          apps infrastructures
-        ]
-        return false if excluded_dirs.include?(dir_name)
-
-        # Must be a valid service name
-        dir_name.match?(/\A[a-zA-Z0-9\-_]+\z/)
-      end
     end
   end
 end

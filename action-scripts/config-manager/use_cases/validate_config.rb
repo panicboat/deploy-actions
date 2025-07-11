@@ -122,46 +122,54 @@ module UseCases
           return errors
         end
 
-        # Validate root pattern (can be empty string)
-        unless conventions.key?('root')
-          errors << "Directory conventions missing required 'root' field"
-        end
-
-        # Only validate {service} placeholder if root is not empty
-        if conventions['root'] && !conventions['root'].empty? && !conventions['root'].include?('{service}')
-          errors << "Directory conventions root must include {service} placeholder"
-        end
-
-        # Validate stacks
-        stacks = conventions['stacks']
-        unless stacks.is_a?(Array)
-          errors << "Directory conventions 'stacks' must be an Array"
-          return errors
-        end
-
-        if stacks.empty?
-          errors << "Directory conventions 'stacks' cannot be empty"
-          return errors
-        end
-
-        # Check for required stacks
-        stack_names = stacks.map { |stack| stack['name'] }
-        required_stacks = %w[terragrunt]
-        missing_stacks = required_stacks - stack_names
-        errors.concat(missing_stacks.map { |stack| "Missing required stack: #{stack}" })
-
-        # Validate each stack
-        stacks.each_with_index do |stack, index|
-          unless stack['name']
-            errors << "Stack at index #{index} missing required 'name' field"
+        # Validate each directory convention
+        conventions.each_with_index do |convention, conv_index|
+          unless convention.is_a?(Hash)
+            errors << "Directory convention at index #{conv_index} must be a Hash"
+            next
           end
 
-          unless stack['directory']
-            errors << "Stack at index #{index} missing required 'directory' field"
+          # Validate root pattern (can be empty string)
+          unless convention.key?('root')
+            errors << "Directory convention at index #{conv_index} missing required 'root' field"
           end
 
-          if stack['directory'] && !stack['directory'].include?('{environment}')
-            errors << "Stack '#{stack['name']}' directory must include {environment} placeholder"
+          # Only validate {service} placeholder if root is not empty
+          if convention['root'] && !convention['root'].empty? && !convention['root'].include?('{service}')
+            errors << "Directory convention at index #{conv_index} root must include {service} placeholder"
+          end
+
+          # Validate stacks
+          stacks = convention['stacks']
+          unless stacks.is_a?(Array)
+            errors << "Directory convention at index #{conv_index} 'stacks' must be an Array"
+            next
+          end
+
+          if stacks.empty?
+            errors << "Directory convention at index #{conv_index} 'stacks' cannot be empty"
+            next
+          end
+
+          # Check for required stacks
+          stack_names = stacks.map { |stack| stack['name'] }
+          required_stacks = %w[terragrunt]
+          missing_stacks = required_stacks - stack_names
+          errors.concat(missing_stacks.map { |stack| "Missing required stack: #{stack}" })
+
+          # Validate each stack
+          stacks.each_with_index do |stack, index|
+            unless stack['name']
+              errors << "Stack at index #{index} in convention #{conv_index} missing required 'name' field"
+            end
+
+            unless stack['directory']
+              errors << "Stack at index #{index} in convention #{conv_index} missing required 'directory' field"
+            end
+
+            if stack['directory'] && !stack['directory'].include?('{environment}')
+              errors << "Stack '#{stack['name']}' in convention #{conv_index} directory must include {environment} placeholder"
+            end
           end
         end
 
@@ -261,12 +269,15 @@ module UseCases
           service_config.dig('exclusion_config', 'type') || 'unspecified'
         }
 
+        # Count total stacks across all conventions
+        total_stacks = config.directory_conventions_config.sum { |conv| conv['stacks']&.length || 0 }
+        
         summary_data = {
           environments_count: config.environments.length,
           services_count: config.services.length,
           excluded_services_count: excluded_services.length,
           excluded_services_by_type: excluded_by_type.transform_values(&:length),
-          directory_stacks_count: config.send(:directory_stacks).length,
+          directory_stacks_count: total_stacks,
           branch_patterns_count: config.branch_patterns.length
         }
 

@@ -43,6 +43,15 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
             { 'name' => 'kubernetes', 'directory' => 'kubernetes/{environment}' }
           ]
         })
+        allow(config).to receive(:directory_conventions_config).and_return([
+          {
+            'root' => 'services/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
+              { 'name' => 'kubernetes', 'directory' => 'kubernetes/{environment}' }
+            ]
+          }
+        ])
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -138,6 +147,15 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
             { 'name' => 'kubernetes', 'directory' => 'apps/{service}/kubernetes/overlays/{environment}' }
           ]
         })
+        allow(config).to receive(:directory_conventions_config).and_return([
+          {
+            'root' => '',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => 'infrastructures/{service}/terragrunt/{environment}' },
+              { 'name' => 'kubernetes', 'directory' => 'apps/{service}/kubernetes/overlays/{environment}' }
+            ]
+          }
+        ])
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -227,6 +245,14 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
             { 'name' => 'terragrunt', 'directory' => '' }
           ]
         })
+        allow(config).to receive(:directory_conventions_config).and_return([
+          {
+            'root' => 'services/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => '' }
+            ]
+          }
+        ])
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -265,6 +291,15 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
             { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
           ]
         })
+        allow(config).to receive(:directory_conventions_config).and_return([
+          {
+            'root' => 'services/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
+              { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
+            ]
+          }
+        ])
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -353,6 +388,14 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
             { 'name' => 'terragrunt', 'directory' => 'terraform' }
           ]
         })
+        allow(config).to receive(:directory_conventions_config).and_return([
+          {
+            'root' => 'infrastructures/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => 'terraform' }
+            ]
+          }
+        ])
       end
 
       it 'detects service using custom pattern' do

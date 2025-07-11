@@ -25,19 +25,21 @@ RSpec.describe Entities::WorkflowConfig do
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply'
         }
       ],
-      'directory_conventions' => {
-        'root' => '{service}',
-        'stacks' => [
-          {
-            'name' => 'terragrunt',
-            'directory' => 'terragrunt/{environment}'
-          },
-          {
-            'name' => 'kubernetes',
-            'directory' => 'kubernetes/overlays/{environment}'
-          }
-        ]
-      },
+      'directory_conventions' => [
+        {
+          'root' => '{service}',
+          'stacks' => [
+            {
+              'name' => 'terragrunt',
+              'directory' => 'terragrunt/{environment}'
+            },
+            {
+              'name' => 'kubernetes',
+              'directory' => 'kubernetes/overlays/{environment}'
+            }
+          ]
+        }
+      ],
       'services' => [
         {
           'name' => 'test-service',
@@ -113,16 +115,39 @@ RSpec.describe Entities::WorkflowConfig do
   end
 
 
-  describe '#directory_convention_for' do
+  describe '#directory_conventions_for' do
     context 'with service-specific convention' do
       it 'returns service-specific convention' do
+        conventions = workflow_config.directory_conventions_for('test-service', 'terragrunt')
+        expect(conventions).to eq(['services/{service}/terragrunt/envs/{environment}'])
+      end
+    end
+
+    context 'with default convention' do
+      it 'returns default convention for service without specific configuration' do
+        conventions = workflow_config.directory_conventions_for('other-service', 'terragrunt')
+        expect(conventions).to eq(['{service}/terragrunt/{environment}'])
+      end
+    end
+
+    context 'with non-existing stack' do
+      it 'returns empty array' do
+        conventions = workflow_config.directory_conventions_for('test-service', 'non-existing')
+        expect(conventions).to be_empty
+      end
+    end
+  end
+
+  describe '#directory_convention_for' do
+    context 'with service-specific convention' do
+      it 'returns first service-specific convention' do
         convention = workflow_config.directory_convention_for('test-service', 'terragrunt')
         expect(convention).to eq('services/{service}/terragrunt/envs/{environment}')
       end
     end
 
     context 'with default convention' do
-      it 'returns default convention for service without specific configuration' do
+      it 'returns first default convention for service without specific configuration' do
         convention = workflow_config.directory_convention_for('other-service', 'terragrunt')
         expect(convention).to eq('{service}/terragrunt/{environment}')
       end
@@ -137,14 +162,18 @@ RSpec.describe Entities::WorkflowConfig do
   end
 
   describe '#directory_conventions_root' do
-    it 'returns the root pattern from directory conventions' do
+    it 'returns the first root pattern from directory conventions' do
       expect(workflow_config.directory_conventions_root).to eq('{service}')
+    end
+
+    it 'returns all root patterns' do
+      expect(workflow_config.directory_conventions_root_patterns).to eq(['{service}'])
     end
 
     context 'with empty root' do
       let(:config_hash) do
         super().tap do |config|
-          config['directory_conventions']['root'] = ''
+          config['directory_conventions'][0]['root'] = ''
         end
       end
 
@@ -156,8 +185,8 @@ RSpec.describe Entities::WorkflowConfig do
     context 'with missing directory_conventions' do
       let(:config_hash) { super().except('directory_conventions') }
 
-      it 'returns nil' do
-        expect { workflow_config.directory_conventions_root }.to raise_error
+      it 'raises validation error' do
+        expect { workflow_config }.to raise_error(/directory_conventions/)
       end
     end
   end
@@ -202,6 +231,74 @@ RSpec.describe Entities::WorkflowConfig do
         expect(excluded).to be_empty
       end
     end
+
+    context 'with multiple root patterns' do
+      let(:config_hash) do
+        super().tap do |config|
+          config['directory_conventions'] = [
+            {
+              'root' => 'apps/web/{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}'
+                },
+                {
+                  'name' => 'kubernetes',
+                  'directory' => 'kubernetes/overlays/{environment}'
+                }
+              ]
+            },
+            {
+              'root' => 'services/{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}'
+                },
+                {
+                  'name' => 'kubernetes',
+                  'directory' => 'kubernetes/overlays/{environment}'
+                }
+              ]
+            }
+          ]
+        end
+      end
+
+      it 'returns all possible conventions' do
+        conventions = workflow_config.directory_conventions_for('other-service', 'terragrunt')
+        expect(conventions).to contain_exactly(
+          'apps/web/{service}/terragrunt/{environment}',
+          'services/{service}/terragrunt/{environment}'
+        )
+      end
+
+      it 'returns first convention for directory_convention_for' do
+        convention = workflow_config.directory_convention_for('other-service', 'terragrunt')
+        expect(convention).to eq('apps/web/{service}/terragrunt/{environment}')
+      end
+
+      it 'returns all root patterns' do
+        roots = workflow_config.directory_conventions_root_patterns
+        expect(roots).to contain_exactly('apps/web/{service}', 'services/{service}')
+      end
+
+      it 'returns first root pattern' do
+        root = workflow_config.directory_conventions_root
+        expect(root).to eq('apps/web/{service}')
+      end
+
+      it 'returns all directory patterns' do
+        patterns = workflow_config.all_directory_patterns
+        expect(patterns).to contain_exactly(
+          'apps/web/{service}/terragrunt/{environment}',
+          'apps/web/{service}/kubernetes/overlays/{environment}',
+          'services/{service}/terragrunt/{environment}',
+          'services/{service}/kubernetes/overlays/{environment}'
+        )
+      end
+    end
   end
 
   describe '#validate!' do
@@ -238,7 +335,7 @@ RSpec.describe Entities::WorkflowConfig do
     context 'with missing directory_conventions root' do
       let(:config_hash) do
         super().tap do |config|
-          config['directory_conventions'] = { 'stacks' => [] }
+          config['directory_conventions'] = [{ 'stacks' => [] }]
         end
       end
 
@@ -250,12 +347,24 @@ RSpec.describe Entities::WorkflowConfig do
     context 'with missing directory_conventions stacks' do
       let(:config_hash) do
         super().tap do |config|
-          config['directory_conventions'] = { 'root' => '{service}' }
+          config['directory_conventions'] = [{ 'root' => '{service}' }]
         end
       end
 
       it 'raises validation error' do
         expect { workflow_config.validate! }.to raise_error(/stacks/)
+      end
+    end
+
+    context 'with non-array directory_conventions' do
+      let(:config_hash) do
+        super().tap do |config|
+          config['directory_conventions'] = { 'root' => '{service}', 'stacks' => [] }
+        end
+      end
+
+      it 'raises validation error' do
+        expect { workflow_config.validate! }.to raise_error(/must be an array/)
       end
     end
 

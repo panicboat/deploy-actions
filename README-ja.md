@@ -100,12 +100,12 @@ environments:
 
 # ディレクトリ構造規約
 directory_conventions:
-  root: "{service}"
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/overlays/{environment}"
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
 
 # サービス固有の設定
 services:
@@ -129,12 +129,12 @@ branch_patterns:
 ### パターン1: サービス優先構造
 ```yaml
 directory_conventions:
-  root: "{service}"
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/overlays/{environment}"
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
 ```
 
 結果:
@@ -144,17 +144,37 @@ directory_conventions:
 ### パターン2: スタック優先構造
 ```yaml
 directory_conventions:
-  root: ""
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{service}/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/{service}/overlays/{environment}"
+  - root: ""
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{service}/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/{service}/overlays/{environment}"
 ```
 
 結果:
 - `terragrunt/my-service/develop/`
 - `kubernetes/my-service/overlays/develop/`
+
+### パターン3: 複数のディレクトリ規約
+```yaml
+directory_conventions:
+  - root: "apps/web/{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+  - root: "services/{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
+```
+
+結果:
+- `apps/web/my-service/terragrunt/develop/`
+- `services/my-service/terragrunt/develop/`
+- `services/my-service/kubernetes/overlays/develop/`
 
 ## ワークフロー統合
 

@@ -28,10 +28,12 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
         Entities::WorkflowConfig.new({
           'environments' => [],
           'services' => [],
-          'directory_conventions' => {
-            'root' => '{service}',
-            'stacks' => []
-          },
+          'directory_conventions' => [
+            {
+              'root' => '{service}',
+              'stacks' => []
+            }
+          ],
           'branch_patterns' => {}
         })
       end

@@ -100,12 +100,12 @@ environments:
 
 # Directory structure conventions
 directory_conventions:
-  root: "{service}"
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/overlays/{environment}"
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
 
 # Service-specific configurations
 services:
@@ -129,12 +129,12 @@ The toolkit supports flexible directory structures:
 ### Pattern 1: Service-First Structure
 ```yaml
 directory_conventions:
-  root: "{service}"
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/overlays/{environment}"
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
 ```
 
 Results in:
@@ -144,17 +144,37 @@ Results in:
 ### Pattern 2: Stack-First Structure
 ```yaml
 directory_conventions:
-  root: ""
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{service}/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/{service}/overlays/{environment}"
+  - root: ""
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{service}/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/{service}/overlays/{environment}"
 ```
 
 Results in:
 - `terragrunt/my-service/develop/`
 - `kubernetes/my-service/overlays/develop/`
+
+### Pattern 3: Multiple Directory Conventions
+```yaml
+directory_conventions:
+  - root: "apps/web/{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+  - root: "services/{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
+```
+
+Results in:
+- `apps/web/my-service/terragrunt/develop/`
+- `services/my-service/terragrunt/develop/`
+- `services/my-service/kubernetes/overlays/develop/`
 
 ## Workflow Integration
 

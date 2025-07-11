@@ -181,12 +181,21 @@ module Interfaces
               iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-apply-role
 
           directory_conventions:
-            root: "{service}"
-            stacks:
-              - name: terragrunt
-                directory: "terragrunt/{environment}"
-              - name: kubernetes
-                directory: "kubernetes/overlays/{environment}"
+            - root: "{service}"
+              stacks:
+                - name: terragrunt
+                  directory: "terragrunt/{environment}"
+                - name: kubernetes
+                  directory: "kubernetes/overlays/{environment}"
+            # Example: Multiple directory conventions for different service types
+            # - root: "apps/web/{service}"
+            #   stacks:
+            #     - name: terragrunt
+            #       directory: "terragrunt/{environment}"
+            # - root: "services/{service}"
+            #   stacks:
+            #     - name: terragrunt
+            #       directory: "terragrunt/{environment}"
 
           services:
             - name: excluded-service

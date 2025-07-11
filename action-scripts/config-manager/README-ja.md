@@ -70,12 +70,21 @@ environments:
     iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
 
 directory_conventions:
-  root: "{service}"
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/overlays/{environment}"
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
+  # 複数のディレクトリ規約の例
+  # - root: "apps/web/{service}"
+  #   stacks:
+  #     - name: terragrunt
+  #       directory: "terragrunt/{environment}"
+  # - root: "services/{service}"
+  #   stacks:
+  #     - name: terragrunt
+  #       directory: "terragrunt/{environment}"
 
 services:
   - name: excluded-service

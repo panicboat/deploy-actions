@@ -106,16 +106,19 @@ module Infrastructure
 
       # Validate new directory_conventions structure
       conventions = config_data['directory_conventions']
-      raise "directory_conventions must be a Hash" unless conventions.is_a?(Hash)
-      raise "directory_conventions must have 'root' key" unless conventions.key?('root')
-      raise "directory_conventions must have 'stacks' key" unless conventions['stacks']
+      raise "directory_conventions must be an Array" unless conventions.is_a?(Array)
+      
+      conventions.each_with_index do |convention, conv_index|
+        raise "directory_conventions[#{conv_index}] must have 'root' key" unless convention.key?('root')
+        raise "directory_conventions[#{conv_index}] must have 'stacks' key" unless convention['stacks']
 
-      stacks = conventions['stacks']
-      raise "directory_conventions.stacks must be an Array" unless stacks.is_a?(Array)
+        stacks = convention['stacks']
+        raise "directory_conventions[#{conv_index}].stacks must be an Array" unless stacks.is_a?(Array)
 
-      stacks.each_with_index do |stack, index|
-        raise "Stack #{index} must have 'name' key" unless stack['name']
-        raise "Stack #{index} must have 'directory' key" unless stack['directory']
+        stacks.each_with_index do |stack, stack_index|
+          raise "directory_conventions[#{conv_index}].stacks[#{stack_index}] must have 'name' key" unless stack['name']
+          raise "directory_conventions[#{conv_index}].stacks[#{stack_index}] must have 'directory' key" unless stack['directory']
+        end
       end
 
       # Validate branch_patterns section

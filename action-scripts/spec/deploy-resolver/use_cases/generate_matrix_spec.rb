@@ -203,6 +203,8 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
         allow(config).to receive(:excluded_services).and_return([])
         allow(config).to receive(:directory_convention_for).with('test-service', 'terragrunt').and_return('custom/{service}/terraform/environments/{environment}')
         allow(config).to receive(:directory_convention_for).with('test-service', 'kubernetes').and_return(nil) # Only terragrunt
+        allow(config).to receive(:directory_conventions_for).with('test-service', 'terragrunt').and_return(['custom/{service}/terraform/environments/{environment}'])
+        allow(config).to receive(:directory_conventions_for).with('test-service', 'kubernetes').and_return([]) # Only terragrunt
         
         # Mock directory existence checks
         allow(File).to receive(:directory?).and_return(true)

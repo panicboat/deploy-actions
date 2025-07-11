@@ -95,12 +95,12 @@ The dispatcher uses `workflow-config.yaml` for configuration:
 ```yaml
 # Directory conventions for service detection (hierarchical structure)
 directory_conventions:
-  root: "{service}"
-  stacks:
-    - name: terragrunt
-      directory: "terragrunt/{environment}"
-    - name: kubernetes
-      directory: "kubernetes/overlays/{environment}"
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
 
 # Service-specific configurations
 services:
