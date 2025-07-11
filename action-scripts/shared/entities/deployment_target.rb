@@ -4,7 +4,7 @@
 module Entities
   class DeploymentTarget
     attr_reader :service, :environment, :stack, :iam_role_plan, :iam_role_apply,
-                :aws_region, :working_directory
+                :aws_region, :working_directory, :directory_conventions_root
 
     def initialize(
       service:,
@@ -13,7 +13,8 @@ module Entities
       iam_role_plan: nil,
       iam_role_apply: nil,
       aws_region: nil,
-      working_directory:
+      working_directory:,
+      directory_conventions_root: nil
     )
       @service = service
       @environment = environment
@@ -22,6 +23,7 @@ module Entities
       @iam_role_apply = iam_role_apply
       @aws_region = aws_region
       @working_directory = working_directory
+      @directory_conventions_root = directory_conventions_root
     end
 
     # Convert to hash for GitHub Actions matrix
@@ -31,7 +33,8 @@ module Entities
         environment: environment,
         stack: stack,
         aws_region: aws_region,
-        working_directory: working_directory
+        working_directory: working_directory,
+        directory_conventions_root: directory_conventions_root
       }
 
       # Add stack-specific configurations

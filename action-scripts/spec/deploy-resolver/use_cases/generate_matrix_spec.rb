@@ -30,6 +30,7 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
         allow(config).to receive(:environment_config).with(target_environment).and_return(env_config)
         allow(config).to receive(:directory_convention_for).with('test-service', 'terragrunt').and_return('test-service/terragrunt/{environment}')
         allow(config).to receive(:directory_convention_for).with('test-service', 'kubernetes').and_return('test-service/kubernetes/overlays/{environment}')
+        allow(config).to receive(:directory_conventions_root).and_return('{service}')
         
         # Mock new directory structure 
         allow(config).to receive(:send).with(:directory_stacks).and_return([
@@ -58,11 +59,13 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
         expect(terragrunt_target.service).to eq('test-service')
         expect(terragrunt_target.environment).to eq('develop')
         expect(terragrunt_target.working_directory).to eq('test-service/terragrunt/develop')
+        expect(terragrunt_target.directory_conventions_root).to eq('test-service')
         
         expect(kubernetes_target).not_to be_nil
         expect(kubernetes_target.service).to eq('test-service')
         expect(kubernetes_target.environment).to eq('develop')
         expect(kubernetes_target.working_directory).to eq('test-service/kubernetes/overlays/develop')
+        expect(kubernetes_target.directory_conventions_root).to eq('test-service')
       end
     end
 
@@ -90,6 +93,7 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         })
+        allow(config).to receive(:directory_conventions_root).and_return('{service}')
         
         # Mock directory conventions for both services
         ['service1', 'service2'].each do |service|
@@ -213,6 +217,7 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
         target = result.deployment_targets.first
         expect(target.stack).to eq('terragrunt')
         expect(target.working_directory).to eq('custom/test-service/terraform/environments/develop')
+        expect(target.directory_conventions_root).to eq('test-service')
       end
     end
 
@@ -247,6 +252,7 @@ RSpec.describe UseCases::DeployResolver::GenerateMatrix do
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         })
+        allow(config).to receive(:directory_conventions_root).and_return('{service}')
         allow(config).to receive(:send).with(:directory_stacks).and_return([
           { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
           { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }

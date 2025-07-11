@@ -136,6 +136,32 @@ RSpec.describe Entities::WorkflowConfig do
     end
   end
 
+  describe '#directory_conventions_root' do
+    it 'returns the root pattern from directory conventions' do
+      expect(workflow_config.directory_conventions_root).to eq('{service}')
+    end
+
+    context 'with empty root' do
+      let(:config_hash) do
+        super().tap do |config|
+          config['directory_conventions']['root'] = ''
+        end
+      end
+
+      it 'returns empty string' do
+        expect(workflow_config.directory_conventions_root).to eq('')
+      end
+    end
+
+    context 'with missing directory_conventions' do
+      let(:config_hash) { super().except('directory_conventions') }
+
+      it 'returns nil' do
+        expect { workflow_config.directory_conventions_root }.to raise_error
+      end
+    end
+  end
+
   describe '#branch_to_environment' do
     context 'with mapped branch' do
       it 'returns mapped environment' do

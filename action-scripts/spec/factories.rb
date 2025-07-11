@@ -25,6 +25,7 @@ FactoryBot.define do
     aws_region { "ap-northeast-1" }
     iam_role_plan { "arn:aws:iam::123456789012:role/plan-role" }
     iam_role_apply { "arn:aws:iam::123456789012:role/apply-role" }
+    directory_conventions_root { "test-service" }
     
     initialize_with do
       new(
@@ -34,7 +35,8 @@ FactoryBot.define do
         working_directory: working_directory,
         aws_region: aws_region,
         iam_role_plan: iam_role_plan,
-        iam_role_apply: iam_role_apply
+        iam_role_apply: iam_role_apply,
+        directory_conventions_root: directory_conventions_root
       )
     end
     

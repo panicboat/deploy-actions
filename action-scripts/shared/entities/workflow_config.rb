@@ -78,6 +78,11 @@ module Entities
       directory_conventions_config
     end
 
+    # Get directory conventions root pattern
+    def directory_conventions_root
+      directory_conventions_config['root']
+    end
+
     # Validate configuration structure
     def validate!
       errors = []

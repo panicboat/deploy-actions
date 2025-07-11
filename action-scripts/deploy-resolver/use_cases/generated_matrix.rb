@@ -182,6 +182,9 @@ module UseCases
 
       # Create Terragrunt deployment target
       def create_terragrunt_target(deploy_label, target_environment, env_config, working_dir)
+        config = @config_client.load_workflow_config
+        directory_conventions_root = expand_directory_pattern(config.directory_conventions_root, deploy_label.service, target_environment)
+        
         Entities::DeploymentTarget.new(
           service: deploy_label.service,
           environment: target_environment,
@@ -189,28 +192,37 @@ module UseCases
           iam_role_plan: env_config['iam_role_plan'],
           iam_role_apply: env_config['iam_role_apply'],
           aws_region: env_config['aws_region'],
-          working_directory: working_dir
+          working_directory: working_dir,
+          directory_conventions_root: directory_conventions_root
         )
       end
 
       # Create Kubernetes deployment target
       def create_kubernetes_target(deploy_label, target_environment, env_config, working_dir)
+        config = @config_client.load_workflow_config
+        directory_conventions_root = expand_directory_pattern(config.directory_conventions_root, deploy_label.service, target_environment)
+        
         Entities::DeploymentTarget.new(
           service: deploy_label.service,
           environment: target_environment,
           stack: 'kubernetes',
           aws_region: env_config['aws_region'],
-          working_directory: working_dir
+          working_directory: working_dir,
+          directory_conventions_root: directory_conventions_root
         )
       end
 
       # Create generic deployment target for future stacks
       def create_generic_target(deploy_label, target_environment, stack, env_config, working_dir)
+        config = @config_client.load_workflow_config
+        directory_conventions_root = expand_directory_pattern(config.directory_conventions_root, deploy_label.service, target_environment)
+        
         Entities::DeploymentTarget.new(
           service: deploy_label.service,
           environment: target_environment,
           stack: stack,
-          working_directory: working_dir
+          working_directory: working_dir,
+          directory_conventions_root: directory_conventions_root
         )
       end
 
