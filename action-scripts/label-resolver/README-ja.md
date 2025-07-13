@@ -1,10 +1,10 @@
-# Deploy Resolver
+# Label Resolver
 
 PRラベルとブランチ情報をデプロイターゲットに変換するRubyベースのデプロイ解決ツール
 
 ## 概要
 
-Deploy ResolverはPRラベルとブランチコンテキストを分析してデプロイターゲットを決定し、デプロイ安全性を検証し、マルチサービスデプロイ用のデプロイマトリックスを生成します。デプロイ自動化の意思決定を行う中央オーケストレーターとして機能します。
+Label ResolverはPRラベルとブランチコンテキストを分析してデプロイターゲットを決定し、デプロイ安全性を検証し、マルチサービスデプロイ用のデプロイマトリックスを生成します。デプロイ自動化の意思決定を行う中央オーケストレーターとして機能します。
 
 ## 機能
 
@@ -17,25 +17,25 @@ Deploy ResolverはPRラベルとブランチコンテキストを分析してデ
 
 ## 使用方法
 
-Deploy Resolverは`bin/resolver`を通じてCLIインターフェースを提供します：
+Label Resolverは`bin/resolver`を通じてCLIインターフェースを提供します：
 
 ### 基本コマンド
 
 ```bash
 # PRラベルからデプロイを解決
-bundle exec ruby deploy-resolver/bin/resolver resolve PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
 
 # デプロイワークフローのテスト
-bundle exec ruby deploy-resolver/bin/resolver test PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver test PR_NUMBER
 
 # GitHub Actions環境のシミュレーション
-bundle exec ruby deploy-resolver/bin/resolver simulate PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER
 
 # 環境設定の検証
-bundle exec ruby deploy-resolver/bin/resolver validate_env
+bundle exec ruby label-resolver/bin/resolver validate_env
 
 # ステップバイステップのデバッグ
-bundle exec ruby deploy-resolver/bin/resolver debug PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER
 ```
 
 ### ワークフロー統合
@@ -130,10 +130,10 @@ services:
 
 ## アーキテクチャ
 
-Deploy Resolverはクリーンアーキテクチャパターンに従います：
+Label Resolverはクリーンアーキテクチャパターンに従います：
 
 ### Controllers
-- `DeployResolverController`: 解決プロセスの調整
+- `LabelResolverController`: 解決プロセスの調整
 
 ### Use Cases
 - `DetermineTargetEnvironment`: ブランチを環境にマッピング
@@ -187,18 +187,18 @@ SAFETY_STATUS=passed
 
 ```bash
 # 特定PRでのテスト
-bundle exec ruby deploy-resolver/bin/resolver test 123
+bundle exec ruby label-resolver/bin/resolver test 123
 
 # ステップバイステップのデバッグ
-bundle exec ruby deploy-resolver/bin/resolver debug 123
+bundle exec ruby label-resolver/bin/resolver debug 123
 
 # 環境設定の検証
-bundle exec ruby deploy-resolver/bin/resolver validate_env
+bundle exec ruby label-resolver/bin/resolver validate_env
 ```
 
 ## 統合ポイント
 
-Deploy Resolverは以下と統合します：
+Label Resolverは以下と統合します：
 
 1. **Label Dispatcher**: ラベル検出で作成されたラベルを使用
 2. **Deploy Terragrunt**: Terragruntデプロイ用のターゲットを提供

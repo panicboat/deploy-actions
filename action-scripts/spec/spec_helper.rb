@@ -31,7 +31,7 @@ end
 # Load all modules for testing
 [
   'config-manager/**/*.rb',
-  'deploy-resolver/**/*.rb',
+  'label-resolver/**/*.rb',
   'label-dispatcher/**/*.rb'
 ].each do |pattern|
   Dir[File.expand_path("../#{pattern}", __dir__)].sort.each { |file| require file }

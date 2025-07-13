@@ -2,7 +2,7 @@
 # NOTE: Safety checks have been removed from configuration structure
 
 module UseCases
-  module DeployResolver
+  module LabelResolver
     class ValidateDeploymentSafety
       def initialize(config_client:)
         @config_client = config_client

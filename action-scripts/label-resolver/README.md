@@ -1,10 +1,10 @@
-# Deploy Resolver
+# Label Resolver
 
 A Ruby-based deployment resolution tool that converts PR labels and branch information into deployment targets for GitHub Actions automation.
 
 ## Overview
 
-The Deploy Resolver analyzes PR labels and branch context to determine deployment targets, validates deployment safety, and generates deployment matrices for multi-service deployments. It serves as the central orchestrator for deployment automation decisions.
+The Label Resolver analyzes PR labels and branch context to determine deployment targets, validates deployment safety, and generates deployment matrices for multi-service deployments. It serves as the central orchestrator for deployment automation decisions.
 
 ## Features
 
@@ -17,25 +17,25 @@ The Deploy Resolver analyzes PR labels and branch context to determine deploymen
 
 ## Usage
 
-The Deploy Resolver provides a CLI interface through `bin/resolver`:
+The Label Resolver provides a CLI interface through `bin/resolver`:
 
 ### Basic Commands
 
 ```bash
 # Resolve deployment from PR labels
-bundle exec ruby deploy-resolver/bin/resolver resolve PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
 
 # Test deployment workflow
-bundle exec ruby deploy-resolver/bin/resolver test PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver test PR_NUMBER
 
 # Simulate GitHub Actions environment
-bundle exec ruby deploy-resolver/bin/resolver simulate PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER
 
 # Validate environment configuration
-bundle exec ruby deploy-resolver/bin/resolver validate_env
+bundle exec ruby label-resolver/bin/resolver validate_env
 
 # Debug workflow step-by-step
-bundle exec ruby deploy-resolver/bin/resolver debug PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER
 ```
 
 ### Workflow Integration
@@ -130,10 +130,10 @@ services:
 
 ## Architecture
 
-The Deploy Resolver follows a clean architecture pattern:
+The Label Resolver follows a clean architecture pattern:
 
 ### Controllers
-- `DeployResolverController`: Orchestrates the resolution process
+- `LabelResolverController`: Orchestrates the resolution process
 
 ### Use Cases
 - `DetermineTargetEnvironment`: Maps branches to environments
@@ -187,18 +187,18 @@ The resolver provides detailed error handling:
 
 ```bash
 # Test with specific PR
-bundle exec ruby deploy-resolver/bin/resolver test 123
+bundle exec ruby label-resolver/bin/resolver test 123
 
 # Debug step-by-step
-bundle exec ruby deploy-resolver/bin/resolver debug 123
+bundle exec ruby label-resolver/bin/resolver debug 123
 
 # Validate environment setup
-bundle exec ruby deploy-resolver/bin/resolver validate_env
+bundle exec ruby label-resolver/bin/resolver validate_env
 ```
 
 ## Integration Points
 
-The Deploy Resolver integrates with:
+The Label Resolver integrates with:
 
 1. **Label Dispatcher**: Consumes labels created by label detection
 2. **Deploy Terragrunt**: Provides targets for Terragrunt deployments

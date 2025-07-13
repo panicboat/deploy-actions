@@ -1,7 +1,7 @@
 # Use case for retrieving labels from PR
 
 module UseCases
-  module DeployResolver
+  module LabelResolver
     class GetLabels
       def initialize(github_client:)
         @github_client = github_client

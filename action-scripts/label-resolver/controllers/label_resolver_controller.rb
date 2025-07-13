@@ -1,8 +1,8 @@
-# Controller for deploy resolver functionality
+# Controller for label resolver functionality
 
 module Interfaces
   module Controllers
-    class DeployResolverController
+    class LabelResolverController
       def initialize(
         determine_target_environment_use_case:,
         get_labels_use_case:,

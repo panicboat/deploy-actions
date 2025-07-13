@@ -1,4 +1,4 @@
-name: 'Deploy Resolver'
+name: 'Label Resolver'
 description: 'Resolve deployment targets from PR labels and branch information'
 author: 'panicboat'
 
@@ -97,7 +97,7 @@ runs:
             echo "::error::PR number is required for plan events"
             exit 1
           fi
-          bundle exec ruby deploy-resolver/bin/resolver resolve ${{ inputs.pr-number }}
+          bundle exec ruby label-resolver/bin/resolver resolve ${{ inputs.pr-number }}
         else
           echo "Processing apply event"
           if [ -z "${{ inputs.pr-number }}" ]; then
@@ -106,7 +106,7 @@ runs:
             echo "safety-status=no_merged_pr" >> $GITHUB_OUTPUT
             exit 0
           fi
-          bundle exec ruby deploy-resolver/bin/resolver resolve ${{ inputs.pr-number }}
+          bundle exec ruby label-resolver/bin/resolver resolve ${{ inputs.pr-number }}
         fi
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}

@@ -1,8 +1,8 @@
-# spec/deploy-resolver/controllers/deploy_resolver_controller_spec.rb
+# spec/label-resolver/controllers/label_resolver_controller_spec.rb
 
 require 'spec_helper'
 
-RSpec.describe Interfaces::Controllers::DeployResolverController do
+RSpec.describe Interfaces::Controllers::LabelResolverController do
   let(:determine_target_environment_use_case) { spy('DetermineTargetEnvironment') }
   let(:get_labels_use_case) { spy('GetLabels') }
   let(:validate_deployment_safety_use_case) { spy('ValidateDeploymentSafety') }

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe UseCases::DeployResolver::GenerateMatrix do
+RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   let(:config_client) { double('ConfigClient') }
   let(:config) { build(:workflow_config) }
   

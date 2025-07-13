@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe UseCases::DeployResolver::DetermineTargetEnvironment do
+RSpec.describe UseCases::LabelResolver::DetermineTargetEnvironment do
   let(:config_client) { double('ConfigClient') }
   let(:config) { build(:workflow_config) }
   

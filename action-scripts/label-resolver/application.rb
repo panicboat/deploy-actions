@@ -1,4 +1,4 @@
-# Application setup for deploy resolver
+# Application setup for label resolver
 # Configures dependencies and provides access to controllers
 
 require 'bundler/setup'
@@ -11,11 +11,11 @@ require_relative '../shared/shared_loader'
   'use_cases/**/*.rb',
   'controllers/**/*.rb'
 ].each do |pattern|
-  Dir[File.expand_path("../deploy-resolver/#{pattern}", __dir__)].sort.each { |file| require file }
+  Dir[File.expand_path("../label-resolver/#{pattern}", __dir__)].sort.each { |file| require file }
 end
 
-# Dependency injection container for deploy resolver
-class DeployResolverContainer
+# Dependency injection container for label resolver
+class LabelResolverContainer
   def self.configure
     @container ||= build_container
   end
@@ -41,21 +41,21 @@ class DeployResolverContainer
     end
 
     # Use cases
-    container[:determine_target_environment] = UseCases::DeployResolver::DetermineTargetEnvironment.new(
+    container[:determine_target_environment] = UseCases::LabelResolver::DetermineTargetEnvironment.new(
       config_client: container[:config_client]
     )
 
     if container[:github_client]
-      container[:get_labels] = UseCases::DeployResolver::GetLabels.new(
+      container[:get_labels] = UseCases::LabelResolver::GetLabels.new(
         github_client: container[:github_client]
       )
     end
 
-    container[:validate_deployment_safety] = UseCases::DeployResolver::ValidateDeploymentSafety.new(
+    container[:validate_deployment_safety] = UseCases::LabelResolver::ValidateDeploymentSafety.new(
       config_client: container[:config_client]
     )
 
-    container[:generate_matrix] = UseCases::DeployResolver::GenerateMatrix.new(
+    container[:generate_matrix] = UseCases::LabelResolver::GenerateMatrix.new(
       config_client: container[:config_client]
     )
 
@@ -65,7 +65,7 @@ class DeployResolverContainer
 
     # Controller
     presenter = ENV['GITHUB_ACTIONS'] ? container[:github_actions_presenter] : container[:console_presenter]
-    container[:deploy_resolver_controller] = Interfaces::Controllers::DeployResolverController.new(
+    container[:label_resolver_controller] = Interfaces::Controllers::LabelResolverController.new(
       determine_target_environment_use_case: container[:determine_target_environment],
       get_labels_use_case: container[:get_labels],
       validate_deployment_safety_use_case: container[:validate_deployment_safety],
@@ -79,5 +79,5 @@ end
 
 # Loading completion log (development only)
 unless ENV['GITHUB_ACTIONS']
-  puts "✅ Deploy Resolver loaded".colorize(:green)
+  puts "✅ Label Resolver loaded".colorize(:green)
 end

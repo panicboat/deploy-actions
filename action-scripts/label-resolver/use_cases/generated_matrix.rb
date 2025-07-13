@@ -2,7 +2,7 @@
 # Creates deployment targets with all necessary configuration
 
 module UseCases
-  module DeployResolver
+  module LabelResolver
     class GenerateMatrix
       def initialize(config_client:)
         @config_client = config_client

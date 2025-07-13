@@ -1,15 +1,15 @@
 #!/usr/bin/env ruby
 
-# CLI interface for deploy resolver functionality
+# CLI interface for label resolver functionality
 
 require_relative '../application'
 require 'thor'
 
-class DeployResolverCLI < Thor
+class LabelResolverCLI < Thor
   desc "resolve PR_NUMBER", "Resolve deployment from PR labels (environment determined from current branch)"
 
   def resolve(pr_number)
-    controller = DeployResolverContainer.resolve(:deploy_resolver_controller)
+    controller = LabelResolverContainer.resolve(:label_resolver_controller)
 
     controller.resolve_from_labels(pr_number: pr_number.to_i)
   end
@@ -17,14 +17,14 @@ class DeployResolverCLI < Thor
   desc "test PR_NUMBER", "Test deployment workflow without execution"
 
   def test(pr_number)
-    controller = DeployResolverContainer.resolve(:deploy_resolver_controller)
+    controller = LabelResolverContainer.resolve(:label_resolver_controller)
     controller.test_deployment_workflow(pr_number: pr_number.to_i)
   end
 
   desc "simulate PR_NUMBER", "Simulate GitHub Actions environment locally"
 
   def simulate(pr_number)
-    controller = DeployResolverContainer.resolve(:deploy_resolver_controller)
+    controller = LabelResolverContainer.resolve(:label_resolver_controller)
     controller.simulate_github_actions(pr_number: pr_number.to_i)
   end
 
@@ -48,13 +48,13 @@ class DeployResolverCLI < Thor
   desc "debug PR_NUMBER", "Debug deployment workflow step by step"
 
   def debug(pr_number)
-    puts "🔍 Debug Mode: Deploy Resolver Workflow"
+    puts "🔍 Debug Mode: Label Resolver Workflow"
     puts "PR Number: #{pr_number}"
     puts ""
 
-    controller = DeployResolverContainer.resolve(:deploy_resolver_controller)
+    controller = LabelResolverContainer.resolve(:label_resolver_controller)
     controller.debug_deployment_workflow(pr_number: pr_number.to_i)
   end
 end
 
-DeployResolverCLI.start(ARGV)
+LabelResolverCLI.start(ARGV)

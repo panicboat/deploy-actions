@@ -1,7 +1,7 @@
 # Use case for determining target environment from branch name
 
 module UseCases
-  module DeployResolver
+  module LabelResolver
     class DetermineTargetEnvironment
       def initialize(config_client:)
         @config_client = config_client
