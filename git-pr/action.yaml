@@ -1,4 +1,4 @@
-name: 'Git Push Action'
+name: 'Create Pull Request Action'
 description: 'Create PR to target repository with specified file'
 author: 'panicboat'
 
