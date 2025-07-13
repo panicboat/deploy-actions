@@ -26,14 +26,9 @@ runs:
       with:
         script: |
           const fs = require('fs');
-          console.log('🔍 Debug: Current working directory:', process.cwd());
-          console.log('🔍 Debug: GitHub workspace:', process.env.GITHUB_WORKSPACE);
           if (process.env.GITHUB_WORKSPACE) {
             process.chdir(process.env.GITHUB_WORKSPACE);
-            console.log('🔄 Changed to workspace:', process.cwd());
           }
-          console.log('🔍 Debug: Directory contents before:');
-          fs.readdirSync('.').forEach(file => console.log('  -', file));
           
           console.log('🚀 Setting up FluxCD directories...');
           const environments = process.env.ENVIRONMENTS.split(',');
@@ -42,17 +37,8 @@ runs:
             if (!fs.existsSync(env)) {
               console.log(`📝 Environment directory ${env} does not exist, creating empty FluxCD structure...`);
             }
-            console.log(`🔨 Creating: clusters/${env}/flux-system`);
             fs.mkdirSync(`clusters/${env}/flux-system`, { recursive: true });
-            console.log(`🔨 Creating: clusters/${env}/apps`);
             fs.mkdirSync(`clusters/${env}/apps`, { recursive: true });
-          }
-          
-          console.log('🔍 Debug: Directory contents after:');
-          fs.readdirSync('.').forEach(file => console.log('  -', file));
-          if (fs.existsSync('clusters')) {
-            console.log('🔍 Debug: clusters directory contents:');
-            fs.readdirSync('clusters').forEach(file => console.log('  - clusters/', file));
           }
 
     - name: Generate flux-system kustomization files
@@ -147,20 +133,3 @@ runs:
             console.log(`✅ Generated FluxCD manifests for ${env}`);
           }
           console.log('🎉 FluxCD manifests generation completed!');
-          
-          console.log('🔍 Debug: Final directory structure:');
-          if (fs.existsSync('clusters')) {
-            function listDir(dir, prefix = '') {
-              const items = fs.readdirSync(dir);
-              for (const item of items) {
-                const itemPath = path.join(dir, item);
-                console.log(prefix + item);
-                if (fs.statSync(itemPath).isDirectory()) {
-                  listDir(itemPath, prefix + '  ');
-                }
-              }
-            }
-            listDir('clusters', '  ');
-          } else {
-            console.log('❌ clusters directory was not created!');
-          }
