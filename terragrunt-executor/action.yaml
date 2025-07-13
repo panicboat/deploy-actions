@@ -80,7 +80,7 @@ runs:
 
     - name: Execute Terragrunt
       id: terragrunt
-      uses: gruntwork-io/terragrunt-action@v2
+      uses: gruntwork-io/terragrunt-action@v3
       with:
         tf_version: '1.12.2'
         tg_version: '0.81.6'
