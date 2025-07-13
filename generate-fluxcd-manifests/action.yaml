@@ -1,0 +1,114 @@
+name: 'Generate FluxCD Manifests'
+description: 'Generate FluxCD manifests for multiple environments'
+author: 'Your Organization'
+
+branding:
+  icon: 'package'
+  color: 'blue'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup configuration
+      id: config
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const environments = 'develop,staging,production';
+          core.setOutput('environments', environments);
+          console.log(`📋 Configured environments: ${environments}`);
+
+    - name: Setup directories
+      uses: actions/github-script@v7
+      env:
+        ENVIRONMENTS: ${{ steps.config.outputs.environments }}
+      with:
+        script: |
+          const fs = require('fs');
+          console.log('🚀 Setting up FluxCD directories...');
+          const environments = process.env.ENVIRONMENTS.split(',');
+          for (const env of environments) {
+            console.log(`📦 Creating directories for environment: ${env}`);
+            if (!fs.existsSync(env)) {
+              console.log(`📝 Environment directory ${env} does not exist, creating empty FluxCD structure...`);
+            }
+            fs.mkdirSync(`clusters/${env}/flux-system`, { recursive: true });
+            fs.mkdirSync(`clusters/${env}/apps`, { recursive: true });
+          }
+
+    - name: Generate flux-system kustomization files
+      uses: actions/github-script@v7
+      env:
+        ENVIRONMENTS: ${{ steps.config.outputs.environments }}
+      with:
+        script: |
+          const path = require('path');
+          const { generateFluxSystemKustomization } = require(path.join(process.env.GITHUB_ACTION_PATH, 'flux-system-kustomization.js'));
+          const environments = process.env.ENVIRONMENTS.split(',');
+          for (const env of environments) {
+            generateFluxSystemKustomization(env);
+          }
+
+    - name: Generate gotk-sync files
+      uses: actions/github-script@v7
+      env:
+        ENVIRONMENTS: ${{ steps.config.outputs.environments }}
+      with:
+        script: |
+          const path = require('path');
+          const { generateGotkSync } = require(path.join(process.env.GITHUB_ACTION_PATH, 'gotk-sync.js'));
+          const environments = process.env.ENVIRONMENTS.split(',');
+          for (const env of environments) {
+            generateGotkSync(env);
+          }
+
+    - name: Generate apps kustomization files
+      uses: actions/github-script@v7
+      env:
+        ENVIRONMENTS: ${{ steps.config.outputs.environments }}
+      with:
+        script: |
+          const path = require('path');
+          const { generateAppsKustomization } = require(path.join(process.env.GITHUB_ACTION_PATH, 'apps-kustomization.js'));
+          const environments = process.env.ENVIRONMENTS.split(',');
+          for (const env of environments) {
+            console.log(`📝 Generating app manifests for ${env}...`);
+            generateAppsKustomization(env);
+          }
+
+    - name: Generate app resource files
+      uses: actions/github-script@v7
+      env:
+        ENVIRONMENTS: ${{ steps.config.outputs.environments }}
+      with:
+        script: |
+          const path = require('path');
+          const fs = require('fs');
+          const { generateAppResources } = require(path.join(process.env.GITHUB_ACTION_PATH, 'app-resources.js'));
+
+          function findYamlFiles(dir) {
+            let results = [];
+            const list = fs.readdirSync(dir);
+            list.forEach(file => {
+              const filepath = path.join(dir, file);
+              const stat = fs.statSync(filepath);
+              if (stat && stat.isDirectory()) {
+                results = results.concat(findYamlFiles(filepath));
+              } else if (filepath.endsWith('.yaml')) {
+                results.push(filepath);
+              }
+            });
+            return results.sort();
+          }
+
+          const environments = process.env.ENVIRONMENTS.split(',');
+          for (const env of environments) {
+            if (fs.existsSync(env)) {
+              const yamlFiles = findYamlFiles(env);
+              if (yamlFiles.length > 0) {
+                generateAppResources(env, yamlFiles);
+              }
+            }
+            console.log(`✅ Generated FluxCD manifests for ${env}`);
+          }
+          console.log('🎉 FluxCD manifests generation completed!');
