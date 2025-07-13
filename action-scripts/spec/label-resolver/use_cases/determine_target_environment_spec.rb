@@ -1,11 +1,11 @@
-# spec/deploy-resolver/use_cases/determine_target_environment_spec.rb
+# spec/label-resolver/use_cases/determine_target_environment_spec.rb
 
 require 'spec_helper'
 
 RSpec.describe UseCases::LabelResolver::DetermineTargetEnvironment do
   let(:config_client) { double('ConfigClient') }
   let(:config) { build(:workflow_config) }
-  
+
   subject(:use_case) { described_class.new(config_client: config_client) }
 
   before do

@@ -207,7 +207,7 @@ bundle exec ruby label-dispatcher/bin/dispatcher validate_env
 The Label Dispatcher integrates with:
 
 1. **Config Manager**: Uses validated configuration files
-2. **Deploy Resolver**: Provides labels for deployment resolution
+2. **Label Resolver**: Provides labels for deployment resolution
 3. **GitHub Actions**: Triggers on PR events and updates
 4. **Git Repository**: Analyzes file changes and history
 

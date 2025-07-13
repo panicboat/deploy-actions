@@ -207,7 +207,7 @@ bundle exec ruby label-dispatcher/bin/dispatcher validate_env
 Label Dispatcherは以下と統合します：
 
 1. **Config Manager**: 検証済み設定ファイルを使用
-2. **Deploy Resolver**: デプロイ解決用のラベルを提供
+2. **Label Resolver**: デプロイ解決用のラベルを提供
 3. **GitHub Actions**: PRイベントでトリガーされ更新
 4. **Gitリポジトリ**: ファイル変更と履歴を分析
 

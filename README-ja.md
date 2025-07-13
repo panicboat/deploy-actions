@@ -37,7 +37,7 @@ Deploy Actionsは、複数のサービスと環境にわたるデプロイメン
 - 自動ラベル生成
 - 除外処理
 
-### 3. Deploy Resolver (`deploy-resolver/`)
+### 3. Label Resolver (`label-resolver/`)
 PRラベルとブランチ情報をGitHub Actions自動化のためのデプロイメント ターゲットに変換します。
 
 **主要機能:**
@@ -59,9 +59,9 @@ PRラベルとブランチ情報をGitHub Actions自動化のためのデプロ�
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Deploy Resolver
+### Label Resolver
 ```yaml
-- uses: panicboat/deploy-actions/deploy-resolver@main
+- uses: panicboat/deploy-actions/label-resolver@main
   with:
     action-type: plan  # または apply
     pr-number: ${{ github.event.pull_request.number }}
@@ -211,7 +211,7 @@ jobs:
     steps:
       - name: Resolve Deployment Targets
         id: resolve
-        uses: panicboat/deploy-actions/deploy-resolver@main
+        uses: panicboat/deploy-actions/label-resolver@main
         with:
           action-type: plan
           pr-number: ${{ github.event.pull_request.number }}
@@ -266,8 +266,8 @@ bundle exec ruby config-manager/bin/config-manager validate
 # label dispatcherをテスト
 bundle exec ruby label-dispatcher/bin/dispatcher detect
 
-# deploy resolverをテスト
-bundle exec ruby deploy-resolver/bin/resolver resolve PR_NUMBER
+# Label Resolverをテスト
+bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
 ```
 
 ## セキュリティ機能

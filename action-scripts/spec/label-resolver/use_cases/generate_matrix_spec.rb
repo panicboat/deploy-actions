@@ -1,11 +1,11 @@
-# spec/deploy-resolver/use_cases/generate_matrix_spec.rb
+# spec/label-resolver/use_cases/generate_matrix_spec.rb
 
 require 'spec_helper'
 
 RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   let(:config_client) { double('ConfigClient') }
   let(:config) { build(:workflow_config) }
-  
+
   subject(:use_case) { described_class.new(config_client: config_client) }
 
   before do
@@ -31,17 +31,17 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         allow(config).to receive(:directory_convention_for).with('test-service', 'terragrunt').and_return('test-service/terragrunt/{environment}')
         allow(config).to receive(:directory_convention_for).with('test-service', 'kubernetes').and_return('test-service/kubernetes/overlays/{environment}')
         allow(config).to receive(:directory_conventions_root).and_return('{service}')
-        
-        # Mock new directory structure 
+
+        # Mock new directory structure
         allow(config).to receive(:send).with(:directory_stacks).and_return([
           { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
           { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
         ])
-        
+
         # Mock service existence check and services hash access
         services_mock = { 'test-service' => {} }
         allow(config).to receive(:services).and_return(services_mock)
-        
+
         # Mock directory existence checks
         allow(File).to receive(:directory?).and_return(true)
       end
@@ -51,16 +51,16 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
         expect(result).to be_success
         expect(result.deployment_targets.length).to eq(2)
-        
+
         terragrunt_target = result.deployment_targets.find { |t| t.stack == 'terragrunt' }
         kubernetes_target = result.deployment_targets.find { |t| t.stack == 'kubernetes' }
-        
+
         expect(terragrunt_target).not_to be_nil
         expect(terragrunt_target.service).to eq('test-service')
         expect(terragrunt_target.environment).to eq('develop')
         expect(terragrunt_target.working_directory).to eq('test-service/terragrunt/develop')
         expect(terragrunt_target.directory_conventions_root).to eq('test-service')
-        
+
         expect(kubernetes_target).not_to be_nil
         expect(kubernetes_target.service).to eq('test-service')
         expect(kubernetes_target.environment).to eq('develop')
@@ -78,7 +78,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
           { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
           { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
         ])
-        
+
         # Mock all services
         services_mock = {
           'service1' => {},
@@ -94,13 +94,13 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         })
         allow(config).to receive(:directory_conventions_root).and_return('{service}')
-        
+
         # Mock directory conventions for both services
         ['service1', 'service2'].each do |service|
           allow(config).to receive(:directory_convention_for).with(service, 'terragrunt').and_return("#{service}/terragrunt/{environment}")
           allow(config).to receive(:directory_convention_for).with(service, 'kubernetes').and_return("#{service}/kubernetes/overlays/{environment}")
         end
-        
+
         # Mock directory existence checks
         allow(File).to receive(:directory?).and_return(true)
       end
@@ -110,7 +110,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
         expect(result).to be_success
         expect(result.deployment_targets.length).to eq(4) # 2 services × 2 stacks
-        
+
         service_names = result.deployment_targets.map(&:service).uniq
         expect(service_names).to contain_exactly('service1', 'service2')
         expect(service_names).not_to include('excluded-service')
@@ -205,7 +205,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         allow(config).to receive(:directory_convention_for).with('test-service', 'kubernetes').and_return(nil) # Only terragrunt
         allow(config).to receive(:directory_conventions_for).with('test-service', 'terragrunt').and_return(['custom/{service}/terraform/environments/{environment}'])
         allow(config).to receive(:directory_conventions_for).with('test-service', 'kubernetes').and_return([]) # Only terragrunt
-        
+
         # Mock directory existence checks
         allow(File).to receive(:directory?).and_return(true)
       end
@@ -215,7 +215,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
         expect(result).to be_success
         expect(result.deployment_targets.length).to eq(1)
-        
+
         target = result.deployment_targets.first
         expect(target.stack).to eq('terragrunt')
         expect(target.working_directory).to eq('custom/test-service/terraform/environments/develop')
@@ -262,7 +262,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         allow(config).to receive(:services).and_return({ 'test-service' => {} })
         allow(config).to receive(:directory_convention_for).with('test-service', 'terragrunt').and_return('test-service/terragrunt/{environment}')
         allow(config).to receive(:directory_convention_for).with('test-service', 'kubernetes').and_return('test-service/kubernetes/overlays/{environment}')
-        
+
         # Mock directory existence checks
         allow(File).to receive(:directory?).and_return(true)
       end

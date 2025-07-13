@@ -20,9 +20,9 @@ namespace :spec do
     t.rspec_opts = '--color --format documentation'
   end
 
-  desc 'Run deploy-resolver tests'
-  RSpec::Core::RakeTask.new(:deploy_resolver) do |t|
-    t.pattern = 'spec/deploy-resolver/**/*_spec.rb'
+  desc 'Run label-resolver tests'
+  RSpec::Core::RakeTask.new(:label_resolver) do |t|
+    t.pattern = 'spec/label-resolver/**/*_spec.rb'
     t.rspec_opts = '--color --format documentation'
   end
 
@@ -91,26 +91,26 @@ end
 desc 'Setup development environment'
 task :setup do
   puts '🚀 Setting up development environment...'
-  
+
   # Install dependencies
   puts '📦 Installing dependencies...'
   system('bundle install') || exit(1)
-  
+
   # Create test directories if they don't exist
   test_dirs = %w[
     spec/fixtures/vcr_cassettes
     spec/support
     tmp/test_configs
   ]
-  
+
   test_dirs.each do |dir|
     FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
   end
-  
+
   # Run initial tests to verify setup
   puts '🧪 Running initial test suite...'
   Rake::Task[:spec].invoke
-  
+
   puts '✅ Development environment setup complete!'
 end
 

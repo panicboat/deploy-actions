@@ -1,6 +1,6 @@
 module.exports = async ({ core, inputs, steps }) => {
   try {
-    core.info('📊 Deploy resolver completed');
+    core.info('📊 Label Resolver completed');
     core.info(`Repository: ${inputs.repository}`);
     core.info(`Action type: ${inputs['action-type']}`);
     core.info(`PR Number: ${inputs['pr-number']}`);

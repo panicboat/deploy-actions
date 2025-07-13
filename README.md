@@ -37,7 +37,7 @@ Analyzes file changes and automatically creates deployment labels for modified s
 - Automatic label generation
 - Exclusion handling
 
-### 3. Deploy Resolver (`deploy-resolver/`)
+### 3. Label Resolver (`label-resolver/`)
 Converts PR labels and branch information into deployment targets for GitHub Actions automation.
 
 **Key Features:**
@@ -59,9 +59,9 @@ The toolkit provides ready-to-use composite actions:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Deploy Resolver
+### Label Resolver
 ```yaml
-- uses: panicboat/deploy-actions/deploy-resolver@main
+- uses: panicboat/deploy-actions/label-resolver@main
   with:
     action-type: plan  # or apply
     pr-number: ${{ github.event.pull_request.number }}
@@ -211,7 +211,7 @@ jobs:
     steps:
       - name: Resolve Deployment Targets
         id: resolve
-        uses: panicboat/deploy-actions/deploy-resolver@main
+        uses: panicboat/deploy-actions/label-resolver@main
         with:
           action-type: plan
           pr-number: ${{ github.event.pull_request.number }}
@@ -266,8 +266,8 @@ bundle exec ruby config-manager/bin/config-manager validate
 # Test label dispatcher
 bundle exec ruby label-dispatcher/bin/dispatcher detect
 
-# Test deploy resolver
-bundle exec ruby deploy-resolver/bin/resolver resolve PR_NUMBER
+# Test Label Resolver
+bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
 ```
 
 ## Security Features
