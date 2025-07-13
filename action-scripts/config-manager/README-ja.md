@@ -1,5 +1,7 @@
 # Config Manager
 
+[🇺🇸 English](README.md) | **日本語**
+
 GitHub Actions デプロイ自動化のためのRubyベースの設定検証・管理ツール
 
 ## 概要

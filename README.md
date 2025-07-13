@@ -1,5 +1,7 @@
 # Deploy Actions
 
+**English** | [🇯🇵 日本語](README-ja.md)
+
 A comprehensive GitHub Actions automation toolkit for multi-service deployment orchestration with Terragrunt and Kubernetes.
 
 ## Overview

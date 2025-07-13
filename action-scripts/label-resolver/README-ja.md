@@ -1,5 +1,7 @@
 # Label Resolver
 
+[🇺🇸 English](README.md) | **日本語**
+
 PRラベルとブランチ情報をデプロイターゲットに変換するRubyベースのデプロイ解決ツール
 
 ## 概要

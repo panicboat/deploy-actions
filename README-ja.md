@@ -1,5 +1,7 @@
 # Deploy Actions
 
+[🇺🇸 English](README.md) | **日本語**
+
 TerragruntとKubernetesを使用したマルチサービス デプロイメント オーケストレーションのための包括的なGitHub Actions自動化ツールキット。
 
 ## 概要

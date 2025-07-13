@@ -1,5 +1,7 @@
 # Label Dispatcher
 
+**English** | [🇯🇵 日本語](README-ja.md)
+
 A Ruby-based service change detection and label management tool for GitHub Actions automation.
 
 ## Overview

@@ -1,5 +1,7 @@
 # Label Resolver
 
+**English** | [🇯🇵 日本語](README-ja.md)
+
 A Ruby-based deployment resolution tool that converts PR labels and branch information into deployment targets for GitHub Actions automation.
 
 ## Overview

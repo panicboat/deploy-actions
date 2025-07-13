@@ -1,5 +1,7 @@
 # Config Manager
 
+**English** | [🇯🇵 日本語](README-ja.md)
+
 A Ruby-based configuration validation and management tool for GitHub Actions deployment automation.
 
 ## Overview
