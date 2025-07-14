@@ -5,8 +5,8 @@ const { execSync } = require('child_process');
  * gotk-sync.yamlを生成
  */
 function generateGotkSync(env) {
-  const repoUrl = execSync('basename $(git config --get remote.origin.url) .git', { encoding: 'utf-8' }).trim();
-  
+  const repoUrl = process.env.GITHUB_REPOSITORY || 'owner/repo';
+
   const content = `apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:
@@ -31,7 +31,7 @@ spec:
     kind: GitRepository
     name: flux-system
 `;
-  
+
   const filePath = `clusters/${env}/flux-system/gotk-sync.yaml`;
   fs.writeFileSync(filePath, content);
   console.log(`📝 Generated gotk-sync for ${env}`);

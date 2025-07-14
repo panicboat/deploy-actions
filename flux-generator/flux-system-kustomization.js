@@ -9,7 +9,7 @@ kind: Kustomization
 resources:
   - gotk-sync.yaml
 `;
-  
+
   const filePath = `clusters/${env}/flux-system/kustomization.yaml`;
   fs.writeFileSync(filePath, content);
   console.log(`📝 Generated flux-system kustomization for ${env}`);

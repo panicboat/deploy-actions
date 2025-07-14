@@ -29,7 +29,7 @@ runs:
           if (process.env.GITHUB_WORKSPACE) {
             process.chdir(process.env.GITHUB_WORKSPACE);
           }
-          
+
           console.log('🚀 Setting up FluxCD directories...');
           const environments = process.env.ENVIRONMENTS.split(',');
           for (const env of environments) {
@@ -63,6 +63,7 @@ runs:
       env:
         ENVIRONMENTS: ${{ steps.config.outputs.environments }}
         GITHUB_WORKSPACE: ${{ github.workspace }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
       with:
         script: |
           if (process.env.GITHUB_WORKSPACE) {

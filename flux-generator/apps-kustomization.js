@@ -30,15 +30,15 @@ kind: Kustomization
   // 環境ディレクトリが存在するかチェック
   if (fs.existsSync(env)) {
     const yamlFiles = findYamlFiles(env);
-    
+
     if (yamlFiles.length > 0) {
       content += 'resources:\n';
-      
+
       for (const manifest of yamlFiles) {
         // 相対パスを取得（環境ディレクトリからの相対パス）
         const relativePath = path.relative(env, manifest);
         const serviceName = path.basename(manifest, '.yaml');
-        
+
         // ディレクトリ構造を保持してclusters配下にディレクトリを作成
         const manifestDir = path.dirname(relativePath);
         if (manifestDir !== '.') {
@@ -57,11 +57,11 @@ kind: Kustomization
     console.log(`📝 Environment directory ${env} does not exist, creating empty structure`);
     content += 'resources: []\n';
   }
-  
+
   const filePath = `clusters/${env}/apps/kustomization.yaml`;
   fs.writeFileSync(filePath, content);
   console.log(`📝 Generated apps kustomization for ${env}`);
-  
+
   return { yamlFiles: fs.existsSync(env) ? findYamlFiles(env) : [] };
 }
 

@@ -9,13 +9,13 @@ function generateAppResources(env, yamlFiles) {
     // 相対パスを取得（環境ディレクトリからの相対パス）
     const relativePath = path.relative(env, manifest);
     const serviceName = path.basename(manifest, '.yaml');
-    
+
     // ディレクトリ構造を保持してclusters配下にディレクトリを作成
     const manifestDir = path.dirname(relativePath);
-    
+
     let content;
     let filePath;
-    
+
     if (manifestDir !== '.') {
       // サブディレクトリ内のファイルの場合
       const resourceName = relativePath.replace(/[\/]/g, '-').replace(/\.yaml$/, '');
@@ -58,7 +58,7 @@ spec:
 `;
       filePath = `clusters/${env}/apps/${serviceName}.yaml`;
     }
-    
+
     fs.writeFileSync(filePath, content);
     console.log(`📝 Generated app resource: ${filePath}`);
   }
