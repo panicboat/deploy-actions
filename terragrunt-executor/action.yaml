@@ -82,11 +82,12 @@ runs:
       id: terragrunt
       uses: gruntwork-io/terragrunt-action@v3
       with:
-        tf_version: '1.12.2'
-        tg_version: '0.81.6'
+        tg_version: '0.83.2'
+        tofu_version: '1.6.0'
+        tg_dir: ${{ inputs.working-directory }}
         tg_command: ${{ inputs.action-type }}
         tg_add_approve: ${{ inputs.action-type == 'apply' && '1' || '' }}
-        tg_dir: ${{ inputs.working-directory }}
+        github_token: ${{ inputs.github-token }}
       continue-on-error: true
       env:
         TF_INPUT: false
