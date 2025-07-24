@@ -7,20 +7,21 @@ branding:
   color: 'blue'
 
 inputs:
+  github-token:
+    description: 'GitHub token with contents: write permission'
+    required: true
   environments:
     description: 'Target environments (comma-separated)'
     required: false
     default: 'develop,staging,production'
-  github-token:
-    description: 'GitHub token with contents: write permission'
-    required: true
-  target-path:
-    description: 'Target path for generated manifests'
-    required: true
-  deploy-actions-repository:
-    description: 'Deploy actions repository to use'
+  repository-owner:
+    description: 'GitHub repository owner'
     required: false
-    default: 'panicboat/deploy-actions'
+    default: 'panicboat'
+  repository-name:
+    description: 'GitHub repository name'
+    required: false
+    default: 'generated-manifests'
 
 runs:
   using: 'composite'
@@ -28,13 +29,14 @@ runs:
     - name: Checkout deploy-actions
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.deploy-actions-repository }}
+        token: ${{ inputs.github-token }}
+        repository: panicboat/deploy-actions
         path: deploy-actions
 
     - name: Setup Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '3.4.4'
+        ruby-version: '3.4.5'
         bundler-cache: true
         working-directory: deploy-actions/flux-generator
 
@@ -43,8 +45,9 @@ runs:
       shell: bash
       working-directory: ${{ github.workspace }}/deploy-actions/flux-generator
       env:
+        RESOURCE_NAME: ${{ inputs.repository-name }}
         ENVIRONMENTS: ${{ inputs.environments }}
-        TARGET_PATH: ${{ inputs.target-path }}
+        OUTPUT_DIR: ${{ github.workspace }}/${{ inputs.repository-name }}
       run: |
         ENVS=$(echo "$ENVIRONMENTS" | tr ',' ' ')
-        bundle exec ruby bin/generator generate --environments $ENVS --target-dir $TARGET_PATH
+        bundle exec ruby bin/generator generate --resource-name $RESOURCE_NAME --environments $ENVS --output-dir $OUTPUT_DIR

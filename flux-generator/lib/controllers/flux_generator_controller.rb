@@ -5,7 +5,7 @@ module Controllers
       @setup_controller = setup_controller
     end
 
-    def generate_all(environments, repository_url)
+    def generate_all(environments, repository_url, resource_name = 'flux-system')
       repository_url ||= detect_repository_url
 
       unless repository_url
@@ -14,9 +14,10 @@ module Controllers
 
       puts "📋 Configured environments: #{environments.join(',')}"
       puts "🔗 Repository URL: #{repository_url}"
+      puts "📛 Resource name: #{resource_name}"
 
       setup_complete_structure(environments)
-      @generate_flux_manifests.call(environments, repository_url)
+      @generate_flux_manifests.call(environments, repository_url, resource_name)
     end
 
     private

@@ -7,6 +7,7 @@ module UseCases
 
     def call(environment)
       generate_root_kustomization(environment)
+      generate_cluster_kustomization(environment)
       generate_services_kustomizations(environment)
     end
 
@@ -31,6 +32,16 @@ module UseCases
       file_path = "#{environment.name}/kustomization.yaml"
       @file_system.write_file(file_path, content)
       puts "📝 Generated environment kustomization: #{file_path}"
+    end
+
+    def generate_cluster_kustomization(environment)
+      # The cluster kustomization should include flux-system and apps directories
+      resources = ["flux-system/", "apps/"]
+      content = generate_kustomization_content(resources)
+
+      file_path = "#{environment.cluster_path}/kustomization.yaml"
+      @file_system.write_file(file_path, content)
+      puts "📝 Generated cluster kustomization: #{file_path}"
     end
 
     def generate_services_kustomizations(environment)

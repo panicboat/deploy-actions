@@ -10,7 +10,7 @@ module UseCases
       @generate_environment_kustomizations = generate_environment_kustomizations
     end
 
-    def call(environments, repository_url)
+    def call(environments, repository_url, resource_name = 'flux-system')
       environments.each do |environment_name|
         environment = Entities::Environment.from_name(environment_name)
 
@@ -21,7 +21,7 @@ module UseCases
 
         puts "🚀 Generating FluxCD manifests for #{environment.name}..."
 
-        @generate_gotk_sync.call(environment, repository_url)
+        @generate_gotk_sync.call(environment, repository_url, resource_name)
         @generate_flux_system_kustomization.call(environment)
         @generate_apps_kustomization.call(environment)
         @generate_app_resources.call(environment)

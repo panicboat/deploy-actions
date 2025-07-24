@@ -104,14 +104,16 @@ RSpec.describe UseCases::GenerateGotkSync do
 
       it 'generates correct cluster paths for different environments' do
         use_case.call(staging_environment, repository_url)
-        expect(file_system_repository).to have_received(:write_file) do |_, content|
-          expect(content).to include('path: "./clusters/staging"')
-        end
+        expect(file_system_repository).to have_received(:write_file).with(
+          './clusters/staging/flux-system/gotk-sync.yaml',
+          include('path: "./clusters/staging"')
+        )
 
         use_case.call(production_environment, repository_url)
-        expect(file_system_repository).to have_received(:write_file) do |_, content|
-          expect(content).to include('path: "./clusters/production"')
-        end
+        expect(file_system_repository).to have_received(:write_file).with(
+          './clusters/production/flux-system/gotk-sync.yaml',
+          include('path: "./clusters/production"')
+        )
       end
     end
 
@@ -121,14 +123,16 @@ RSpec.describe UseCases::GenerateGotkSync do
 
       it 'handles different repository URL formats' do
         use_case.call(environment, github_url)
-        expect(file_system_repository).to have_received(:write_file) do |_, content|
-          expect(content).to include("url: #{github_url}")
-        end
+        expect(file_system_repository).to have_received(:write_file).with(
+          './clusters/develop/flux-system/gotk-sync.yaml',
+          include("url: #{github_url}")
+        )
 
         use_case.call(environment, gitlab_url)
-        expect(file_system_repository).to have_received(:write_file) do |_, content|
-          expect(content).to include("url: #{gitlab_url}")
-        end
+        expect(file_system_repository).to have_received(:write_file).with(
+          './clusters/develop/flux-system/gotk-sync.yaml', 
+          include("url: #{gitlab_url}")
+        )
       end
     end
   end
@@ -146,12 +150,12 @@ RSpec.describe UseCases::GenerateGotkSync do
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         # Should contain two YAML documents separated by ---
-        documents = content.split('---')
+        documents = content.split('---').reject(&:empty?).map(&:strip)
         expect(documents.size).to eq(2)
         
         # Each document should be valid YAML
         documents.each do |doc|
-          expect { YAML.safe_load(doc.strip) }.not_to raise_error
+          expect { YAML.safe_load(doc) }.not_to raise_error
         end
       end
     end
@@ -180,8 +184,8 @@ RSpec.describe UseCases::GenerateGotkSync do
       use_case.call(environment, repository_url)
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
-        # Should have two instances of flux-system name and namespace (GitRepo + Kustomization)
-        expect(content.scan(/name: flux-system/).size).to eq(2)
+        # Should have three instances of flux-system name (GitRepo + Kustomization + sourceRef)
+        expect(content.scan(/name: flux-system/).size).to eq(3)
         expect(content.scan(/namespace: flux-system/).size).to eq(2)
       end
     end
@@ -263,12 +267,12 @@ RSpec.describe UseCases::GenerateGotkSync do
           expect(content).to include('interval: 10m0s')
           
           # Verify structure
-          documents = content.split('---')
+          documents = content.split('---').reject(&:empty?).map(&:strip)
           expect(documents.size).to eq(2)
           
           # Parse and validate each document
-          git_repo_yaml = YAML.safe_load(documents[0].strip)
-          kustomization_yaml = YAML.safe_load(documents[1].strip)
+          git_repo_yaml = YAML.safe_load(documents[0])
+          kustomization_yaml = YAML.safe_load(documents[1])
           
           expect(git_repo_yaml['kind']).to eq('GitRepository')
           expect(kustomization_yaml['kind']).to eq('Kustomization')
@@ -289,7 +293,8 @@ RSpec.describe UseCases::GenerateGotkSync do
           expect(content).to include("url: #{enterprise_url}")
           
           # Verify the URL is properly quoted in YAML
-          parsed_content = YAML.safe_load(content.split('---')[0].strip)
+          documents = content.split('---').reject(&:empty?).map(&:strip)
+          parsed_content = YAML.safe_load(documents[0])
           expect(parsed_content['spec']['url']).to eq(enterprise_url)
         end
       end
@@ -309,11 +314,11 @@ RSpec.describe UseCases::GenerateGotkSync do
 
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         # Split into documents
-        documents = content.split('---')
+        documents = content.split('---').reject(&:empty?).map(&:strip)
         expect(documents.size).to eq(2)
 
         # Parse first document (GitRepository)
-        git_repo = YAML.safe_load(documents[0].strip)
+        git_repo = YAML.safe_load(documents[0])
         expect(git_repo['apiVersion']).to eq('source.toolkit.fluxcd.io/v1')
         expect(git_repo['kind']).to eq('GitRepository')
         expect(git_repo['metadata']['name']).to eq('flux-system')
@@ -323,7 +328,7 @@ RSpec.describe UseCases::GenerateGotkSync do
         expect(git_repo['spec']['interval']).to eq('1m0s')
 
         # Parse second document (Kustomization)
-        kustomization = YAML.safe_load(documents[1].strip)
+        kustomization = YAML.safe_load(documents[1])
         expect(kustomization['apiVersion']).to eq('kustomize.toolkit.fluxcd.io/v1')
         expect(kustomization['kind']).to eq('Kustomization')
         expect(kustomization['metadata']['name']).to eq('flux-system')

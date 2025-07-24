@@ -25,25 +25,30 @@ class FluxGeneratorCLI < Thor
                 type: :boolean,
                 default: false,
                 desc: "Verbose output"
-  method_option :target_dir,
-                aliases: ['-t'],
+  method_option :output_dir,
+                aliases: ['-o'],
                 type: :string,
                 desc: "Output directory for generated manifests (defaults to current directory)"
+  method_option :resource_name,
+                aliases: ['-n'],
+                type: :string,
+                default: 'flux-system',
+                desc: "Name for GitRepository and Kustomization resources (default: flux-system)"
   def generate
     setup_logging if options[:verbose]
 
     # Change to output directory if specified
     original_dir = Dir.pwd
-    Dir.chdir(options[:target_dir]) if options[:target_dir]
+    Dir.chdir(options[:output_dir]) if options[:output_dir]
 
     controller = FluxGeneratorContainer.resolve(:flux_generator_controller)
-    controller.generate_all(options[:environments], options[:repository_url])
+    controller.generate_all(options[:environments], options[:repository_url], options[:resource_name])
   rescue => e
     say_error "Error: #{e.message}", :red
     exit(1) unless options[:verbose]
     raise
   ensure
-    Dir.chdir(original_dir) if options[:target_dir]
+    Dir.chdir(original_dir) if options[:output_dir]
   end
 
   desc "validate", "Validate environment directories and manifests"
@@ -96,6 +101,9 @@ class FluxGeneratorCLI < Thor
 
       # With custom repository URL
       #{File.basename($0)} generate -r https://github.com/your-org/manifests
+
+      # With custom resource name
+      #{File.basename($0)} generate -n my-custom-flux
 
       🔍 Validation:
       # Validate all environments

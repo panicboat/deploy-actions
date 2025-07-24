@@ -30,12 +30,10 @@ RSpec.describe UseCases::GenerateEnvironmentKustomizations do
       it 'generates root kustomization with subdirectories' do
         use_case.call(environment)
 
-        expect(file_system_repository).to have_received(:write_file) do |path, content|
-          if path == 'develop/kustomization.yaml'
-            expect(content).to include('- services/')
-            expect(content).to include('- infrastructure/')
-          end
-        end
+        expect(file_system_repository).to have_received(:write_file)
+          .with('develop/kustomization.yaml', satisfy { |content| 
+            content.include?('- services/') && content.include?('- infrastructure/')
+          })
       end
 
       it 'generates service kustomizations for each directory' do
@@ -45,6 +43,15 @@ RSpec.describe UseCases::GenerateEnvironmentKustomizations do
           .with('develop/services/kustomization.yaml', anything)
         expect(file_system_repository).to have_received(:write_file)
           .with('develop/infrastructure/kustomization.yaml', anything)
+      end
+
+      it 'generates cluster kustomization with flux-system and apps' do
+        use_case.call(environment)
+
+        expect(file_system_repository).to have_received(:write_file)
+          .with('./clusters/develop/kustomization.yaml', satisfy { |content| 
+            content.include?('- flux-system/') && content.include?('- apps/')
+          })
       end
     end
 
@@ -64,17 +71,29 @@ RSpec.describe UseCases::GenerateEnvironmentKustomizations do
       it 'generates empty root kustomization' do
         use_case.call(environment)
 
-        expect(file_system_repository).to have_received(:write_file) do |path, content|
-          if path == 'develop/kustomization.yaml'
-            expect(content).to include('resources: []')
-          end
-        end
+        expect(file_system_repository).to have_received(:write_file)
+          .with('develop/kustomization.yaml', satisfy { |content| 
+            content.include?('resources: []')
+          })
       end
 
       it 'does not generate service kustomizations' do
         use_case.call(environment)
 
-        expect(file_system_repository).to have_received(:write_file).once
+        expect(file_system_repository).to have_received(:write_file).twice
+        expect(file_system_repository).to have_received(:write_file)
+          .with('develop/kustomization.yaml', anything)
+        expect(file_system_repository).to have_received(:write_file)
+          .with('./clusters/develop/kustomization.yaml', anything)
+      end
+
+      it 'generates cluster kustomization with flux-system and apps' do
+        use_case.call(environment)
+
+        expect(file_system_repository).to have_received(:write_file)
+          .with('./clusters/develop/kustomization.yaml', satisfy { |content| 
+            content.include?('- flux-system/') && content.include?('- apps/')
+          })
       end
     end
   end
