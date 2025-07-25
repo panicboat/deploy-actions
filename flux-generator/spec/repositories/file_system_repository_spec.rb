@@ -205,6 +205,7 @@ RSpec.describe Repositories::FileSystemRepository do
     context 'when directory does not exist' do
       before do
         allow(repository).to receive(:directory_exists?).with(directory).and_return(false)
+        allow(Dir).to receive(:glob)
       end
 
       it 'returns empty array' do

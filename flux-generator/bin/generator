@@ -5,35 +5,39 @@
 
 require_relative '../application'
 require 'thor'
+require 'securerandom'
 
 class FluxGeneratorCLI < Thor
   def self.exit_on_failure?
     true
   end
   desc "generate", "Generate FluxCD manifests for specified environments"
+  method_option :repository_url,
+                aliases: ['-r'],
+                type: :string,
+                desc: "Git repository URL (auto-detected from GITHUB_REPOSITORY if not provided)"
   method_option :environments,
                 aliases: ['-e'],
                 type: :array,
                 default: %w[develop staging production],
                 desc: "Target environments (space separated)"
-  method_option :repository_url,
-                aliases: ['-r'],
+  method_option :resource_name,
+                aliases: ['-n'],
                 type: :string,
-                desc: "Git repository URL (auto-detected from GITHUB_REPOSITORY if not provided)"
+                desc: "FluxCD resource name (default: auto-generated)"
+  method_option :target_namespace,
+                aliases: ['-t'],
+                type: :string,
+                desc: "Target namespace for Kustomization resources"
+  method_option :output_dir,
+                aliases: ['-o'],
+                type: :string,
+                desc: "Output directory for generated manifests (defaults to current directory)"
   method_option :verbose,
                 aliases: ['-v'],
                 type: :boolean,
                 default: false,
                 desc: "Verbose output"
-  method_option :output_dir,
-                aliases: ['-o'],
-                type: :string,
-                desc: "Output directory for generated manifests (defaults to current directory)"
-  method_option :resource_name,
-                aliases: ['-n'],
-                type: :string,
-                default: 'flux-system',
-                desc: "Name for GitRepository and Kustomization resources (default: flux-system)"
   def generate
     setup_logging if options[:verbose]
 
@@ -42,7 +46,7 @@ class FluxGeneratorCLI < Thor
     Dir.chdir(options[:output_dir]) if options[:output_dir]
 
     controller = FluxGeneratorContainer.resolve(:flux_generator_controller)
-    controller.generate_all(options[:environments], options[:repository_url], options[:resource_name])
+    controller.generate_all(options[:environments], options[:repository_url], options[:resource_name], options[:target_namespace])
   rescue => e
     say_error "Error: #{e.message}", :red
     exit(1) unless options[:verbose]

@@ -79,8 +79,6 @@ RSpec.describe Controllers::SetupController do
       end
 
       it 'does not create any directories' do
-        allow(file_system_repository).to receive(:ensure_directory).and_call_original
-
         controller.setup_missing_directories
 
         expect(file_system_repository).not_to have_received(:ensure_directory)
@@ -94,6 +92,9 @@ RSpec.describe Controllers::SetupController do
     context 'when kustomization files are missing' do
       before do
         allow(File).to receive(:exist?).and_return(false)
+        allow(Dir).to receive(:entries).with('develop').and_return(['.', '..', 'services'])
+        allow(File).to receive(:directory?).and_return(false)
+        allow(File).to receive(:directory?).with('develop/services').and_return(true)
       end
 
       it 'creates missing root kustomization' do

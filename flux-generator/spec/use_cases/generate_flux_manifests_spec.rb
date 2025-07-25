@@ -46,7 +46,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       let(:environments) { ['develop'] }
 
       it 'generates manifests for valid environment' do
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
 
         expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for develop...')
         expect(use_case).to have_received(:puts).with('✅ Generated FluxCD manifests for develop')
@@ -56,19 +56,19 @@ RSpec.describe UseCases::GenerateFluxManifests do
       it 'calls all generation use cases in correct order' do
         environment = Entities::Environment.from_name('develop')
 
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
 
-        expect(generate_gotk_sync).to have_received(:call).with(environment, repository_url)
+        expect(generate_gotk_sync).to have_received(:call).with(environment, repository_url, 'test-resource')
         expect(generate_flux_system_kustomization).to have_received(:call).with(environment)
         expect(generate_apps_kustomization).to have_received(:call).with(environment)
-        expect(generate_app_resources).to have_received(:call).with(environment)
+        expect(generate_app_resources).to have_received(:call).with(environment, 'test-resource', nil)
         expect(generate_environment_kustomizations).to have_received(:call).with(environment)
       end
 
       it 'creates Environment entity with correct attributes' do
         allow(Entities::Environment).to receive(:from_name).and_call_original
 
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
 
         expect(Entities::Environment).to have_received(:from_name).with('develop')
       end
@@ -78,7 +78,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       let(:environments) { ['develop', 'staging', 'production'] }
 
       it 'generates manifests for all valid environments' do
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
 
         expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for develop...')
         expect(use_case).to have_received(:puts).with('✅ Generated FluxCD manifests for develop')
@@ -94,11 +94,11 @@ RSpec.describe UseCases::GenerateFluxManifests do
         staging_env = Entities::Environment.from_name('staging')
         production_env = Entities::Environment.from_name('production')
 
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
 
-        expect(generate_gotk_sync).to have_received(:call).with(develop_env, repository_url)
-        expect(generate_gotk_sync).to have_received(:call).with(staging_env, repository_url)
-        expect(generate_gotk_sync).to have_received(:call).with(production_env, repository_url)
+        expect(generate_gotk_sync).to have_received(:call).with(develop_env, repository_url, 'test-resource')
+        expect(generate_gotk_sync).to have_received(:call).with(staging_env, repository_url, 'test-resource')
+        expect(generate_gotk_sync).to have_received(:call).with(production_env, repository_url, 'test-resource')
 
         expect(generate_flux_system_kustomization).to have_received(:call).with(develop_env)
         expect(generate_flux_system_kustomization).to have_received(:call).with(staging_env)
@@ -108,9 +108,9 @@ RSpec.describe UseCases::GenerateFluxManifests do
         expect(generate_apps_kustomization).to have_received(:call).with(staging_env)
         expect(generate_apps_kustomization).to have_received(:call).with(production_env)
 
-        expect(generate_app_resources).to have_received(:call).with(develop_env)
-        expect(generate_app_resources).to have_received(:call).with(staging_env)
-        expect(generate_app_resources).to have_received(:call).with(production_env)
+        expect(generate_app_resources).to have_received(:call).with(develop_env, 'test-resource', nil)
+        expect(generate_app_resources).to have_received(:call).with(staging_env, 'test-resource', nil)
+        expect(generate_app_resources).to have_received(:call).with(production_env, 'test-resource', nil)
 
         expect(generate_environment_kustomizations).to have_received(:call).with(develop_env)
         expect(generate_environment_kustomizations).to have_received(:call).with(staging_env)
@@ -118,27 +118,29 @@ RSpec.describe UseCases::GenerateFluxManifests do
       end
     end
 
-    context 'with invalid environments' do
-      let(:environments) { ['invalid', 'develop', 'bad-env'] }
+    context 'with mixed environment names' do
+      let(:environments) { ['custom-env', 'develop', 'my-cluster'] }
 
-      it 'skips invalid environments and shows error messages' do
-        use_case.call(environments, repository_url)
+      it 'processes all environments successfully' do
+        use_case.call(environments, repository_url, 'test-resource')
 
-        expect(use_case).to have_received(:puts).with('❌ Invalid environment: invalid')
-        expect(use_case).to have_received(:puts).with('❌ Invalid environment: bad-env')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for custom-env...')
         expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for develop...')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for my-cluster...')
+        expect(use_case).to have_received(:puts).with('✅ Generated FluxCD manifests for custom-env')
         expect(use_case).to have_received(:puts).with('✅ Generated FluxCD manifests for develop')
+        expect(use_case).to have_received(:puts).with('✅ Generated FluxCD manifests for my-cluster')
         expect(use_case).to have_received(:puts).with('🎉 FluxCD manifests generation completed!')
       end
 
-      it 'does not call generation use cases for invalid environments' do
-        use_case.call(environments, repository_url)
+      it 'calls generation use cases for all environments' do
+        use_case.call(environments, repository_url, 'test-resource')
 
-        expect(generate_gotk_sync).to have_received(:call).once
-        expect(generate_flux_system_kustomization).to have_received(:call).once
-        expect(generate_apps_kustomization).to have_received(:call).once
-        expect(generate_app_resources).to have_received(:call).once
-        expect(generate_environment_kustomizations).to have_received(:call).once
+        expect(generate_gotk_sync).to have_received(:call).exactly(3).times
+        expect(generate_flux_system_kustomization).to have_received(:call).exactly(3).times
+        expect(generate_apps_kustomization).to have_received(:call).exactly(3).times
+        expect(generate_app_resources).to have_received(:call).exactly(3).times
+        expect(generate_environment_kustomizations).to have_received(:call).exactly(3).times
       end
     end
 
@@ -146,7 +148,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       let(:environments) { [] }
 
       it 'completes without processing any environments' do
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
 
         expect(use_case).to have_received(:puts).with('🎉 FluxCD manifests generation completed!')
         expect(generate_gotk_sync).not_to have_received(:call)
@@ -157,26 +159,26 @@ RSpec.describe UseCases::GenerateFluxManifests do
       end
     end
 
-    context 'with only invalid environments' do
-      let(:environments) { ['invalid', 'bad-env', 'nonexistent'] }
+    context 'with custom environment names' do
+      let(:environments) { ['custom-env', 'my-environment', 'test-cluster'] }
 
-      it 'shows error messages for all invalid environments' do
-        use_case.call(environments, repository_url)
+      it 'processes custom environments successfully' do
+        use_case.call(environments, repository_url, 'test-resource')
 
-        expect(use_case).to have_received(:puts).with('❌ Invalid environment: invalid')
-        expect(use_case).to have_received(:puts).with('❌ Invalid environment: bad-env')
-        expect(use_case).to have_received(:puts).with('❌ Invalid environment: nonexistent')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for custom-env...')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for my-environment...')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for test-cluster...')
         expect(use_case).to have_received(:puts).with('🎉 FluxCD manifests generation completed!')
       end
 
-      it 'does not call any generation use cases' do
-        use_case.call(environments, repository_url)
+      it 'calls generation use cases for custom environments' do
+        use_case.call(environments, repository_url, 'test-resource')
 
-        expect(generate_gotk_sync).not_to have_received(:call)
-        expect(generate_flux_system_kustomization).not_to have_received(:call)
-        expect(generate_apps_kustomization).not_to have_received(:call)
-        expect(generate_app_resources).not_to have_received(:call)
-        expect(generate_environment_kustomizations).not_to have_received(:call)
+        expect(generate_gotk_sync).to have_received(:call).exactly(3).times
+        expect(generate_flux_system_kustomization).to have_received(:call).exactly(3).times
+        expect(generate_apps_kustomization).to have_received(:call).exactly(3).times
+        expect(generate_app_resources).to have_received(:call).exactly(3).times
+        expect(generate_environment_kustomizations).to have_received(:call).exactly(3).times
       end
     end
   end
@@ -196,7 +198,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       allow(generate_gotk_sync).to receive(:call).and_raise(StandardError, 'Gotk sync error')
 
       expect {
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
       }.to raise_error(StandardError, 'Gotk sync error')
     end
 
@@ -205,7 +207,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       allow(generate_flux_system_kustomization).to receive(:call).and_raise(StandardError, 'System kustomization error')
 
       expect {
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
       }.to raise_error(StandardError, 'System kustomization error')
     end
 
@@ -214,7 +216,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       allow(generate_apps_kustomization).to receive(:call).and_raise(StandardError, 'Apps kustomization error')
 
       expect {
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
       }.to raise_error(StandardError, 'Apps kustomization error')
     end
 
@@ -223,7 +225,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       allow(generate_app_resources).to receive(:call).and_raise(StandardError, 'App resources error')
 
       expect {
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
       }.to raise_error(StandardError, 'App resources error')
     end
 
@@ -232,7 +234,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       allow(generate_environment_kustomizations).to receive(:call).and_raise(StandardError, 'Environment kustomizations error')
 
       expect {
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
       }.to raise_error(StandardError, 'Environment kustomizations error')
     end
   end
@@ -262,7 +264,7 @@ RSpec.describe UseCases::GenerateFluxManifests do
       let(:environments) { ['develop', 'staging', 'production'] }
 
       it 'processes all environments successfully' do
-        use_case.call(environments, repository_url)
+        use_case.call(environments, repository_url, 'test-resource')
 
         expect(generate_gotk_sync).to have_received(:call).exactly(3).times
         expect(generate_flux_system_kustomization).to have_received(:call).exactly(3).times
@@ -272,20 +274,22 @@ RSpec.describe UseCases::GenerateFluxManifests do
       end
     end
 
-    context 'with mixed valid and invalid environments' do
-      let(:environments) { ['develop', 'invalid-env', 'production', 'test-env'] }
+    context 'with mixed environment names' do
+      let(:environments) { ['develop', 'custom-env', 'production', 'test-env'] }
 
-      it 'processes only valid environments' do
-        use_case.call(environments, repository_url)
+      it 'processes all environments successfully' do
+        use_case.call(environments, repository_url, 'test-resource')
 
-        expect(generate_gotk_sync).to have_received(:call).exactly(2).times
-        expect(generate_flux_system_kustomization).to have_received(:call).exactly(2).times
-        expect(generate_apps_kustomization).to have_received(:call).exactly(2).times
-        expect(generate_app_resources).to have_received(:call).exactly(2).times
-        expect(generate_environment_kustomizations).to have_received(:call).exactly(2).times
+        expect(generate_gotk_sync).to have_received(:call).exactly(4).times
+        expect(generate_flux_system_kustomization).to have_received(:call).exactly(4).times
+        expect(generate_apps_kustomization).to have_received(:call).exactly(4).times
+        expect(generate_app_resources).to have_received(:call).exactly(4).times
+        expect(generate_environment_kustomizations).to have_received(:call).exactly(4).times
 
-        expect(use_case).to have_received(:puts).with('❌ Invalid environment: invalid-env')
-        expect(use_case).to have_received(:puts).with('❌ Invalid environment: test-env')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for develop...')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for custom-env...')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for production...')
+        expect(use_case).to have_received(:puts).with('🚀 Generating FluxCD manifests for test-env...')
       end
     end
   end

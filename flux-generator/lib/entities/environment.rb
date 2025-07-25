@@ -27,7 +27,7 @@ module Entities
     end
 
     def valid?
-      !name.empty? && %w[develop staging production].include?(name)
+      !name.empty?
     end
   end
 end

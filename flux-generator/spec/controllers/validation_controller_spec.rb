@@ -38,11 +38,14 @@ RSpec.describe Controllers::ValidationController do
       end
     end
 
-    context 'with invalid environment names' do
-      it 'shows error for invalid environment names' do
-        controller.validate_environments(['invalid'])
+    context 'with custom environment names' do
+      it 'validates custom environment names successfully' do
+        controller.validate_environments(['custom-env'])
 
-        expect(controller).to have_received(:puts).with('    ❌ Invalid environment name: invalid')
+        expect(controller).to have_received(:puts).with('  🔍 Checking environment: custom-env')
+        expect(controller).to have_received(:puts).with('    ✅ Environment directory exists: custom-env')
+        expect(controller).to have_received(:puts).with('    ✅ flux-system directory exists')
+        expect(controller).to have_received(:puts).with('    ✅ apps directory exists')
       end
     end
 

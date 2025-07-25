@@ -35,7 +35,7 @@ RSpec.describe UseCases::GenerateAppResources do
       end
 
       it 'generates root resource with correct attributes' do
-        use_case.call(environment)
+        use_case.call(environment, 'test-resource')
 
         expect(file_system_repository).to have_received(:write_file) do |path, content|
           expect(path).to eq("#{environment.apps_path}/web-service.yaml")
@@ -43,7 +43,7 @@ RSpec.describe UseCases::GenerateAppResources do
           expect(content).to include('namespace: flux-system')
           expect(content).to include("path: \"#{environment.path}\"")
           expect(content).to include('interval: 5m0s')
-          expect(content).to include('targetNamespace: default')
+          expect(content).not_to include('targetNamespace:')
           expect(content).to include('service_name: web-service')
         end
       end
@@ -66,7 +66,7 @@ RSpec.describe UseCases::GenerateAppResources do
       end
 
       it 'generates subdirectory resource with correct attributes' do
-        use_case.call(environment)
+        use_case.call(environment, 'test-resource')
 
         expect(file_system_repository).to have_received(:write_file) do |path, content|
           expect(path).to eq("#{environment.apps_path}/backend/api-service.yaml")
@@ -74,7 +74,7 @@ RSpec.describe UseCases::GenerateAppResources do
           expect(content).to include('namespace: flux-system')
           expect(content).to include("path: \"#{environment.path}/backend\"")
           expect(content).to include('interval: 5m0s')
-          expect(content).to include('targetNamespace: default')
+          expect(content).not_to include('targetNamespace:')
           expect(content).to include('service_name: api-service')
         end
       end
@@ -105,7 +105,7 @@ RSpec.describe UseCases::GenerateAppResources do
       end
 
       it 'generates resources for both types' do
-        use_case.call(environment)
+        use_case.call(environment, 'test-resource')
 
         expect(file_system_repository).to have_received(:write_file).twice
         expect(file_system_repository).to have_received(:write_file)
@@ -122,7 +122,7 @@ RSpec.describe UseCases::GenerateAppResources do
       end
 
       it 'does not generate any resources' do
-        use_case.call(environment)
+        use_case.call(environment, 'test-resource')
 
         expect(file_system_repository).not_to have_received(:write_file)
       end
@@ -145,7 +145,7 @@ RSpec.describe UseCases::GenerateAppResources do
     end
 
     it 'generates valid Kustomization YAML' do
-      use_case.call(environment)
+      use_case.call(environment, 'test-resource')
 
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         parsed_yaml = YAML.safe_load(content)
@@ -155,7 +155,7 @@ RSpec.describe UseCases::GenerateAppResources do
         expect(parsed_yaml['metadata']['namespace']).to eq('flux-system')
         expect(parsed_yaml['spec']['path']).to eq('./production')
         expect(parsed_yaml['spec']['interval']).to eq('5m0s')
-        expect(parsed_yaml['spec']['targetNamespace']).to eq('default')
+        expect(parsed_yaml['spec']).not_to have_key('targetNamespace')
         expect(parsed_yaml['spec']['postBuild']['substitute']['service_name']).to eq('test-service')
       end
     end
@@ -169,7 +169,7 @@ RSpec.describe UseCases::GenerateAppResources do
         .and_raise(StandardError, 'Repository error')
 
       expect {
-        use_case.call(environment)
+        use_case.call(environment, 'test-resource')
       }.to raise_error(StandardError, 'Repository error')
     end
 
@@ -181,7 +181,7 @@ RSpec.describe UseCases::GenerateAppResources do
         .and_raise(StandardError, 'File system error')
 
       expect {
-        use_case.call(environment)
+        use_case.call(environment, 'test-resource')
       }.to raise_error(StandardError, 'File system error')
     end
 
@@ -193,7 +193,7 @@ RSpec.describe UseCases::GenerateAppResources do
         .and_raise(Dry::Struct::Error, 'Invalid attributes')
 
       expect {
-        use_case.call(environment)
+        use_case.call(environment, 'test-resource')
       }.to raise_error(Dry::Struct::Error, 'Invalid attributes')
     end
   end
@@ -206,18 +206,18 @@ RSpec.describe UseCases::GenerateAppResources do
         manifest = instance_double(Entities::ManifestFile, in_subdirectory?: false)
         allow(use_case).to receive(:generate_root_resource)
 
-        use_case.send(:generate_resource_for_manifest, environment, manifest)
+        use_case.send(:generate_resource_for_manifest, environment, manifest, 'test-resource', nil)
 
-        expect(use_case).to have_received(:generate_root_resource).with(environment, manifest)
+        expect(use_case).to have_received(:generate_root_resource).with(environment, manifest, 'test-resource', nil)
       end
 
       it 'calls generate_subdirectory_resource for nested manifests' do
         manifest = instance_double(Entities::ManifestFile, in_subdirectory?: true)
         allow(use_case).to receive(:generate_subdirectory_resource)
 
-        use_case.send(:generate_resource_for_manifest, environment, manifest)
+        use_case.send(:generate_resource_for_manifest, environment, manifest, 'test-resource', nil)
 
-        expect(use_case).to have_received(:generate_subdirectory_resource).with(environment, manifest)
+        expect(use_case).to have_received(:generate_subdirectory_resource).with(environment, manifest, 'test-resource', nil)
       end
     end
   end
@@ -256,7 +256,7 @@ RSpec.describe UseCases::GenerateAppResources do
       end
 
       it 'generates all app resources correctly' do
-        use_case.call(production_environment)
+        use_case.call(production_environment, 'test-resource')
 
         expect(file_system_repository).to have_received(:write_file).exactly(3).times
         

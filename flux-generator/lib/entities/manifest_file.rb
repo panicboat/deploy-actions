@@ -22,7 +22,7 @@ module Entities
     end
 
     def in_subdirectory?
-      directory != '.'
+      directory != '.' && directory != ''
     end
 
     def resource_name

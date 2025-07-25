@@ -5,11 +5,16 @@ module Controllers
       @setup_controller = setup_controller
     end
 
-    def generate_all(environments, repository_url, resource_name = 'flux-system')
+    def generate_all(environments, repository_url, resource_name = nil, target_namespace = nil)
       repository_url ||= detect_repository_url
+      resource_name ||= generate_default_resource_name
 
       unless repository_url
         raise ArgumentError, "Repository URL is required but not provided or detected"
+      end
+
+      if resource_name.nil? || resource_name.empty?
+        raise ArgumentError, "Resource name is required"
       end
 
       puts "📋 Configured environments: #{environments.join(',')}"
@@ -17,7 +22,7 @@ module Controllers
       puts "📛 Resource name: #{resource_name}"
 
       setup_complete_structure(environments)
-      @generate_flux_manifests.call(environments, repository_url, resource_name)
+      @generate_flux_manifests.call(environments, repository_url, resource_name, target_namespace)
     end
 
     private
@@ -35,6 +40,11 @@ module Controllers
       return nil unless github_repository
 
       "https://github.com/#{github_repository}"
+    end
+
+    def generate_default_resource_name
+      require 'securerandom'
+      "flux-#{SecureRandom.hex(8)}"
     end
   end
 end

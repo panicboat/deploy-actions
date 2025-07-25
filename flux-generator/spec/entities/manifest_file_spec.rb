@@ -30,7 +30,7 @@ RSpec.describe Entities::ManifestFile do
 
     context 'with deeply nested file' do
       let(:manifest_file) do
-        described_class.from_path('/path/to/develop/services/backend/database.yaml', 'develop')
+        described_class.from_path('/path/to/develop/services/backend/database.yaml', '/path/to/develop')
       end
 
       it 'creates manifest file with deeply nested attributes' do
@@ -43,7 +43,7 @@ RSpec.describe Entities::ManifestFile do
 
     context 'with environment path containing special characters' do
       let(:manifest_file) do
-        described_class.from_path('/path/to/my-env/services/web-app.yaml', 'my-env')
+        described_class.from_path('/path/to/my-env/services/web-app.yaml', '/path/to/my-env')
       end
 
       it 'handles special characters in environment path' do
@@ -224,14 +224,14 @@ RSpec.describe Entities::ManifestFile do
 
   describe 'edge cases and error conditions' do
     it 'handles files without extensions' do
-      manifest_file = described_class.from_path('/path/to/develop/services/config', 'develop')
+      manifest_file = described_class.from_path('/path/to/develop/services/config', '/path/to/develop')
       
       expect(manifest_file.service_name).to eq('config')
       expect(manifest_file.relative_path).to eq('services/config')
     end
 
     it 'handles files with multiple dots in name' do
-      manifest_file = described_class.from_path('/path/to/develop/app.config.yaml', 'develop')
+      manifest_file = described_class.from_path('/path/to/develop/app.config.yaml', '/path/to/develop')
       
       expect(manifest_file.service_name).to eq('app.config')
       expect(manifest_file.relative_path).to eq('app.config.yaml')
@@ -275,7 +275,7 @@ RSpec.describe Entities::ManifestFile do
     it 'handles typical Rails app structure' do
       manifest_file = described_class.from_path(
         '/projects/myapp/develop/services/web/rails-app.yaml', 
-        'develop'
+        '/projects/myapp/develop'
       )
       
       expect(manifest_file.service_name).to eq('rails-app')
@@ -288,7 +288,7 @@ RSpec.describe Entities::ManifestFile do
     it 'handles microservices structure' do
       manifest_file = described_class.from_path(
         '/projects/microservices/production/backend/auth/user-auth-service.yaml',
-        'production'
+        '/projects/microservices/production'
       )
       
       expect(manifest_file.service_name).to eq('user-auth-service')

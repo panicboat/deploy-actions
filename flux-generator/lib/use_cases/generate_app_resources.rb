@@ -6,11 +6,12 @@ module UseCases
       @manifest_repository = manifest_repository
     end
 
-    def call(environment)
+    def call(environment, resource_name, target_namespace = nil)
+      raise ArgumentError, "Resource name is required" if resource_name.nil? || resource_name.empty?
       manifests = @manifest_repository.find_manifests_for_environment(environment)
 
       manifests.each do |manifest|
-        generate_resource_for_manifest(environment, manifest)
+        generate_resource_for_manifest(environment, manifest, resource_name, target_namespace)
       end
     end
 
@@ -18,25 +19,25 @@ module UseCases
 
     attr_reader :file_system, :manifest_repository
 
-    def generate_resource_for_manifest(environment, manifest)
+    def generate_resource_for_manifest(environment, manifest, resource_name, target_namespace)
       if manifest.in_subdirectory?
-        generate_subdirectory_resource(environment, manifest)
+        generate_subdirectory_resource(environment, manifest, resource_name, target_namespace)
       else
-        generate_root_resource(environment, manifest)
+        generate_root_resource(environment, manifest, resource_name, target_namespace)
       end
     end
 
-    def generate_subdirectory_resource(environment, manifest)
+    def generate_subdirectory_resource(environment, manifest, resource_name, target_namespace)
       kustomization = Entities::FluxResource.kustomization(
         name: manifest.resource_name,
         namespace: 'flux-system',
         path: "#{environment.path}/#{manifest.directory}",
         source_ref: {
           'kind' => 'GitRepository',
-          'name' => 'flux-system'
+          'name' => resource_name
         },
         interval: '5m0s',
-        target_namespace: 'default',
+        target_namespace: target_namespace,
         post_build: {
           'substitute' => {
             'service_name' => manifest.service_name
@@ -49,17 +50,17 @@ module UseCases
       puts "📝 Generated app resource: #{file_path}"
     end
 
-    def generate_root_resource(environment, manifest)
+    def generate_root_resource(environment, manifest, resource_name, target_namespace)
       kustomization = Entities::FluxResource.kustomization(
         name: manifest.service_name,
         namespace: 'flux-system',
         path: environment.path,
         source_ref: {
           'kind' => 'GitRepository',
-          'name' => 'flux-system'
+          'name' => resource_name
         },
         interval: '5m0s',
-        target_namespace: 'default',
+        target_namespace: target_namespace,
         post_build: {
           'substitute' => {
             'service_name' => manifest.service_name

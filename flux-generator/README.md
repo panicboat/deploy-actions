@@ -12,7 +12,7 @@ bundle install
 bundle exec ruby bin/generator generate
 
 # With custom options
-bin/generator generate -e develop staging -n my-flux -o ./output
+bin/generator generate -e my-env custom-cluster -n generated-manifests -t my-namespace -o ./output
 ```
 
 ## GitHub Actions
@@ -30,10 +30,11 @@ bin/generator generate -e develop staging -n my-flux -o ./output
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-e, --environments` | Target environments | `develop,staging,production` |
 | `-r, --repository-url` | Git repository URL | Auto-detected |
+| `-e, --environments` | Target environments (any string) | `develop,staging,production` |
+| `-n, --resource-name` | GitRepository/Kustomization name | Auto-generated (e.g., `flux-a1b2c3d4`) |
+| `-t, --target-namespace` | Target namespace for Kustomization resources | None |
 | `-o, --output-dir` | Output directory | Current directory |
-| `-n, --resource-name` | GitRepository/Kustomization name | `flux-system` |
 | `-v, --verbose` | Verbose output | `false` |
 
 ## Input Structure

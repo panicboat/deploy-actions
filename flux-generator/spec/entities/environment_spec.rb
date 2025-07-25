@@ -28,16 +28,11 @@ RSpec.describe Entities::Environment do
   end
 
   describe '#valid?' do
-    it 'returns true for valid environments' do
-      %w[develop staging production].each do |env_name|
+    it 'returns true for any non-empty environment name' do
+      %w[develop staging production custom-env test my-environment].each do |env_name|
         env = described_class.from_name(env_name)
         expect(env.valid?).to be true
       end
-    end
-
-    it 'returns false for invalid environments' do
-      env = described_class.from_name('invalid')
-      expect(env.valid?).to be false
     end
 
     it 'returns false for empty name' do

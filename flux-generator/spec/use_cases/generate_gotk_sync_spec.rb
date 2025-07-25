@@ -25,10 +25,10 @@ RSpec.describe UseCases::GenerateGotkSync do
     it 'creates GitRepository resource with correct attributes' do
       allow(Entities::FluxResource).to receive(:git_repository).and_call_original
       
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(Entities::FluxResource).to have_received(:git_repository).with(
-        name: 'flux-system',
+        name: 'test-resource',
         namespace: 'flux-system',
         url: repository_url
       )
@@ -37,15 +37,15 @@ RSpec.describe UseCases::GenerateGotkSync do
     it 'creates Kustomization resource with correct attributes' do
       allow(Entities::FluxResource).to receive(:kustomization).and_call_original
       
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(Entities::FluxResource).to have_received(:kustomization).with(
-        name: 'flux-system',
+        name: 'test-resource',
         namespace: 'flux-system',
         path: environment.cluster_path,
         source_ref: {
           'kind' => 'GitRepository',
-          'name' => 'flux-system'
+          'name' => 'test-resource'
         },
         interval: '10m0s'
       )
@@ -54,7 +54,7 @@ RSpec.describe UseCases::GenerateGotkSync do
     it 'writes combined YAML content to correct file path' do
       expected_file_path = "#{environment.flux_system_path}/gotk-sync.yaml"
       
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(file_system_repository).to have_received(:write_file) do |path, content|
         expect(path).to eq(expected_file_path)
@@ -67,7 +67,7 @@ RSpec.describe UseCases::GenerateGotkSync do
     end
 
     it 'generates YAML with correct repository URL' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         expect(content).to include("url: #{repository_url}")
@@ -75,7 +75,7 @@ RSpec.describe UseCases::GenerateGotkSync do
     end
 
     it 'generates YAML with correct cluster path' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         expect(content).to include("path: \"#{environment.cluster_path}\"")
@@ -83,7 +83,7 @@ RSpec.describe UseCases::GenerateGotkSync do
     end
 
     it 'outputs success message' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(use_case).to have_received(:puts).with("📝 Generated gotk-sync for #{environment.name}")
     end
@@ -93,23 +93,23 @@ RSpec.describe UseCases::GenerateGotkSync do
       let(:production_environment) { Entities::Environment.from_name('production') }
 
       it 'generates correct file paths for different environments' do
-        use_case.call(staging_environment, repository_url)
+        use_case.call(staging_environment, repository_url, 'test-resource')
         expect(file_system_repository).to have_received(:write_file)
           .with('./clusters/staging/flux-system/gotk-sync.yaml', anything)
 
-        use_case.call(production_environment, repository_url)
+        use_case.call(production_environment, repository_url, 'test-resource')
         expect(file_system_repository).to have_received(:write_file)
           .with('./clusters/production/flux-system/gotk-sync.yaml', anything)
       end
 
       it 'generates correct cluster paths for different environments' do
-        use_case.call(staging_environment, repository_url)
+        use_case.call(staging_environment, repository_url, 'test-resource')
         expect(file_system_repository).to have_received(:write_file).with(
           './clusters/staging/flux-system/gotk-sync.yaml',
           include('path: "./clusters/staging"')
         )
 
-        use_case.call(production_environment, repository_url)
+        use_case.call(production_environment, repository_url, 'test-resource')
         expect(file_system_repository).to have_received(:write_file).with(
           './clusters/production/flux-system/gotk-sync.yaml',
           include('path: "./clusters/production"')
@@ -122,13 +122,13 @@ RSpec.describe UseCases::GenerateGotkSync do
       let(:gitlab_url) { 'https://gitlab.com/company/infrastructure' }
 
       it 'handles different repository URL formats' do
-        use_case.call(environment, github_url)
+        use_case.call(environment, github_url, 'test-resource')
         expect(file_system_repository).to have_received(:write_file).with(
           './clusters/develop/flux-system/gotk-sync.yaml',
           include("url: #{github_url}")
         )
 
-        use_case.call(environment, gitlab_url)
+        use_case.call(environment, gitlab_url, 'test-resource')
         expect(file_system_repository).to have_received(:write_file).with(
           './clusters/develop/flux-system/gotk-sync.yaml', 
           include("url: #{gitlab_url}")
@@ -146,7 +146,7 @@ RSpec.describe UseCases::GenerateGotkSync do
     end
 
     it 'generates valid YAML structure' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         # Should contain two YAML documents separated by ---
@@ -161,16 +161,16 @@ RSpec.describe UseCases::GenerateGotkSync do
     end
 
     it 'includes GitRepository metadata' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
-        expect(content).to include('name: flux-system')
+        expect(content).to include('name: test-resource')
         expect(content).to include('namespace: flux-system')
       end
     end
 
     it 'includes GitRepository spec' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         expect(content).to include('interval: 1m0s')
@@ -181,24 +181,24 @@ RSpec.describe UseCases::GenerateGotkSync do
     end
 
     it 'includes Kustomization metadata' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
-        # Should have three instances of flux-system name (GitRepo + Kustomization + sourceRef)
-        expect(content.scan(/name: flux-system/).size).to eq(3)
+        # Should have three instances of test-resource name (GitRepo + Kustomization + sourceRef)
+        expect(content.scan(/name: test-resource/).size).to eq(3)
         expect(content.scan(/namespace: flux-system/).size).to eq(2)
       end
     end
 
     it 'includes Kustomization spec' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
       
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         expect(content).to include('interval: 10m0s')
         expect(content).to include('prune: true')
         expect(content).to include('sourceRef:')
         expect(content).to include('  kind: GitRepository')
-        expect(content).to include('  name: flux-system')
+        expect(content).to include('  name: test-resource')
       end
     end
   end
@@ -212,7 +212,7 @@ RSpec.describe UseCases::GenerateGotkSync do
         .and_raise(StandardError, 'File system error')
       
       expect {
-        use_case.call(environment, repository_url)
+        use_case.call(environment, repository_url, 'test-resource')
       }.to raise_error(StandardError, 'File system error')
     end
 
@@ -221,7 +221,7 @@ RSpec.describe UseCases::GenerateGotkSync do
         .and_raise(Dry::Struct::Error, 'Invalid attributes')
       
       expect {
-        use_case.call(environment, repository_url)
+        use_case.call(environment, repository_url, 'test-resource')
       }.to raise_error(Dry::Struct::Error, 'Invalid attributes')
     end
 
@@ -231,7 +231,7 @@ RSpec.describe UseCases::GenerateGotkSync do
       allow(Entities::FluxResource).to receive(:git_repository).and_return(git_repo)
       
       expect {
-        use_case.call(environment, repository_url)
+        use_case.call(environment, repository_url, 'test-resource')
       }.to raise_error(StandardError, 'YAML generation error')
     end
   end
@@ -255,7 +255,7 @@ RSpec.describe UseCases::GenerateGotkSync do
       let(:environment) { Entities::Environment.from_name('production') }
 
       it 'generates production-ready gotk-sync manifest' do
-        use_case.call(environment, repository_url)
+        use_case.call(environment, repository_url, 'test-resource')
 
         expect(file_system_repository).to have_received(:write_file)
           .with('./clusters/production/flux-system/gotk-sync.yaml', anything)
@@ -287,7 +287,7 @@ RSpec.describe UseCases::GenerateGotkSync do
       let(:enterprise_url) { 'https://git.enterprise.com/infrastructure/k8s-manifests' }
 
       it 'handles enterprise repository URLs correctly' do
-        use_case.call(environment, enterprise_url)
+        use_case.call(environment, enterprise_url, 'test-resource')
 
         expect(file_system_repository).to have_received(:write_file) do |_, content|
           expect(content).to include("url: #{enterprise_url}")
@@ -310,7 +310,7 @@ RSpec.describe UseCases::GenerateGotkSync do
     end
 
     it 'creates properly structured multi-document YAML' do
-      use_case.call(environment, repository_url)
+      use_case.call(environment, repository_url, 'test-resource')
 
       expect(file_system_repository).to have_received(:write_file) do |_, content|
         # Split into documents
@@ -321,7 +321,7 @@ RSpec.describe UseCases::GenerateGotkSync do
         git_repo = YAML.safe_load(documents[0])
         expect(git_repo['apiVersion']).to eq('source.toolkit.fluxcd.io/v1')
         expect(git_repo['kind']).to eq('GitRepository')
-        expect(git_repo['metadata']['name']).to eq('flux-system')
+        expect(git_repo['metadata']['name']).to eq('test-resource')
         expect(git_repo['metadata']['namespace']).to eq('flux-system')
         expect(git_repo['spec']['url']).to eq(repository_url)
         expect(git_repo['spec']['ref']['branch']).to eq('main')
@@ -331,13 +331,13 @@ RSpec.describe UseCases::GenerateGotkSync do
         kustomization = YAML.safe_load(documents[1])
         expect(kustomization['apiVersion']).to eq('kustomize.toolkit.fluxcd.io/v1')
         expect(kustomization['kind']).to eq('Kustomization')
-        expect(kustomization['metadata']['name']).to eq('flux-system')
+        expect(kustomization['metadata']['name']).to eq('test-resource')
         expect(kustomization['metadata']['namespace']).to eq('flux-system')
         expect(kustomization['spec']['path']).to eq('./clusters/staging')
         expect(kustomization['spec']['interval']).to eq('10m0s')
         expect(kustomization['spec']['prune']).to be true
         expect(kustomization['spec']['sourceRef']['kind']).to eq('GitRepository')
-        expect(kustomization['spec']['sourceRef']['name']).to eq('flux-system')
+        expect(kustomization['spec']['sourceRef']['name']).to eq('test-resource')
       end
     end
   end

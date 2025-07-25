@@ -31,8 +31,12 @@ RSpec.describe Controllers::FluxGeneratorController do
       it 'uses provided repository URL' do
         controller.generate_all(environments, repository_url)
 
-        expect(generate_flux_manifests_use_case).to have_received(:call)
-          .with(environments, repository_url)
+        expect(generate_flux_manifests_use_case).to have_received(:call) do |envs, repo_url, resource_name, target_ns|
+          expect(envs).to eq(environments)
+          expect(repo_url).to eq(repository_url)
+          expect(resource_name).to match(/^flux-[a-f0-9]{16}$/)
+          expect(target_ns).to be_nil
+        end
       end
 
       it 'runs setup sequence' do
@@ -53,15 +57,21 @@ RSpec.describe Controllers::FluxGeneratorController do
 
     context 'without repository URL' do
       it 'detects repository URL from environment' do
+        allow(ENV).to receive(:[]).and_return(nil)
         allow(ENV).to receive(:[]).with('GITHUB_REPOSITORY').and_return('company/infrastructure')
 
         controller.generate_all(environments, nil)
 
-        expect(generate_flux_manifests_use_case).to have_received(:call)
-          .with(environments, 'https://github.com/company/infrastructure')
+        expect(generate_flux_manifests_use_case).to have_received(:call) do |envs, repo_url, resource_name, target_ns|
+          expect(envs).to eq(environments)
+          expect(repo_url).to eq('https://github.com/company/infrastructure')
+          expect(resource_name).to match(/^flux-[a-f0-9]{16}$/)
+          expect(target_ns).to be_nil
+        end
       end
 
       it 'raises error when URL cannot be detected' do
+        allow(ENV).to receive(:[]).and_return(nil)
         allow(ENV).to receive(:[]).with('GITHUB_REPOSITORY').and_return(nil)
 
         expect {

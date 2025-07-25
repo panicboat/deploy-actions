@@ -5,7 +5,8 @@ module UseCases
       @file_system = file_system_repository
     end
 
-    def call(environment, repository_url, resource_name = 'flux-system')
+    def call(environment, repository_url, resource_name)
+      raise ArgumentError, "Resource name is required" if resource_name.nil? || resource_name.empty?
       git_repo = Entities::FluxResource.git_repository(
         name: resource_name,
         namespace: 'flux-system',
