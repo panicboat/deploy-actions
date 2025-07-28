@@ -8,18 +8,21 @@ RSpec.describe Entities::WorkflowConfig do
       'environments' => [
         {
           'environment' => 'develop',
+          'branch' => 'develop',
           'aws_region' => 'ap-northeast-1',
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         },
         {
           'environment' => 'staging',
+          'branch' => 'staging',
           'aws_region' => 'us-west-2',
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply'
         },
         {
           'environment' => 'production',
+          'branch' => 'production',
           'aws_region' => 'us-west-2',
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/production-plan',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply'
@@ -55,12 +58,7 @@ RSpec.describe Entities::WorkflowConfig do
             'type' => 'permanent'
           }
         }
-      ],
-      'branch_patterns' => {
-        'develop' => 'develop',
-        'staging' => 'staging',
-        'production' => 'production'
-      }
+      ]
     }
   end
 
@@ -324,11 +322,15 @@ RSpec.describe Entities::WorkflowConfig do
       end
     end
 
-    context 'with missing branch_patterns' do
-      let(:config_hash) { super().except('branch_patterns') }
+    context 'with missing branch field in environment' do
+      let(:config_hash) do
+        super().tap do |config|
+          config['environments'][0].delete('branch')
+        end
+      end
 
       it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/branch_patterns/)
+        expect { workflow_config.validate! }.to raise_error(/missing required field: branch/)
       end
     end
 

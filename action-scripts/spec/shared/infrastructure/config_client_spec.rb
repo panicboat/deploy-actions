@@ -83,7 +83,7 @@ RSpec.describe Infrastructure::ConfigClient do
       let(:invalid_config) do
         <<~YAML
           environments: []
-          # Missing directory_conventions and branch_patterns
+          # Missing directory_conventions
         YAML
       end
       let(:temp_config) { create_test_config(invalid_config) }

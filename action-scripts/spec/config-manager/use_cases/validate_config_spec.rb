@@ -33,8 +33,7 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
               'root' => '{service}',
               'stacks' => []
             }
-          ],
-          'branch_patterns' => {}
+          ]
         })
       end
 
@@ -99,7 +98,7 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
     context 'with empty configuration' do
       before do
         allow(config_client).to receive(:load_workflow_config).and_raise(
-          StandardError.new('Configuration validation failed: Missing required configuration sections: directory_conventions, branch_patterns')
+          StandardError.new('Configuration validation failed: Missing required configuration sections: directory_conventions')
         )
       end
 
@@ -109,7 +108,6 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
         expect(result).to be_failure
         expect(result.error_message).to include('Configuration validation failed')
         expect(result.error_message).to include('directory_conventions')
-        expect(result.error_message).to include('branch_patterns')
       end
     end
   end

@@ -89,7 +89,7 @@ module Infrastructure
       raise "Configuration must be a Hash" unless config_data.is_a?(Hash)
 
       # Validate required sections
-      required_sections = %w[environments directory_conventions branch_patterns]
+      required_sections = %w[environments directory_conventions]
       missing_sections = required_sections - config_data.keys
       if missing_sections.any?
         raise "Missing required configuration sections: #{missing_sections.join(', ')}"
@@ -102,6 +102,7 @@ module Infrastructure
       environments.each_with_index do |env, index|
         raise "Environment #{index} must have 'environment' key" unless env['environment']
         raise "Environment #{index} must have 'aws_region' key" unless env['aws_region']
+        raise "Environment #{index} must have 'branch' key" unless env['branch']
       end
 
       # Validate new directory_conventions structure
@@ -121,9 +122,6 @@ module Infrastructure
         end
       end
 
-      # Validate branch_patterns section
-      branch_patterns = config_data['branch_patterns']
-      raise "branch_patterns must be a Hash" unless branch_patterns.is_a?(Hash)
 
       # Validate services section if present
       if config_data['services']

@@ -18,7 +18,7 @@ module UseCases
           validation_errors.concat(validate_environments(config))
           validation_errors.concat(validate_services(config))
           validation_errors.concat(validate_directory_conventions(config))
-          validation_errors.concat(validate_branch_patterns(config))
+          validation_errors.concat(validate_environment_branches(config))
           validation_errors.concat(validate_service_exclusions(config))
 
           if validation_errors.any?
@@ -176,23 +176,29 @@ module UseCases
         errors
       end
 
-      # Validate branch patterns configuration
-      def validate_branch_patterns(config)
+      # Validate environment branches configuration
+      def validate_environment_branches(config)
         errors = []
-        branch_patterns = config.branch_patterns
+        environments = config.environments
 
-        required_patterns = %w[develop staging production]
-        required_patterns.each do |pattern|
-          unless branch_patterns[pattern]
-            errors << "Missing branch pattern configuration: #{pattern}"
+        # Check that each environment has a branch field
+        environments.each do |env_name, env_config|
+          unless env_config['branch']
+            errors << "Environment '#{env_name}' missing required field: branch"
           end
         end
 
-        # Validate that mapped environments exist
-        branch_patterns.each do |branch_name, env_name|
-          unless config.environments.key?(env_name)
-            errors << "Branch pattern '#{branch_name}' references unknown environment: #{env_name}"
-          end
+        # Check that required branches are configured
+        required_branches = %w[develop staging production]
+        configured_branches = environments.values.map { |env| env['branch'] }.compact
+        missing_branches = required_branches - configured_branches
+        errors.concat(missing_branches.map { |branch| "Missing environment configuration for branch: #{branch}" })
+
+        # Check for duplicate branches
+        branch_counts = configured_branches.group_by(&:itself).transform_values(&:count)
+        duplicates = branch_counts.select { |_, count| count > 1 }
+        duplicates.each do |branch, count|
+          errors << "Branch '#{branch}' is configured in #{count} environments (should be unique)"
         end
 
         errors

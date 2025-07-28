@@ -68,7 +68,8 @@ module Entities
     # Map branch name to environment
     def branch_to_environment(branch_name)
       return nil unless branch_name
-      branch_patterns[branch_name]
+      environment = environments.values.find { |env| env['branch'] == branch_name }
+      environment&.fetch('environment', nil)
     end
 
     # Check if safety check is enabled
@@ -83,9 +84,11 @@ module Entities
       }.keys
     end
 
-    # Get branch patterns for environment mapping
+    # Get branch patterns for environment mapping (backward compatibility)
     def branch_patterns
-      @branch_patterns ||= raw_config['branch_patterns'] || {}
+      @branch_patterns ||= environments.values.each_with_object({}) do |env, hash|
+        hash[env['branch']] = env['environment'] if env['branch'] && env['environment']
+      end
     end
 
     # Get directory conventions (for backward compatibility)
@@ -109,12 +112,14 @@ module Entities
 
       errors << "Missing required section: environments" unless raw_config['environments']
       errors << "Missing required section: directory_conventions" unless raw_config['directory_conventions']
-      errors << "Missing required section: branch_patterns" unless raw_config['branch_patterns']
 
       if raw_config['environments']
         raw_config['environments'].each_with_index do |env, index|
           unless env['environment']
             errors << "Environment at index #{index} missing required field: environment"
+          end
+          unless env['branch']
+            errors << "Environment at index #{index} missing required field: branch"
           end
         end
       end

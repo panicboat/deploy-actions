@@ -166,16 +166,19 @@ module Interfaces
 
           environments:
             - environment: develop
+              branch: develop
               aws_region: ap-northeast-1
               iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-plan-role
               iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-apply-role
 
             - environment: staging
+              branch: staging
               aws_region: ap-northeast-1
               iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-plan-role
               iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-apply-role
 
             - environment: production
+              branch: production
               aws_region: ap-northeast-1
               iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-plan-role
               iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-apply-role
@@ -203,11 +206,6 @@ module Interfaces
               exclusion_config:
                 reason: "Manual deployment required due to special requirements"
                 type: "permanent"
-
-          branch_patterns:
-            develop: develop
-            staging: staging
-            production: production
         YAML
       end
     end

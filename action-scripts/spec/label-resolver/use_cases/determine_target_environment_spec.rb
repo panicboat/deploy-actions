@@ -123,19 +123,21 @@ RSpec.describe UseCases::LabelResolver::DetermineTargetEnvironment do
     end
 
     context 'with complex branch patterns' do
-      let(:branch_patterns) do
+      let(:environments) do
         {
-          'main' => 'production',
-          'master' => 'production',
-          'develop' => 'develop',
-          'dev' => 'develop',
-          'staging' => 'staging',
-          'release/*' => 'staging'
+          'production' => { 'environment' => 'production', 'branch' => 'main', 'aws_region' => 'us-east-1' },
+          'develop' => { 'environment' => 'develop', 'branch' => 'develop', 'aws_region' => 'us-west-2' },
+          'staging' => { 'environment' => 'staging', 'branch' => 'staging', 'aws_region' => 'eu-west-1' }
         }
       end
 
       before do
-        allow(config).to receive_message_chain(:raw_config, :[]).with('branch_patterns').and_return(branch_patterns)
+        allow(config).to receive(:environments).and_return(environments)
+        # Mock branch_to_environment to use new logic
+        allow(config).to receive(:branch_to_environment) do |branch|
+          env = environments.values.find { |e| e['branch'] == branch }
+          env&.fetch('environment', nil)
+        end
       end
 
       context 'with main branch' do
