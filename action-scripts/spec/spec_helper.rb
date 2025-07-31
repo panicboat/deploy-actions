@@ -118,17 +118,14 @@ module SpecHelpers
     <<~YAML
       environments:
         - environment: develop
-          branch: develop
           aws_region: ap-northeast-1
           iam_role_plan: arn:aws:iam::123456789012:role/plan-role
           iam_role_apply: arn:aws:iam::123456789012:role/apply-role
         - environment: staging
-          branch: staging
           aws_region: ap-northeast-1
           iam_role_plan: arn:aws:iam::123456789012:role/staging-plan-role
           iam_role_apply: arn:aws:iam::123456789012:role/staging-apply-role
         - environment: production
-          branch: production
           aws_region: ap-northeast-1
           iam_role_plan: arn:aws:iam::123456789012:role/production-plan-role
           iam_role_apply: arn:aws:iam::123456789012:role/production-apply-role

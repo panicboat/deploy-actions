@@ -9,7 +9,7 @@ module UseCases
       end
 
       # Execute safety validation checks
-      def execute(deploy_labels:, pr_number: nil, branch_name:)
+      def execute(deploy_labels:, pr_number: nil)
         # Safety checks have been removed from configuration
         # Always return success for backward compatibility
         validation_results = [
@@ -17,11 +17,6 @@ module UseCases
             check: 'labels_presence',
             passed: true,
             message: deploy_labels.empty? ? 'No deployment labels provided' : "#{deploy_labels.length} deployment labels found"
-          },
-          {
-            check: 'branch_validation',
-            passed: true,
-            message: "Branch '#{branch_name}' is valid for deployment"
           }
         ]
 
@@ -29,7 +24,6 @@ module UseCases
           safety_status: 'passed',
           validation_results: validation_results,
           deploy_allowed: true,
-          branch_name: branch_name,
           pr_number: pr_number
         )
       rescue => error

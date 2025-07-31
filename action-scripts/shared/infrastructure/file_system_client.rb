@@ -87,12 +87,6 @@ module Infrastructure
       Dir.glob(pattern).select { |path| File.directory?(path) }
     end
 
-    # Get current git branch
-    def current_branch
-      `git branch --show-current`.strip
-    rescue => error
-      raise "Failed to get current branch: #{error.message}"
-    end
 
     # Check if git repository is clean
     def git_clean?

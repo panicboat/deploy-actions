@@ -2,19 +2,18 @@
 
 **English** | [🇯🇵 日本語](README-ja.md)
 
-A Ruby-based deployment resolution tool that converts PR labels and branch information into deployment targets for GitHub Actions automation.
+A Ruby-based deployment resolution tool that converts PR labels into deployment targets for GitHub Actions automation using explicit environment targeting.
 
 ## Overview
 
-The Label Resolver analyzes PR labels and branch context to determine deployment targets, validates deployment safety, and generates deployment matrices for multi-service deployments. It serves as the central orchestrator for deployment automation decisions.
+The Label Resolver analyzes PR labels and generates deployment targets for specified environments. It validates deployment safety and creates deployment matrices for multi-service deployments, serving as the central orchestrator for deployment automation decisions.
 
 ## Features
 
 - **Label Resolution**: Extract deployment labels from PR information
-- **Environment Detection**: Determine target environment from branch patterns
+- **Explicit Environment Targeting**: Direct environment specification without branch dependencies
 - **Directory Convention Resolution**: Resolve deployment paths using hierarchical directory structure
 - **Matrix Generation**: Create deployment matrices for parallel execution
-- **Branch-based Targeting**: Map branches to deployment environments
 - **GitHub Actions Integration**: Seamless integration with GitHub Actions workflows
 
 ## Usage
@@ -24,20 +23,41 @@ The Label Resolver provides a CLI interface through `bin/resolver`:
 ### Basic Commands
 
 ```bash
-# Resolve deployment from PR labels
-bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
+# Resolve deployment from PR labels for specific environment(s)
+bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
 
 # Test deployment workflow
-bundle exec ruby label-resolver/bin/resolver test PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver test PR_NUMBER [ENVIRONMENTS]
 
 # Simulate GitHub Actions environment
-bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER [ENVIRONMENTS]
 
 # Validate environment configuration
 bundle exec ruby label-resolver/bin/resolver validate_env
 
 # Debug workflow step-by-step
-bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER
+bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER [ENVIRONMENTS]
+```
+
+**Environment Specification:**
+- Single environment: `develop`
+- Multiple environments: `develop,staging` (comma-separated)
+- All environments: omit ENVIRONMENTS parameter
+
+### Examples
+
+```bash
+# Resolve deployments for develop environment
+./bin/resolver resolve 123 develop
+
+# Test multiple environments simultaneously
+./bin/resolver test 456 develop,staging
+
+# Debug production deployment
+./bin/resolver debug 789 production
+
+# Deploy to all available environments
+./bin/resolver resolve 123
 ```
 
 ### Workflow Integration
@@ -45,83 +65,88 @@ bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER
 The resolver is typically called from GitHub Actions workflows:
 
 ```yaml
+# Single environment deployment
 - name: Resolve deployment targets
   uses: panicboat/deploy-actions/label-resolver@main
   with:
-    action-type: plan  # or apply
-    pr-number: ${{ github.event.pull_request.number }}
-    repository: ${{ github.repository }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
+    pr_number: ${{ github.event.pull_request.number }}
+    target_environments: ${{ inputs.target_environment }}
+
+# Multiple environment deployment
+- name: Resolve deployment targets
+  uses: panicboat/deploy-actions/label-resolver@main
+  with:
+    pr_number: ${{ github.event.pull_request.number }}
+    target_environments: "develop,staging"
 ```
 
-## Core Logic
+### Environment Variables
 
-### 1. Label Extraction
+The resolver sets the following environment variables for GitHub Actions:
 
-Fetches PR labels that match deployment patterns:
-- `deploy:service-name` - Deploy specific service
-- `deploy:all` - Deploy all services
-- Labels are validated against configured services
+- `DEPLOYMENT_TARGETS`: JSON array of deployment targets
+- `DEPLOY_LABELS`: JSON array of deploy labels found
+- `HAS_TARGETS`: Boolean indicating if deployment targets exist
+- `SAFETY_STATUS`: Result of safety validation
+- `MERGED_PR_NUMBER`: PR number for deployment tracking
 
-### 2. Environment Resolution
+### Action Outputs
 
-Determines target environment based on current branch:
-- `develop` → `develop` environment
-- `staging` → `staging` environment
-- `production` → `production` environment
+The resolver provides the following GitHub Actions outputs:
 
-### 3. Safety Validation
+- `targets`: JSON array of deployment targets for matrix strategy
+- `has-targets`: Boolean indicating if targets exist (`true`/`false`)
+- `safety-status`: Result of safety validation (`passed`/`failed`)
 
-Provides basic deployment validation:
-- Validates deployment labels presence
-- Checks branch information availability
-- Returns success for backward compatibility (safety checks simplified)
+## Architecture
 
-### 4. Matrix Generation
+### Components
 
-Creates deployment matrices for parallel execution:
-- Groups services by deployment stack (Terragrunt, Kubernetes)
-- Uses hierarchical directory conventions
-- Includes environment-specific IAM roles
-- Handles service-specific directory overrides
-- Supports `deploy:all` for all non-excluded services
+- **LabelResolverController**: Main orchestration logic
+- **DetermineTargetEnvironment**: Multi-environment validation
+- **GetLabels**: PR label extraction
+- **ValidateDeploymentSafety**: Safety checks (currently simplified)
+- **GenerateMatrix**: Deployment matrix generation for multiple environments
+
+### Flow
+
+1. **Label Extraction**: Get deploy labels from PR
+2. **Environment Validation**: Validate all target environments exist
+3. **Safety Validation**: Perform deployment safety checks
+4. **Matrix Generation**: Create deployment targets for all environments based on directory structure
+5. **Output Generation**: Format results for GitHub Actions with simplified outputs
 
 ## Configuration
 
 The resolver uses `workflow-config.yaml` for configuration:
 
 ```yaml
-# Branch to environment mapping
-branch_patterns:
-  develop: develop
-  staging: staging
-  production: production
-
-# Directory conventions (hierarchical structure)
-directory_conventions:
-  - root: "{service}"
-    stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-
-# Environment configurations
 environments:
   - environment: develop
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+
   - environment: staging
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/staging-plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/staging-apply-role
+
   - environment: production
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
 
-# Service configurations
+directory_conventions:
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+        targets: ["develop", "staging", "production"]
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
+        targets: ["develop", "staging", "production"]
+
 services:
   - name: excluded-service
     exclude_from_automation: true
@@ -130,87 +155,60 @@ services:
       type: "permanent"
 ```
 
-## Architecture
+## Deploy Labels
 
-The Label Resolver follows a clean architecture pattern:
+The system recognizes labels in the format `deploy:service`:
 
-### Controllers
-- `LabelResolverController`: Orchestrates the resolution process
+- `deploy:auth` - Deploy auth service
+- `deploy:api` - Deploy api service
+- `deploy:frontend` - Deploy frontend service
+- `deploy:all` - Deploy all non-excluded services
 
-### Use Cases
-- `DetermineTargetEnvironment`: Maps branches to environments
-- `GetLabels`: Extracts deployment labels from PR
-- `ValidateDeploymentSafety`: Enforces safety rules
-- `GeneratedMatrix`: Creates deployment matrices
+## Environment Targeting
 
-### Infrastructure
-- `GitHubClient`: GitHub API interactions
-- `ConfigClient`: Configuration file management
+**Trunk-based Development**: The resolver uses explicit environment targeting rather than branch-based mapping:
 
-## Output Format
+- Environments are specified directly as parameters
+- No dependency on branch names for environment determination
+- Supports any deployment environment defined in configuration
 
-The resolver outputs deployment information in GitHub Actions format:
+## Directory Structure Detection
 
-```bash
-# Environment variables set
-DEPLOYMENT_TARGETS='[{"service":"my-service","environment":"develop","stack":"terragrunt"}]'
-HAS_TARGETS=true
-TARGET_ENVIRONMENT=develop
-SAFETY_STATUS=passed
+The resolver automatically detects available stacks by checking directory existence:
+
+```
+{service}/
+├── terragrunt/{environment}/     # Terragrunt stack
+└── kubernetes/overlays/{environment}/  # Kubernetes stack
 ```
 
-## Environment Variables
-
-- `GITHUB_TOKEN`: Required for GitHub API access
-- `GITHUB_REPOSITORY`: Repository name (owner/repo format)
-- `GITHUB_REF_NAME`: Current branch name
-- `WORKFLOW_CONFIG_PATH`: Path to configuration file
-- `SOURCE_REPO_PATH`: Path to source repository checkout
+Only directories that actually exist will be included in the deployment matrix.
 
 ## Error Handling
 
-The resolver provides detailed error handling:
+The resolver provides comprehensive error handling:
 
-- **No PR Found**: Returns `safety_status=no_merged_pr`
-- **Invalid Configuration**: Exits with error and detailed message
-- **API Failures**: Retries with exponential backoff
-- **Missing Labels**: Returns empty targets array
+- **Invalid Environment**: Clear error when target environment doesn't exist
+- **Missing Labels**: Graceful handling of PRs without deploy labels
+- **Configuration Errors**: Detailed validation of workflow configuration
+- **Directory Detection**: Warnings for missing deployment directories
 
 ## Development
 
-### Dependencies
-
-- Ruby 3.4+
-- Bundler
-- Thor (CLI framework)
-- Octokit (GitHub API)
-
-### Testing
+### Running Tests
 
 ```bash
-# Test with specific PR
-bundle exec ruby label-resolver/bin/resolver test 123
-
-# Debug step-by-step
-bundle exec ruby label-resolver/bin/resolver debug 123
-
-# Validate environment setup
-bundle exec ruby label-resolver/bin/resolver validate_env
+cd action-scripts
+bundle exec rspec spec/label-resolver/
 ```
 
-## Integration Points
+### Local Testing
 
-The Label Resolver integrates with:
+```bash
+# Set up environment
+export GITHUB_TOKEN=your_token
+export GITHUB_REPOSITORY=owner/repo
 
-1. **Label Dispatcher**: Consumes labels created by label detection
-2. **Deploy Terragrunt**: Provides targets for Terragrunt deployments
-3. **Deploy GitOps**: Provides targets for Kubernetes deployments
-4. **Config Manager**: Uses validated configuration files
-
-## Safety Features
-
-- **PR Requirement**: Blocks deployments without valid PR
-- **Branch Validation**: Ensures deployments only from approved branches
-- **Configuration Validation**: Validates configuration before processing
-- **Retry Logic**: Handles transient GitHub API failures
-- **Audit Trail**: Logs all deployment decisions for troubleshooting
+# Test with real PR
+./bin/resolver debug 123 develop
+```

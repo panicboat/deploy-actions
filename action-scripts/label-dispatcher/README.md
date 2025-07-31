@@ -2,7 +2,7 @@
 
 **English** | [🇯🇵 日本語](README-ja.md)
 
-A Ruby-based service change detection and label management tool for GitHub Actions automation.
+A Ruby-based service change detection and label management tool for GitHub Actions deployment automation.
 
 ## Overview
 
@@ -16,6 +16,7 @@ The Label Dispatcher analyzes file changes in pull requests, detects affected se
 - **Exclusion Support**: Handle services excluded from automation
 - **GitHub Integration**: Seamless PR label and comment management
 - **Directory Conventions**: Flexible service directory detection
+- **Deployment Strategy Agnostic**: Works with any branching strategy or development workflow
 
 ## Usage
 
@@ -55,6 +56,15 @@ The dispatcher is typically called from GitHub Actions workflows:
     repository: ${{ github.repository }}
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+### Environment Variables
+
+The dispatcher sets the following environment variables for GitHub Actions:
+
+- `SERVICES_DETECTED`: JSON array of detected services
+- `LABELS_ADDED`: JSON array of labels that were added
+- `LABELS_REMOVED`: JSON array of labels that were removed
+- `HAS_CHANGES`: Boolean indicating if changes were detected
 
 ## Core Logic
 
@@ -135,24 +145,12 @@ The Label Dispatcher follows a clean architecture pattern:
 - `FileSystemClient`: Git operations and file analysis
 - `ConfigClient`: Configuration management
 
-## Output Format
-
-The dispatcher outputs results in GitHub Actions format:
-
-```bash
-# Environment variables set
-SERVICES_DETECTED='["service1","service2"]'
-LABELS_ADDED='["deploy:service1","deploy:service2"]'
-LABELS_REMOVED='["deploy:old-service"]'
-HAS_CHANGES=true
-```
-
-## Environment Variables
+## Required Environment Variables
 
 - `GITHUB_TOKEN`: Required for GitHub API access
 - `GITHUB_REPOSITORY`: Repository name (owner/repo format)
 - `GITHUB_ACTIONS`: Enables GitHub Actions output format
-- `WORKFLOW_CONFIG_PATH`: Path to configuration file
+- `WORKFLOW_CONFIG_PATH`: Path to configuration file (optional, defaults to workflow-config.yaml)
 
 ## Service Detection Logic
 

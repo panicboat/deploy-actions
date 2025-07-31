@@ -6,7 +6,7 @@ A Ruby-based configuration validation and management tool for GitHub Actions dep
 
 ## Overview
 
-The Config Manager validates and manages workflow configuration files that define deployment environments, services, and automation rules. It provides comprehensive configuration validation, diagnostic tools, and templates for deployment automation setups.
+The Config Manager validates and manages workflow configuration files that define deployment environments, services, and automation rules. It provides comprehensive configuration validation, diagnostic tools, and templates for deployment automation setups optimized for trunk-based development.
 
 ## Features
 
@@ -14,7 +14,7 @@ The Config Manager validates and manages workflow configuration files that defin
 - **Environment Management**: List and test configured environments with AWS IAM roles
 - **Service Configuration**: Manage service-specific deployment settings and exclusions
 - **Directory Conventions**: Validate hierarchical directory structure configuration
-- **Template Generation**: Generate configuration templates with examples
+- **Template Generation**: Generate configuration templates optimized
 - **Diagnostic Tools**: Comprehensive health checks for deployment setup
 
 ## Usage
@@ -47,14 +47,31 @@ bundle exec ruby config-manager/bin/config-manager diagnostics
 
 # Generate configuration template
 bundle exec ruby config-manager/bin/config-manager template
-
-# Check if configuration file exists and is readable
-bundle exec ruby config-manager/bin/config-manager check_file
 ```
 
-### Configuration File
+### Examples
 
-The tool expects a `workflow-config.yaml` file in the working directory with the following structure:
+```bash
+# Validate current configuration
+./bin/config-manager validate
+
+# Test auth service in develop environment
+./bin/config-manager test auth develop
+
+# Show all configuration details
+./bin/config-manager show
+
+# Generate new configuration template
+./bin/config-manager template > new-workflow-config.yaml
+```
+
+## Configuration Structure
+
+The Config Manager manages `workflow-config.yaml` files with the following structure:
+
+### Environments
+
+Defines deployment environments without branch dependencies:
 
 ```yaml
 environments:
@@ -62,114 +79,164 @@ environments:
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+
   - environment: staging
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/staging-plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/staging-apply-role
+
   - environment: production
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
+```
 
+### Directory Conventions
+
+Hierarchical directory structure for service discovery:
+
+```yaml
 directory_conventions:
   - root: "{service}"
     stacks:
       - name: terragrunt
         directory: "terragrunt/{environment}"
+        targets: ["develop", "staging", "production"]
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
-  # Multiple directory conventions example
-  # - root: "apps/web/{service}"
-  #   stacks:
-  #     - name: terragrunt
-  #       directory: "terragrunt/{environment}"
-  # - root: "services/{service}"
-  #   stacks:
-  #     - name: terragrunt
-  #       directory: "terragrunt/{environment}"
+        targets: ["develop", "staging", "production"]
+```
 
+### Services
+
+Service-specific configurations and exclusions:
+
+```yaml
 services:
   - name: excluded-service
     exclude_from_automation: true
     exclusion_config:
-      reason: "Manual deployment required"
+      reason: "Manual deployment required due to special requirements"
       type: "permanent"
 
-branch_patterns:
-  develop: develop
-  staging: staging
-  production: production
+  - name: special-service
+    directory_conventions:
+      terragrunt: "custom/{service}/infra/{environment}"
 ```
+
+## Validation Rules
+
+The Config Manager enforces comprehensive validation:
+
+### Environment Validation
+- All environments must have `environment`, `aws_region`, `iam_role_plan`, and `iam_role_apply`
+- AWS regions must follow standard format (`us-west-2`, `ap-northeast-1`, etc.)
+- IAM role ARNs must be valid AWS ARN format
+- Required environments: `develop`, `staging`, `production`
+
+### Directory Convention Validation
+- Root patterns must include `{service}` placeholder (unless empty)
+- Stack directories must include `{environment}` placeholder
+- Required stacks: `terragrunt` (minimum)
+- Directory conventions must be an array
+
+### Service Validation
+- Service names cannot start with dot (`.`)
+- Service-specific directory conventions must include `{service}` placeholder
+- Excluded services must have `exclusion_config` with reason
+
+## Template Generation
+
+Generate configuration templates optimized:
+
+```bash
+./bin/config-manager template
+```
+
+Generated templates include:
+- Environment configurations without branch fields
+- Modern directory conventions
+- Service exclusion examples
+- Comprehensive documentation
+
+## Diagnostic Tools
+
+Comprehensive health checks for deployment automation:
+
+```bash
+./bin/config-manager diagnostics
+```
+
+Checks include:
+- Configuration file validation
+- Environment variable availability
+- Git repository status
+- Configuration file location
+- Directory structure integrity
 
 ## Architecture
 
-The Config Manager follows a clean architecture pattern:
+### Components
 
-- **Controllers**: Handle CLI commands and coordinate use cases
-- **Use Cases**: Implement business logic for configuration validation
-- **Infrastructure**: File system and configuration loading
-- **Presenters**: Format output for console and GitHub Actions
+- **ConfigManagerController**: Main orchestration and CLI interface
+- **ValidateConfig**: Comprehensive configuration validation
+- **ConfigClient**: Configuration loading and parsing
+- **ConsolePresenter**: Human-readable output formatting
 
-## Integration
+### Validation Flow
 
-This tool is designed to be used from composite GitHub Actions. The typical workflow:
-
-1. **Checkout**: Action checks out the deploy-actions repository
-2. **Configuration Copy**: Source repository's config file is copied to `workflow-config.yaml`
-3. **Validation**: Config Manager validates the configuration
-4. **Processing**: Other tools use the validated configuration
-
-## Environment Variables
-
-- `WORKFLOW_CONFIG_PATH`: Path to configuration file (default: `workflow-config.yaml`)
-- `GITHUB_ACTIONS`: Enables GitHub Actions output format
-- `GITHUB_TOKEN`: Required for GitHub API operations
-- `GITHUB_REPOSITORY`: Repository name for GitHub operations
+1. **Structure Validation**: YAML structure and required sections
+2. **Environment Validation**: AWS credentials and region validation
+3. **Service Validation**: Service configurations and exclusions
+4. **Directory Validation**: Directory conventions and placeholders
+5. **Summary Generation**: Validation results and statistics
 
 ## Error Handling
 
-The tool provides detailed error messages and appropriate exit codes:
+Detailed error reporting with:
+- **Specific Error Messages**: Pinpoint configuration issues
+- **Validation Context**: Clear indication of problematic sections
+- **Suggestions**: Guidance for fixing common configuration problems
+- **Summary Statistics**: Overview of configuration health
 
-- **Exit 0**: Success
-- **Exit 1**: Configuration validation failed or file not found
-- **Exit 2**: Environment/dependency issues
+## Integration
+
+The Config Manager integrates with:
+- **Label Resolver**: Provides configuration for deployment targeting
+- **Label Dispatcher**: Validates service and directory configurations
+- **GitHub Actions**: Environment validation for CI/CD workflows
 
 ## Development
 
-### Dependencies
-
-- Ruby 3.4+
-- Bundler
-- Thor (CLI framework)
-- YAML (configuration parsing)
-
-### Testing
+### Running Tests
 
 ```bash
-# Check configuration file exists
-bundle exec ruby config-manager/bin/config-manager check_file
-
-# Test with specific environment
-bundle exec ruby config-manager/bin/config-manager test my-service develop
-
-# Run full diagnostics
-bundle exec ruby config-manager/bin/config-manager diagnostics
-
-# List all environments
-bundle exec ruby config-manager/bin/config-manager environments
-
-# List all services
-bundle exec ruby config-manager/bin/config-manager services
-
-# List services excluded from automation
-bundle exec ruby config-manager/bin/config-manager excluded_services
+cd action-scripts
+bundle exec rspec spec/config-manager/
 ```
 
-## Output Formats
+### Local Testing
 
-The tool supports two output formats:
+```bash
+# Test with custom configuration
+cp workflow-config.yaml test-config.yaml
+./bin/config-manager validate
 
-- **Console**: Human-readable format with colors and emojis
-- **GitHub Actions**: Structured format with `::error::` and `::warning::` annotations
+# Test service configuration
+./bin/config-manager test myservice develop
+```
 
-The format is automatically selected based on the `GITHUB_ACTIONS` environment variable.
+## Migration Notes
+
+**Trunk-based Migration**: This version removes branch-based configuration dependencies:
+
+- **Branch fields removed**: No longer needed in environment configurations
+- **Direct environment targeting**: Use explicit environment parameters in workflows
+- **Backward compatibility**: Old configurations will show warnings but continue to work
+- **Template updates**: New templates exclude branch configurations
+
+This migration provides:
+- Simplified configuration management
+- Better support for trunk-based development
+- More flexible deployment strategies
+- Cleaner separation of concerns between branch management and deployment configuration

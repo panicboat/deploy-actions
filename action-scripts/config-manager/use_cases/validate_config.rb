@@ -18,7 +18,6 @@ module UseCases
           validation_errors.concat(validate_environments(config))
           validation_errors.concat(validate_services(config))
           validation_errors.concat(validate_directory_conventions(config))
-          validation_errors.concat(validate_environment_branches(config))
           validation_errors.concat(validate_service_exclusions(config))
 
           if validation_errors.any?
@@ -176,33 +175,6 @@ module UseCases
         errors
       end
 
-      # Validate environment branches configuration
-      def validate_environment_branches(config)
-        errors = []
-        environments = config.environments
-
-        # Check that each environment has a branch field
-        environments.each do |env_name, env_config|
-          unless env_config['branch']
-            errors << "Environment '#{env_name}' missing required field: branch"
-          end
-        end
-
-        # Check that required branches are configured
-        required_branches = %w[develop staging production]
-        configured_branches = environments.values.map { |env| env['branch'] }.compact
-        missing_branches = required_branches - configured_branches
-        errors.concat(missing_branches.map { |branch| "Missing environment configuration for branch: #{branch}" })
-
-        # Check for duplicate branches
-        branch_counts = configured_branches.group_by(&:itself).transform_values(&:count)
-        duplicates = branch_counts.select { |_, count| count > 1 }
-        duplicates.each do |branch, count|
-          errors << "Branch '#{branch}' is configured in #{count} environments (should be unique)"
-        end
-
-        errors
-      end
 
       # Validate service exclusion configuration
       def validate_service_exclusions(config)
@@ -277,14 +249,13 @@ module UseCases
 
         # Count total stacks across all conventions
         total_stacks = config.directory_conventions_config.sum { |conv| conv['stacks']&.length || 0 }
-        
+
         summary_data = {
           environments_count: config.environments.length,
           services_count: config.services.length,
           excluded_services_count: excluded_services.length,
           excluded_services_by_type: excluded_by_type.transform_values(&:length),
           directory_stacks_count: total_stacks,
-          branch_patterns_count: config.branch_patterns.length
         }
 
         [
@@ -293,7 +264,6 @@ module UseCases
           "  - environments: #{summary_data[:environments_count]} configured",
           "  - services: #{summary_data[:services_count]} configured (#{summary_data[:excluded_services_count]} excluded)",
           "  - directory stacks: #{summary_data[:directory_stacks_count]} configured",
-          "  - branch patterns: #{summary_data[:branch_patterns_count]} configured"
         ].join("\n")
       end
     end

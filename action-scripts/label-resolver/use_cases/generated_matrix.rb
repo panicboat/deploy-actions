@@ -9,18 +9,18 @@ module UseCases
       end
 
       # Execute matrix generation from deploy labels
-      def execute(deploy_labels:, target_environment: nil)
+      def execute(deploy_labels:, target_environments:)
+        @target_environments = target_environments
         config = @config_client.load_workflow_config
 
-        # If target_environment is not provided, use 'develop' as default
-        target_environment ||= 'develop'
-
-        # Validate that the target environment exists
-        env_config = config.environment_config(target_environment)
-        unless env_config
-          return Entities::Result.failure(
-            error_message: "Environment configuration not found for: #{target_environment}"
-          )
+        # Validate all target_environments exist
+        target_environments.each do |env|
+          env_config = config.environment_config(env)
+          unless env_config
+            return Entities::Result.failure(
+              error_message: "Environment configuration not found for: #{env}"
+            )
+          end
         end
 
         deployment_targets = []
@@ -36,12 +36,8 @@ module UseCases
 
             all_services.each do |service_name|
               service_label = Entities::DeployLabel.from_service(service: service_name)
-              available_stacks = detect_available_stacks(service_name, target_environment, config)
-
-              available_stacks.each do |stack|
-                target = generate_deployment_target(service_label, target_environment, stack, config)
-                deployment_targets << target if target&.valid?
-              end
+              targets_for_service = generate_targets_for_service(service_label, config)
+              deployment_targets.concat(targets_for_service)
             end
           else
             # Check if service is excluded from automation
@@ -49,14 +45,9 @@ module UseCases
               next
             end
 
-            # Get available stacks by checking directory existence
-            available_stacks = detect_available_stacks(deploy_label.service, target_environment, config)
-
-            # Generate targets for each available stack
-            available_stacks.each do |stack|
-              target = generate_deployment_target(deploy_label, target_environment, stack, config)
-              deployment_targets << target if target&.valid?
-            end
+            # Generate targets for the service using stack-specific targets
+            targets_for_service = generate_targets_for_service(deploy_label, config)
+            deployment_targets.concat(targets_for_service)
           end
         end
 
@@ -73,6 +64,54 @@ module UseCases
       end
 
       private
+
+      # Generate deployment targets for a service across all applicable environments and stacks
+      def generate_targets_for_service(deploy_label, config)
+        targets = []
+        
+        # Get all available stacks for this service
+        config.directory_conventions_config.each do |convention|
+          stacks = convention['stacks'] || []
+          
+          stacks.each do |stack_config|
+            stack_name = stack_config['name']
+            
+            # Generate targets for all target environments
+            @target_environments.each do |env|
+              # Validate that the target environment exists
+              env_config = config.environment_config(env)
+              unless env_config
+                puts "Warning: Environment configuration not found for: #{env}"
+                next
+              end
+              
+              # Check if stack directory exists for this service/environment combination
+              if stack_directory_exists?(deploy_label.service, env, stack_name, config)
+                target = generate_deployment_target(deploy_label, env, stack_name, config)
+                targets << target if target&.valid?
+              end
+            end
+          end
+        end
+        
+        targets
+      end
+
+      # Check if stack directory exists for service/environment combination
+      def stack_directory_exists?(service_name, environment, stack, config)
+        dir_patterns = config.directory_conventions_for(service_name, stack)
+        return false if dir_patterns.empty?
+
+        repo_root = find_repository_root
+
+        dir_patterns.any? do |dir_pattern|
+          dir_path = expand_directory_pattern(dir_pattern, service_name, environment)
+          next false unless dir_path
+
+          full_path = File.join(repo_root, dir_path)
+          File.directory?(full_path)
+        end
+      end
 
       # Check if service is excluded from automation
       def service_excluded_from_automation?(service_name, config)

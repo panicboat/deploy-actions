@@ -7,15 +7,15 @@ branding:
   color: 'blue'
 
 inputs:
-  action-type:
-    description: 'Action type: plan or apply'
+  repository:
+    description: 'Repository name (owner/repo)'
     required: true
   pr-number:
     description: 'PR number (from prepare job output or event)'
     required: false
-  repository:
-    description: 'Repository name (owner/repo)'
-    required: true
+  environments:
+    description: 'Target environments (comma-separated: develop,staging or single: develop)'
+    required: false
   github-token:
     description: 'GitHub token with appropriate permissions'
     required: true
@@ -23,10 +23,6 @@ inputs:
     description: 'Path to workflow configuration file'
     required: false
     default: 'workflow-config.yaml'
-  deploy-actions-repository:
-    description: 'Deploy actions repository to use'
-    required: false
-    default: 'panicboat/deploy-actions'
 
 outputs:
   targets:
@@ -35,9 +31,6 @@ outputs:
   has-targets:
     description: 'Whether targets found'
     value: ${{ steps.extract.outputs.has-targets }}
-  target-environment:
-    description: 'Target environment'
-    value: ${{ steps.extract.outputs.target-environment }}
   safety-status:
     description: 'Safety check status'
     value: ${{ steps.extract.outputs.safety-status }}
@@ -48,7 +41,7 @@ runs:
     - name: Checkout deploy-actions
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.deploy-actions-repository }}
+        repository: panicboat/deploy-actions
         path: deploy-actions
 
     - name: Checkout source repository
@@ -88,26 +81,9 @@ runs:
       working-directory: deploy-actions/action-scripts
       run: |
         echo "🚀 Starting deployment target resolution"
-        echo "Action type: ${{ inputs.action-type }}"
         echo "PR: ${{ inputs.pr-number }}"
 
-        if [ "${{ inputs.action-type }}" = "plan" ]; then
-          echo "Processing plan event"
-          if [ -z "${{ inputs.pr-number }}" ]; then
-            echo "::error::PR number is required for plan events"
-            exit 1
-          fi
-          bundle exec ruby label-resolver/bin/resolver resolve ${{ inputs.pr-number }}
-        else
-          echo "Processing apply event"
-          if [ -z "${{ inputs.pr-number }}" ]; then
-            echo "::error::No merged PR found - deployment stopped"
-            echo "has-targets=false" >> $GITHUB_OUTPUT
-            echo "safety-status=no_merged_pr" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          bundle exec ruby label-resolver/bin/resolver resolve ${{ inputs.pr-number }}
-        fi
+        bundle exec ruby label-resolver/bin/resolver resolve ${{ inputs.pr-number }} ${{ inputs.environments }}
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPOSITORY: ${{ inputs.repository }}
@@ -120,7 +96,6 @@ runs:
       env:
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
         HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
-        TARGET_ENVIRONMENT: ${{ steps.extract.outputs.target-environment }}
         SAFETY_STATUS: ${{ steps.extract.outputs.safety-status }}
       with:
         script: |
@@ -135,14 +110,13 @@ runs:
         script: |
           const path = require('path');
           const reportResults = require(path.join(process.env.GITHUB_ACTION_PATH, 'report-results.js'));
-          await reportResults({ 
-            core, 
-            inputs: ${{ toJSON(inputs) }}, 
+          await reportResults({
+            core,
+            inputs: ${{ toJSON(inputs) }},
             steps: {
               extract: {
                 outputs: {
                   'has-targets': '${{ steps.extract.outputs.has-targets }}',
-                  'target-environment': '${{ steps.extract.outputs.target-environment }}',
                   'safety-status': '${{ steps.extract.outputs.safety-status }}'
                 }
               }

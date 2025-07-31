@@ -6,26 +6,29 @@ require_relative '../application'
 require 'thor'
 
 class LabelResolverCLI < Thor
-  desc "resolve PR_NUMBER", "Resolve deployment from PR labels (environment determined from current branch)"
+  desc "resolve PR_NUMBER [ENVIRONMENTS]", "Resolve deployment matrix for specified environments (comma-separated, empty=all)"
 
-  def resolve(pr_number)
+  def resolve(pr_number, environments = nil)
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
+    target_environments = parse_environments(environments)
 
-    controller.resolve_from_labels(pr_number: pr_number.to_i)
+    controller.resolve_from_labels(pr_number: pr_number.to_i, target_environments: target_environments)
   end
 
-  desc "test PR_NUMBER", "Test deployment workflow without execution"
+  desc "test PR_NUMBER [ENVIRONMENTS]", "Test deployment workflow without execution"
 
-  def test(pr_number)
+  def test(pr_number, environments = nil)
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
-    controller.test_deployment_workflow(pr_number: pr_number.to_i)
+    target_environments = parse_environments(environments)
+    controller.test_deployment_workflow(pr_number: pr_number.to_i, target_environments: target_environments)
   end
 
-  desc "simulate PR_NUMBER", "Simulate GitHub Actions environment locally"
+  desc "simulate PR_NUMBER [ENVIRONMENTS]", "Simulate GitHub Actions environment locally"
 
-  def simulate(pr_number)
+  def simulate(pr_number, environments = nil)
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
-    controller.simulate_github_actions(pr_number: pr_number.to_i)
+    target_environments = parse_environments(environments)
+    controller.simulate_github_actions(pr_number: pr_number.to_i, target_environments: target_environments)
   end
 
   desc "validate_env", "Validate environment configuration for deployments"
@@ -45,15 +48,34 @@ class LabelResolverCLI < Thor
     puts "Current branch: #{`git branch --show-current`.strip rescue 'unknown'}"
   end
 
-  desc "debug PR_NUMBER", "Debug deployment workflow step by step"
+  desc "debug PR_NUMBER [ENVIRONMENTS]", "Debug deployment workflow step by step"
 
-  def debug(pr_number)
+  def debug(pr_number, environments = nil)
+    target_environments = parse_environments(environments)
     puts "🔍 Debug Mode: Label Resolver Workflow"
     puts "PR Number: #{pr_number}"
+    puts "Target Environments: #{target_environments.join(', ')}"
     puts ""
 
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
-    controller.debug_deployment_workflow(pr_number: pr_number.to_i)
+    controller.debug_deployment_workflow(pr_number: pr_number.to_i, target_environments: target_environments)
+  end
+
+  private
+
+  def parse_environments(env_string)
+    return all_environments if env_string.nil? || env_string.empty?
+    
+    env_string.split(',').map(&:strip)
+  end
+
+  def all_environments
+    config_client = LabelResolverContainer.resolve(:config_client)
+    config = config_client.load_workflow_config
+    config.environments.keys
+  rescue => e
+    puts "Warning: Could not load workflow config, using default environments: #{e.message}"
+    ['develop', 'staging', 'production']
   end
 end
 

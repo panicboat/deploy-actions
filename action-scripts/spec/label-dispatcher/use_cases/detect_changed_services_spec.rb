@@ -26,32 +26,15 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     context 'with valid changed files' do
       before do
         allow(file_client).to receive(:get_changed_files).with(base_ref: base_ref, head_ref: head_ref).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('services/auth/terragrunt')
-        allow(config).to receive(:directory_convention_for).with('payment', 'kubernetes').and_return('services/payment/kubernetes')
+        allow(config).to receive(:all_directory_patterns).and_return([
+          'services/{service}',
+          'services/{service}/terragrunt/{environment}',
+          'services/{service}/kubernetes/{environment}'
+        ])
         allow(config).to receive(:services).and_return({
           'auth' => { 'name' => 'auth' },
           'payment' => { 'name' => 'payment' }
         })
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-          { 'name' => 'kubernetes', 'directory' => 'kubernetes/{environment}' }
-        ])
-        allow(config).to receive(:directory_conventions).and_return({
-          'root' => 'services/{service}',
-          'stacks' => [
-            { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-            { 'name' => 'kubernetes', 'directory' => 'kubernetes/{environment}' }
-          ]
-        })
-        allow(config).to receive(:directory_conventions_config).and_return([
-          {
-            'root' => 'services/{service}',
-            'stacks' => [
-              { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-              { 'name' => 'kubernetes', 'directory' => 'kubernetes/{environment}' }
-            ]
-          }
-        ])
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -70,20 +53,13 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
 
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('services/auth/terragrunt')
-        allow(config).to receive(:directory_convention_for).with('excluded-service', 'terragrunt').and_return('services/excluded-service/terragrunt')
+        allow(config).to receive(:all_directory_patterns).and_return([
+          'services/{service}',
+          'services/{service}/terragrunt/{environment}'
+        ])
         allow(config).to receive(:services).and_return({
           'auth' => { 'name' => 'auth' },
           'excluded-service' => { 'name' => 'excluded-service' }
-        })
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
-        ])
-        allow(config).to receive(:directory_conventions).and_return({
-          'root' => 'services/{service}',
-          'stacks' => [
-            { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
-          ]
         })
         allow(config).to receive(:excluded_services).and_return(['excluded-service'])
       end
@@ -98,10 +74,16 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     end
 
     context 'with no matching files' do
-      let(:changed_files) { ['README.md', 'docs/guide.md'] }
+      let(:changed_files) { ['README.md', 'non-service/guide.md'] }
 
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
+        allow(config).to receive(:all_directory_patterns).and_return([
+          'services/{service}',
+          'services/{service}/terragrunt/{environment}'
+        ])
+        allow(config).to receive(:services).and_return({})
+        allow(config).to receive(:excluded_services).and_return([])
       end
 
       it 'returns empty deploy labels' do
@@ -312,15 +294,15 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     end
 
     context 'with non-existent service in configuration' do
-      let(:changed_files) { ['services/unknown-service/main.tf'] }
+      let(:changed_files) { ['unknown-path/unknown-service/main.tf'] }
 
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('unknown-service', anything).and_return('services/{service}')
-        allow(config).to receive(:services).and_return({})
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
+        allow(config).to receive(:all_directory_patterns).and_return([
+          'services/{service}',
+          'services/{service}/terragrunt/{environment}'
         ])
+        allow(config).to receive(:services).and_return({})
         allow(config).to receive(:excluded_services).and_return([])
       end
 
@@ -329,6 +311,59 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
 
         expect(result).to be_success
         expect(result.deploy_labels).to be_empty
+      end
+    end
+
+    context 'with root directory file changes' do
+      let(:changed_files) do
+        [
+          'auth/README.md',
+          'auth/src/main.py',
+          'payment/package.json',
+          'payment/terragrunt/develop/main.tf'
+        ]
+      end
+
+      before do
+        allow(file_client).to receive(:get_changed_files).and_return(changed_files)
+        allow(config).to receive(:services).and_return({
+          'auth' => { 'name' => 'auth' },
+          'payment' => { 'name' => 'payment' }
+        })
+        allow(config).to receive(:excluded_services).and_return([])
+      end
+
+      it 'detects services from root directory file changes' do
+        result = use_case.execute(base_ref: base_ref, head_ref: head_ref)
+
+        expect(result).to be_success
+        expect(result.deploy_labels.map(&:to_s)).to contain_exactly('deploy:auth', 'deploy:payment')
+        expect(result.changed_files).to eq(changed_files)
+      end
+    end
+
+    context 'with mixed root and stack file changes' do
+      let(:changed_files) do
+        [
+          'auth/README.md',                           # Root directory change
+          'payment/terragrunt/develop/main.tf'       # Stack directory change
+        ]
+      end
+
+      before do
+        allow(file_client).to receive(:get_changed_files).and_return(changed_files)
+        allow(config).to receive(:services).and_return({
+          'auth' => { 'name' => 'auth' },
+          'payment' => { 'name' => 'payment' }
+        })
+        allow(config).to receive(:excluded_services).and_return([])
+      end
+
+      it 'detects services from both root and stack changes' do
+        result = use_case.execute(base_ref: base_ref, head_ref: head_ref)
+
+        expect(result).to be_success
+        expect(result.deploy_labels.map(&:to_s)).to contain_exactly('deploy:auth', 'deploy:payment')
       end
     end
   end

@@ -30,8 +30,8 @@ module Interfaces
       def present_deployment_matrix(
         deployment_targets:,
         deploy_labels:,
-        branch_name: nil,
         target_environment: nil,
+        target_environments: nil,
         merged_pr_number: nil,
         pr_number: nil,
         safety_status: nil
@@ -39,8 +39,14 @@ module Interfaces
         puts "🚀 Deployment Matrix".colorize(:green)
 
         # Show context information
-        puts "Target Environment: #{target_environment}" if target_environment
-        puts "Branch: #{branch_name}" if branch_name
+        if target_environments && target_environments.length > 1
+          puts "Target Environments: #{target_environments.join(', ')}"
+        elsif target_environment
+          puts "Target Environment: #{target_environment}"
+        elsif target_environments && target_environments.length == 1
+          puts "Target Environment: #{target_environments.first}"
+        end
+        
         puts "PR Number: ##{merged_pr_number || pr_number}" if merged_pr_number || pr_number
         puts "Safety Status: #{safety_status}" if safety_status
         puts ""
@@ -48,21 +54,20 @@ module Interfaces
         puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
         puts "Deployment Targets: #{deployment_targets.length}"
 
-        deployment_targets.each do |target|
-          puts "  #{target.service}:#{target.environment}:#{target.stack} -> #{target.working_directory}"
-          puts "    IAM Plan Role: #{target.iam_role_plan}" if target.iam_role_plan
-          puts "    IAM Apply Role: #{target.iam_role_apply}" if target.iam_role_apply
-          puts "    AWS Region: #{target.aws_region}"
-          puts ""
+        # Group targets by environment for better readability
+        targets_by_env = deployment_targets.group_by(&:environment)
+        targets_by_env.each do |env, targets|
+          puts "\n  Environment: #{env}".colorize(:cyan)
+          targets.each do |target|
+            puts "    #{target.service}:#{target.stack} -> #{target.working_directory}"
+            puts "      IAM Plan Role: #{target.iam_role_plan}" if target.iam_role_plan
+            puts "      IAM Apply Role: #{target.iam_role_apply}" if target.iam_role_apply
+            puts "      AWS Region: #{target.aws_region}"
+          end
         end
+        puts ""
       end
 
-      # Present branch deployment results
-      def present_branch_deployment_result(deploy_labels:, branch_name:)
-        puts "🌿 Branch Deployment Detection".colorize(:blue)
-        puts "Branch: #{branch_name}"
-        puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
-      end
 
       # Present configuration validation results
       def present_config_validation_result(valid:, errors: [], config: nil, summary: nil)

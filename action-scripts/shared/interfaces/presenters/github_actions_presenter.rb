@@ -38,20 +38,19 @@ module Interfaces
       def present_deployment_matrix(
         deployment_targets:,
         deploy_labels:,
-        branch_name: nil,
         target_environment: nil,
+        target_environments: nil,
         merged_pr_number: nil,
         pr_number: nil,
         safety_status: nil
       )
         matrix_items = deployment_targets.map(&:to_matrix_item)
+        environments = target_environments || (target_environment ? [target_environment] : [])
 
         set_environment_variables(
           'DEPLOYMENT_TARGETS' => matrix_items.to_json,
           'HAS_TARGETS' => deployment_targets.any?.to_s,
           'DEPLOY_LABELS' => deploy_labels.map(&:to_s).to_json,
-          'TARGET_ENVIRONMENT' => target_environment,
-          'BRANCH_NAME' => branch_name,
           'MERGED_PR_NUMBER' => merged_pr_number || pr_number,
           'SAFETY_STATUS' => safety_status
         )
@@ -59,29 +58,30 @@ module Interfaces
         set_action_outputs(
           'targets' => matrix_items.to_json,
           'has-targets' => deployment_targets.any?.to_s,
-          'target-environment' => target_environment,
           'safety-status' => safety_status
         )
 
         puts "🚀 Deployment Matrix Generated"
         puts "Targets: #{deployment_targets.length} deployment(s)"
-        puts "Target Environment: #{target_environment}" if target_environment
-        puts "Branch: #{branch_name}" if branch_name
+        
+        if environments.length > 1
+          puts "Target Environments: #{environments.join(', ')}"
+        elsif environments.length == 1
+          puts "Target Environment: #{environments.first}"
+        end
+        
         puts "PR: ##{merged_pr_number || pr_number}" if merged_pr_number || pr_number
 
-        deployment_targets.each do |target|
-          puts "  #{target.service}:#{target.environment}:#{target.stack} -> #{target.working_directory}"
+        # Group by environment for cleaner output
+        targets_by_env = deployment_targets.group_by(&:environment)
+        targets_by_env.each do |env, targets|
+          puts "  #{env}:"
+          targets.each do |target|
+            puts "    #{target.service}:#{target.stack} -> #{target.working_directory}"
+          end
         end
       end
 
-      # Present branch deployment results for GitHub Actions
-      def present_branch_deployment_result(deploy_labels:, branch_name:)
-        # This method is no longer used with the new architecture
-        # But keeping for backward compatibility
-        puts "🌿 Branch Deployment Detection"
-        puts "Branch: #{branch_name}"
-        puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
-      end
 
       # Present configuration validation results for GitHub Actions
       def present_config_validation_result(valid:, errors: [], config: nil, summary: nil)

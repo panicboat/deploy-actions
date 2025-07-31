@@ -2,7 +2,7 @@
 
 [🇺🇸 English](README.md) | **日本語**
 
-GitHub Actions自動化のためのRubyベースのサービス変更検出・ラベル管理ツール
+GitHub Actions デプロイメント自動化のための Ruby ベースのサービス変更検出・ラベル管理ツール
 
 ## 概要
 
@@ -16,6 +16,7 @@ Label Dispatcherはプルリクエストのファイル変更を分析し、影�
 - **除外サポート**: 自動化から除外されたサービスの処理
 - **GitHub統合**: シームレスなPRラベルとコメント管理
 - **ディレクトリ規則**: 柔軟なサービスディレクトリ検出
+- **デプロイメント戦略非依存**: 任意のブランチ戦略や開発ワークフローに対応
 
 ## 使用方法
 
@@ -55,6 +56,15 @@ bundle exec ruby label-dispatcher/bin/dispatcher help_usage
     repository: ${{ github.repository }}
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+### 環境変数
+
+ディスパッチャーは GitHub Actions 用に以下の環境変数を設定します：
+
+- `SERVICES_DETECTED`: 検出されたサービスの JSON 配列
+- `LABELS_ADDED`: 追加されたラベルの JSON 配列
+- `LABELS_REMOVED`: 削除されたラベルの JSON 配列
+- `HAS_CHANGES`: 変更が検出されたかを示すブール値
 
 ## 核心ロジック
 
@@ -135,24 +145,12 @@ Label Dispatcherはクリーンアーキテクチャパターンに従います�
 - `FileSystemClient`: Git操作とファイル分析
 - `ConfigClient`: 設定管理
 
-## 出力フォーマット
+## 必要な環境変数
 
-ディスパッチャーはGitHub Actionsフォーマットで結果を出力します：
-
-```bash
-# 設定される環境変数
-SERVICES_DETECTED='["service1","service2"]'
-LABELS_ADDED='["deploy:service1","deploy:service2"]'
-LABELS_REMOVED='["deploy:old-service"]'
-HAS_CHANGES=true
-```
-
-## 環境変数
-
-- `GITHUB_TOKEN`: GitHub APIアクセスに必要
-- `GITHUB_REPOSITORY`: リポジトリ名（owner/repo形式）
-- `GITHUB_ACTIONS`: GitHub Actions出力フォーマットを有効化
-- `WORKFLOW_CONFIG_PATH`: 設定ファイルのパス
+- `GITHUB_TOKEN`: GitHub API アクセスに必要
+- `GITHUB_REPOSITORY`: リポジトリ名（owner/repo 形式）
+- `GITHUB_ACTIONS`: GitHub Actions 出力フォーマットを有効化
+- `WORKFLOW_CONFIG_PATH`: 設定ファイルのパス（オプション、デフォルトは workflow-config.yaml）
 
 ## サービス検出ロジック
 

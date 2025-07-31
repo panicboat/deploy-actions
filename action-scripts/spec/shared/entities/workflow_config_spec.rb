@@ -8,21 +8,18 @@ RSpec.describe Entities::WorkflowConfig do
       'environments' => [
         {
           'environment' => 'develop',
-          'branch' => 'develop',
           'aws_region' => 'ap-northeast-1',
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         },
         {
           'environment' => 'staging',
-          'branch' => 'staging',
           'aws_region' => 'us-west-2',
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply'
         },
         {
           'environment' => 'production',
-          'branch' => 'production',
           'aws_region' => 'us-west-2',
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/production-plan',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply'
@@ -189,20 +186,6 @@ RSpec.describe Entities::WorkflowConfig do
     end
   end
 
-  describe '#branch_to_environment' do
-    context 'with mapped branch' do
-      it 'returns mapped environment' do
-        expect(workflow_config.branch_to_environment('develop')).to eq('develop')
-        expect(workflow_config.branch_to_environment('staging')).to eq('staging')
-      end
-    end
-
-    context 'with unmapped branch' do
-      it 'returns nil' do
-        expect(workflow_config.branch_to_environment('feature/test')).to be_nil
-      end
-    end
-  end
 
   describe '#safety_check_enabled?' do
     it 'always returns false (safety checks removed)' do
@@ -287,11 +270,13 @@ RSpec.describe Entities::WorkflowConfig do
         expect(root).to eq('apps/web/{service}')
       end
 
-      it 'returns all directory patterns' do
+      it 'returns all directory patterns including root patterns' do
         patterns = workflow_config.all_directory_patterns
         expect(patterns).to contain_exactly(
+          'apps/web/{service}',  # root pattern
           'apps/web/{service}/terragrunt/{environment}',
           'apps/web/{service}/kubernetes/overlays/{environment}',
+          'services/{service}',  # root pattern
           'services/{service}/terragrunt/{environment}',
           'services/{service}/kubernetes/overlays/{environment}'
         )
@@ -322,17 +307,6 @@ RSpec.describe Entities::WorkflowConfig do
       end
     end
 
-    context 'with missing branch field in environment' do
-      let(:config_hash) do
-        super().tap do |config|
-          config['environments'][0].delete('branch')
-        end
-      end
-
-      it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/missing required field: branch/)
-      end
-    end
 
     context 'with missing directory_conventions root' do
       let(:config_hash) do

@@ -2,10 +2,9 @@ module.exports = async ({ core, inputs, steps }) => {
   try {
     core.info('📊 Label Resolver completed');
     core.info(`Repository: ${inputs.repository}`);
-    core.info(`Action type: ${inputs['action-type']}`);
     core.info(`PR Number: ${inputs['pr-number']}`);
+    core.info(`Target Environments: ${inputs['target-environments'] || 'all'}`);
     core.info(`Has Targets: ${steps.extract.outputs['has-targets']}`);
-    core.info(`Target Environment: ${steps.extract.outputs['target-environment']}`);
     core.info(`Safety Status: ${steps.extract.outputs['safety-status']}`);
 
   } catch (error) {

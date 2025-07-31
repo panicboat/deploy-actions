@@ -65,12 +65,6 @@ module Entities
       end
     end
 
-    # Map branch name to environment
-    def branch_to_environment(branch_name)
-      return nil unless branch_name
-      environment = environments.values.find { |env| env['branch'] == branch_name }
-      environment&.fetch('environment', nil)
-    end
 
     # Check if safety check is enabled
     def safety_check_enabled?(check_name)
@@ -84,12 +78,6 @@ module Entities
       }.keys
     end
 
-    # Get branch patterns for environment mapping (backward compatibility)
-    def branch_patterns
-      @branch_patterns ||= environments.values.each_with_object({}) do |env, hash|
-        hash[env['branch']] = env['environment'] if env['branch'] && env['environment']
-      end
-    end
 
     # Get directory conventions (for backward compatibility)
     def directory_conventions
@@ -117,9 +105,6 @@ module Entities
         raw_config['environments'].each_with_index do |env, index|
           unless env['environment']
             errors << "Environment at index #{index} missing required field: environment"
-          end
-          unless env['branch']
-            errors << "Environment at index #{index} missing required field: branch"
           end
         end
       end
@@ -154,6 +139,11 @@ module Entities
       directory_conventions_config.each do |convention|
         root_pattern = convention['root']
         stacks = convention['stacks'] || []
+        
+        # Add root pattern for detecting any change within service directory
+        if root_pattern && root_pattern.include?('{service}')
+          patterns << root_pattern
+        end
         
         stacks.each do |stack_config|
           stack_directory = stack_config['directory']

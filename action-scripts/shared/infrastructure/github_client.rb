@@ -16,7 +16,7 @@ module Infrastructure
       raise "Failed to get PR labels: #{error.message}"
     end
 
-    # Get PR information including labels and branch name
+    # Get PR information including labels
     def get_pr_info(pr_number)
       pr = @client.pull_request(@repository, pr_number)
       labels = @client.labels_for_issue(@repository, pr_number)

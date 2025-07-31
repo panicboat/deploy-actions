@@ -80,7 +80,6 @@ module Infrastructure
         "  - environments: #{env_count} configured",
         "  - services: #{service_count} configured (#{excluded_count} excluded)",
         "  - directory stacks: #{stack_count} configured",
-        "  - branch patterns: #{config.branch_patterns.keys.join(', ')}"
       ].join("\n")
     end
 
@@ -102,13 +101,12 @@ module Infrastructure
       environments.each_with_index do |env, index|
         raise "Environment #{index} must have 'environment' key" unless env['environment']
         raise "Environment #{index} must have 'aws_region' key" unless env['aws_region']
-        raise "Environment #{index} must have 'branch' key" unless env['branch']
       end
 
       # Validate new directory_conventions structure
       conventions = config_data['directory_conventions']
       raise "directory_conventions must be an Array" unless conventions.is_a?(Array)
-      
+
       conventions.each_with_index do |convention, conv_index|
         raise "directory_conventions[#{conv_index}] must have 'root' key" unless convention.key?('root')
         raise "directory_conventions[#{conv_index}] must have 'stacks' key" unless convention['stacks']

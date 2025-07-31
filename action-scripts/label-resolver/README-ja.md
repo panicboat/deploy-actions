@@ -2,215 +2,214 @@
 
 [🇺🇸 English](README.md) | **日本語**
 
-PRラベルとブランチ情報をデプロイターゲットに変換するRubyベースのデプロイ解決ツール
+PR ラベルを明示的な環境指定を使って GitHub Actions 自動化のためのデプロイメントターゲットに変換する Ruby ベースのデプロイメント解決ツールです。
 
 ## 概要
 
-Label ResolverはPRラベルとブランチコンテキストを分析してデプロイターゲットを決定し、デプロイ安全性を検証し、マルチサービスデプロイ用のデプロイマトリックスを生成します。デプロイ自動化の意思決定を行う中央オーケストレーターとして機能します。
+Label Resolver は PR ラベルを分析し、指定された環境に対するデプロイメントターゲットを生成します。デプロイメントの安全性を検証し、マルチサービスデプロイメント用のデプロイメントマトリクスを作成し、デプロイメント自動化の意思決定の中心的なオーケストレーターとして機能します。
 
 ## 機能
 
-- **ラベル解決**: PR情報からデプロイラベルを抽出
-- **環境検出**: ブランチパターンからターゲット環境を決定
-- **ディレクトリ規約解決**: 階層ディレクトリ構造を使用したデプロイパスの解決
-- **マトリックス生成**: 並列実行用のデプロイマトリックス作成
-- **ブランチベースターゲティング**: ブランチをデプロイ環境にマッピング
-- **GitHub Actions統合**: GitHub Actionsワークフローとのシームレスな統合
+- **ラベル解決**: PR 情報からデプロイメントラベルを抽出
+- **明示的環境指定**: ブランチ依存なしの直接的な環境指定
+- **ディレクトリ規約解決**: 階層ディレクトリ構造を使用したデプロイメントパスの解決
+- **マトリクス生成**: 並列実行用のデプロイメントマトリクス作成
+- **GitHub Actions 統合**: GitHub Actions ワークフローとのシームレスな統合
 
 ## 使用方法
 
-Label Resolverは`bin/resolver`を通じてCLIインターフェースを提供します：
+Label Resolver は `bin/resolver` を通じて CLI インターフェースを提供します：
 
 ### 基本コマンド
 
 ```bash
-# PRラベルからデプロイを解決
-bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
+# 特定の環境に対する PR ラベルからのデプロイメント解決
+bundle exec ruby label-resolver/bin/resolver resolve PR番号 [環境一覧]
 
-# デプロイワークフローのテスト
-bundle exec ruby label-resolver/bin/resolver test PR_NUMBER
+# デプロイメントワークフローのテスト
+bundle exec ruby label-resolver/bin/resolver test PR番号 [環境一覧]
 
-# GitHub Actions環境のシミュレーション
-bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER
+# GitHub Actions 環境のシミュレーション
+bundle exec ruby label-resolver/bin/resolver simulate PR番号 [環境一覧]
 
 # 環境設定の検証
 bundle exec ruby label-resolver/bin/resolver validate_env
 
-# ステップバイステップのデバッグ
-bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER
+# ワークフローのステップバイステップデバッグ
+bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
+```
+
+**環境指定：**
+- 単一環境: `develop`
+- 複数環境: `develop,staging` (カンマ区切り)
+- 全環境: 環境一覧パラメータを省略
+
+### 使用例
+
+```bash
+# develop 環境のデプロイメント解決
+./bin/resolver resolve 123 develop
+
+# 複数環境への同時テスト
+./bin/resolver test 456 develop,staging
+
+# production デプロイメントのデバッグ
+./bin/resolver debug 789 production
+
+# 利用可能な全環境へのデプロイ
+./bin/resolver resolve 123
 ```
 
 ### ワークフロー統合
 
-リゾルバーは通常GitHub Actionsワークフローから呼び出されます：
+リゾルバーは通常 GitHub Actions ワークフローから呼び出されます：
 
 ```yaml
-- name: デプロイターゲットの解決
+# 単一環境デプロイメント
+- name: デプロイメントターゲットの解決
   uses: panicboat/deploy-actions/label-resolver@main
   with:
-    action-type: plan  # または apply
-    pr-number: ${{ github.event.pull_request.number }}
-    repository: ${{ github.repository }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
+    pr_number: ${{ github.event.pull_request.number }}
+    target_environments: ${{ inputs.target_environment }}
+
+# 複数環境デプロイメント
+- name: デプロイメントターゲットの解決
+  uses: panicboat/deploy-actions/label-resolver@main
+  with:
+    pr_number: ${{ github.event.pull_request.number }}
+    target_environments: "develop,staging"
 ```
 
-## 核心ロジック
+### 環境変数
 
-### 1. ラベル抽出
+リゾルバーは GitHub Actions 用に以下の環境変数を設定します：
 
-デプロイパターンにマッチするPRラベルを取得：
-- `deploy:service-name` - 特定サービスのデプロイ
-- `deploy:all` - 全サービスのデプロイ
-- ラベルは設定済みサービスに対して検証される
+- `DEPLOYMENT_TARGETS`: デプロイメントターゲットの JSON 配列
+- `DEPLOY_LABELS`: 見つかったデプロイラベルの JSON 配列
+- `HAS_TARGETS`: デプロイメントターゲットが存在するかを示すブール値
+- `SAFETY_STATUS`: 安全性検証の結果
+- `MERGED_PR_NUMBER`: デプロイメント追跡用の PR 番号
 
-### 2. 環境解決
+### Action 出力
 
-現在のブランチに基づいてターゲット環境を決定：
-- `develop` → `develop`環境
-- `staging` → `staging`環境
-- `production` → `production`環境
+リゾルバーは以下の GitHub Actions 出力を提供します：
 
-### 3. 安全性検証
+- `targets`: マトリクス戦略用のデプロイメントターゲットの JSON 配列
+- `has-targets`: ターゲットが存在するかを示すブール値 (`true`/`false`)
+- `safety-status`: 安全性検証の結果 (`passed`/`failed`)
 
-基本的なデプロイ検証を提供：
-- デプロイラベルの存在を検証
-- ブランチ情報の可用性をチェック
-- 後方互換性のために成功を返す（安全性チェックは簡略化）
+## アーキテクチャ
 
-### 4. マトリックス生成
+### コンポーネント
 
-並列実行用のデプロイマトリックスを作成：
-- サービスをデプロイスタック別にグループ化（Terragrunt、Kubernetes）
-- 階層ディレクトリ規則を使用
-- 環境固有のIAMロールを含む
-- サービス固有のディレクトリオーバーライドを処理
-- 除外されていないすべてのサービスの`deploy:all`をサポート
+- **LabelResolverController**: メインオーケストレーションロジック
+- **DetermineTargetEnvironment**: 複数環境検証
+- **GetLabels**: PR ラベル抽出
+- **ValidateDeploymentSafety**: 安全性チェック（現在簡素化）
+- **GenerateMatrix**: 複数環境用デプロイメントマトリクス生成
+
+### フロー
+
+1. **ラベル抽出**: PR からデプロイラベルを取得
+2. **環境検証**: 全ての対象環境が存在することを検証
+3. **安全性検証**: デプロイメント安全性チェックを実行
+4. **マトリクス生成**: ディレクトリ構造に基づいて全環境のデプロイメントターゲットを作成
+5. **出力生成**: 簡素化された出力で GitHub Actions 用に結果をフォーマット
 
 ## 設定
 
-リゾルバーは設定に`workflow-config.yaml`を使用します：
+リゾルバーは設定に `workflow-config.yaml` を使用します：
 
 ```yaml
-# ブランチから環境へのマッピング
-branch_patterns:
-  develop: develop
-  staging: staging
-  production: production
-
-# ディレクトリ規則（階層構造）
-directory_conventions:
-  - root: "{service}"
-    stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-
-# 環境設定
 environments:
   - environment: develop
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+
   - environment: staging
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/staging-plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/staging-apply-role
+
   - environment: production
     aws_region: ap-northeast-1
     iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
 
-# サービス設定
+directory_conventions:
+  - root: "{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+        targets: ["develop", "staging", "production"]
+      - name: kubernetes
+        directory: "kubernetes/overlays/{environment}"
+        targets: ["develop", "staging", "production"]
+
 services:
   - name: excluded-service
     exclude_from_automation: true
     exclusion_config:
-      reason: "手動デプロイが必要"
+      reason: "手動デプロイメントが必要"
       type: "permanent"
 ```
 
-## アーキテクチャ
+## デプロイラベル
 
-Label Resolverはクリーンアーキテクチャパターンに従います：
+システムは `deploy:service` 形式のラベルを認識します：
 
-### Controllers
-- `LabelResolverController`: 解決プロセスの調整
+- `deploy:auth` - auth サービスをデプロイ
+- `deploy:api` - api サービスをデプロイ
+- `deploy:frontend` - frontend サービスをデプロイ
+- `deploy:all` - 除外されていない全サービスをデプロイ
 
-### Use Cases
-- `DetermineTargetEnvironment`: ブランチを環境にマッピング
-- `GetLabels`: PRからデプロイラベルを抽出
-- `ValidateDeploymentSafety`: 安全性ルールの適用
-- `GeneratedMatrix`: デプロイマトリックスの作成
+## 環境指定
 
-### Infrastructure
-- `GitHubClient`: GitHub APIとのやり取り
-- `ConfigClient`: 設定ファイル管理
+**トランクベース開発**: リゾルバーはブランチベースマッピングではなく明示的な環境指定を使用：
 
-## 出力フォーマット
+- 環境はパラメータとして直接指定
+- 環境決定にブランチ名への依存なし
+- 設定で定義された任意のデプロイメント環境をサポート
+- 複数環境への同時デプロイメントが可能
 
-リゾルバーはGitHub Actionsフォーマットでデプロイ情報を出力します：
+## ディレクトリ構造検出
 
-```bash
-# 設定される環境変数
-DEPLOYMENT_TARGETS='[{"service":"my-service","environment":"develop","stack":"terragrunt"}]'
-HAS_TARGETS=true
-TARGET_ENVIRONMENT=develop
-SAFETY_STATUS=passed
+リゾルバーはディレクトリの存在確認により利用可能なスタックを自動検出します：
+
+```
+{service}/
+├── terragrunt/{environment}/     # Terragrunt スタック
+└── kubernetes/overlays/{environment}/  # Kubernetes スタック
 ```
 
-## 環境変数
-
-- `GITHUB_TOKEN`: GitHub APIアクセスに必要
-- `GITHUB_REPOSITORY`: リポジトリ名（owner/repo形式）
-- `GITHUB_REF_NAME`: 現在のブランチ名
-- `WORKFLOW_CONFIG_PATH`: 設定ファイルのパス
-- `SOURCE_REPO_PATH`: ソースリポジトリチェックアウトのパス
+実際に存在するディレクトリのみがデプロイメントマトリクスに含まれます。
 
 ## エラーハンドリング
 
-リゾルバーは詳細なエラーハンドリングを提供します：
+リゾルバーは包括的なエラーハンドリングを提供します：
 
-- **PR未検出**: `safety_status=no_merged_pr`を返す
-- **無効な設定**: エラーと詳細メッセージで終了
-- **API障害**: 指数バックオフで再試行
-- **ラベル不足**: 空のターゲット配列を返す
+- **無効な環境**: 対象環境が存在しない場合の明確なエラー
+- **ラベル不足**: デプロイラベルのない PR の適切な処理
+- **設定エラー**: ワークフロー設定の詳細な検証
+- **ディレクトリ検出**: デプロイメントディレクトリ不足の警告
 
 ## 開発
 
-### 依存関係
-
-- Ruby 3.4+
-- Bundler
-- Thor (CLIフレームワーク)
-- Octokit (GitHub API)
-
-### テスト
+### テスト実行
 
 ```bash
-# 特定PRでのテスト
-bundle exec ruby label-resolver/bin/resolver test 123
-
-# ステップバイステップのデバッグ
-bundle exec ruby label-resolver/bin/resolver debug 123
-
-# 環境設定の検証
-bundle exec ruby label-resolver/bin/resolver validate_env
+cd action-scripts
+bundle exec rspec spec/label-resolver/
 ```
 
-## 統合ポイント
+### ローカルテスト
 
-Label Resolverは以下と統合します：
+```bash
+# 環境設定
+export GITHUB_TOKEN=your_token
+export GITHUB_REPOSITORY=owner/repo
 
-1. **Label Dispatcher**: ラベル検出で作成されたラベルを使用
-2. **Deploy Terragrunt**: Terragruntデプロイ用のターゲットを提供
-3. **Deploy GitOps**: Kubernetesデプロイ用のターゲットを提供
-4. **Config Manager**: 検証済み設定ファイルを使用
-
-## 安全性機能
-
-- **PR要件**: 有効なPRなしのデプロイをブロック
-- **ブランチ検証**: 承認済みブランチからのデプロイのみ確保
-- **設定検証**: 処理前の設定検証
-- **再試行ロジック**: 一時的なGitHub API障害の処理
-- **監査証跡**: トラブルシューティング用のすべてのデプロイ決定をログ記録
+# 実際の PR でテスト
+./bin/resolver debug 123 develop
+```

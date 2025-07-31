@@ -85,7 +85,6 @@ RSpec.describe Entities::Result do
       subject(:result) do
         described_class.success(
           target_environment: 'develop',
-          branch_name: 'feature/test',
           labels_added: ['deploy:auth'],
           has_targets: true
         )
@@ -93,7 +92,6 @@ RSpec.describe Entities::Result do
 
       it 'provides dynamic access to all attributes' do
         expect(result.target_environment).to eq('develop')
-        expect(result.branch_name).to eq('feature/test')
         expect(result.labels_added).to eq(['deploy:auth'])
         expect(result.has_targets).to be true
       end

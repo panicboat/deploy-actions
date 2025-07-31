@@ -1,4 +1,4 @@
-# Use case for determining target environment from branch name
+# Use case for determining target environment
 
 module UseCases
   module LabelResolver
@@ -7,26 +7,30 @@ module UseCases
         @config_client = config_client
       end
 
-      # Execute target environment determination
-      def execute(branch_name:)
+      # Execute target environments determination
+      def execute(target_environments:)
         config = @config_client.load_workflow_config
-        
-        target_environment = config.branch_to_environment(branch_name) || 'develop'
 
-        # Validate environment exists in configuration
-        unless config.environments.key?(target_environment)
-          return Entities::Result.failure(
-            error_message: "Target environment '#{target_environment}' not found in configuration"
-          )
+        # Validate all environments exist in configuration
+        validated_environments = []
+        environment_configs = {}
+
+        target_environments.each do |env|
+          unless config.environments.key?(env)
+            return Entities::Result.failure(
+              error_message: "Target environment '#{env}' not found in configuration"
+            )
+          end
+          validated_environments << env
+          environment_configs[env] = config.environment_config(env)
         end
 
         Entities::Result.success(
-          target_environment: target_environment,
-          branch_name: branch_name,
-          environment_config: config.environment_config(target_environment)
+          target_environments: validated_environments,
+          environment_configs: environment_configs
         )
       rescue => error
-        Entities::Result.failure(error_message: "Failed to determine target environment: #{error.message}")
+        Entities::Result.failure(error_message: "Failed to determine target environments: #{error.message}")
       end
     end
   end

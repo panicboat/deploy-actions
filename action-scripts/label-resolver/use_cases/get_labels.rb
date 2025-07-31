@@ -11,7 +11,6 @@ module UseCases
       def execute(pr_number:)
         pr_info = @github_client.get_pr_info(pr_number)
         deploy_labels_strings = pr_info[:labels]
-        source_branch = pr_info[:head_ref]
 
         deploy_labels = deploy_labels_strings.map { |label| Entities::DeployLabel.new(label) }.select(&:valid?)
 
@@ -19,7 +18,6 @@ module UseCases
           pr_number: pr_number,
           deploy_labels: deploy_labels,
           raw_labels: deploy_labels_strings,
-          source_branch: source_branch
         )
       rescue => error
         Entities::Result.failure(error_message: "Failed to retrieve PR labels: #{error.message}")

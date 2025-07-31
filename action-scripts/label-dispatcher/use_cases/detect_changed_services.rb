@@ -102,9 +102,8 @@ module UseCases
 
         services = Set.new
         changed_files.each do |file|
-          # Try to match the pattern against the file path
-          # The pattern might not include all parts of the file path
-          if match = file.match(/#{regex_pattern}/)
+          # Match pattern from the beginning of the file path
+          if match = file.match(/^#{regex_pattern}/)
             service_name = match[1]
             services << service_name unless service_name.start_with?('.')
           end
