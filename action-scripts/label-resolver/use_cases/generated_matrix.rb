@@ -68,33 +68,74 @@ module UseCases
       # Generate deployment targets for a service across all applicable environments and stacks
       def generate_targets_for_service(deploy_label, config)
         targets = []
-        
-        # Get all available stacks for this service
-        config.directory_conventions_config.each do |convention|
-          stacks = convention['stacks'] || []
-          
-          stacks.each do |stack_config|
-            stack_name = stack_config['name']
-            
-            # Generate targets for all target environments
-            @target_environments.each do |env|
-              # Validate that the target environment exists
-              env_config = config.environment_config(env)
-              unless env_config
-                puts "Warning: Environment configuration not found for: #{env}"
-                next
-              end
-              
-              # Check if stack directory exists for this service/environment combination
-              if stack_directory_exists?(deploy_label.service, env, stack_name, config)
-                target = generate_deployment_target(deploy_label, env, stack_name, config)
-                targets << target if target&.valid?
-              end
+
+        # Get all available stacks from the first matching convention only
+        matching_convention = find_matching_convention(deploy_label.service, config)
+        return targets unless matching_convention
+
+        stacks = matching_convention['stacks'] || []
+
+        stacks.each do |stack_config|
+          stack_name = stack_config['name']
+
+          # Generate targets for all target environments
+          @target_environments.each do |env|
+            # Validate that the target environment exists
+            env_config = config.environment_config(env)
+            unless env_config
+              puts "Warning: Environment configuration not found for: #{env}"
+              next
+            end
+
+            # Check if stack directory exists for this service/environment combination
+            if stack_directory_exists?(deploy_label.service, env, stack_name, config)
+              target = generate_deployment_target(deploy_label, env, stack_name, config)
+              targets << target if target&.valid?
             end
           end
         end
-        
+
         targets
+      end
+
+      # Find the first matching convention that has existing directories for this service
+      def find_matching_convention(service_name, config)
+        repo_root = find_repository_root
+
+        config.directory_conventions_config.each do |convention|
+          # Check if any stack in this convention has existing directories for this service
+          stacks = convention['stacks'] || []
+
+          has_existing_directory = stacks.any? do |stack_config|
+            stack_name = stack_config['name']
+
+            # Check across all target environments
+            @target_environments.any? do |env|
+              # Build the pattern for this convention
+              root_pattern = convention['root']
+              stack_directory = stack_config['directory']
+
+              full_pattern = if root_pattern.nil? || root_pattern.empty?
+                              stack_directory
+                            else
+                              "#{root_pattern}/#{stack_directory}"
+                            end
+
+              # Expand placeholders
+              expanded_pattern = full_pattern
+                .gsub('{service}', service_name)
+                .gsub('{environment}', env)
+
+              # Check if directory exists
+              full_path = File.join(repo_root, expanded_pattern)
+              File.directory?(full_path)
+            end
+          end
+
+          return convention if has_existing_directory
+        end
+
+        []
       end
 
       # Check if stack directory exists for service/environment combination

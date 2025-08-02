@@ -209,6 +209,8 @@ bundle exec rspec spec/label-resolver/
 # 環境設定
 export GITHUB_TOKEN=your_token
 export GITHUB_REPOSITORY=owner/repo
+export SOURCE_REPO_PATH=your_source_path
+export WORKFLOW_CONFIG_PATH=workflow-config.yaml
 
 # 実際の PR でテスト
 ./bin/resolver debug 123 develop
