@@ -55,7 +55,7 @@ runs:
         token: ${{ inputs.github-token }}
 
     - name: Validate working directory
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const path = require('path');
@@ -71,7 +71,7 @@ runs:
         audience: sts.amazonaws.com
 
     - name: Verify AWS credentials
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const path = require('path');
@@ -97,7 +97,7 @@ runs:
     - name: Parse execution results
       if: always()
       id: parse-results
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const path = require('path');
