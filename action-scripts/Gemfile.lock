@@ -1,14 +1,14 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    activesupport (8.0.3)
+    activesupport (8.1.0)
       base64
-      benchmark (>= 0.3)
       bigdecimal
       concurrent-ruby (~> 1.0, >= 1.3.1)
       connection_pool (>= 2.2.5)
       drb
       i18n (>= 1.6, < 2)
+      json
       logger (>= 1.4.2)
       minitest (>= 5.1)
       securerandom (>= 0.3)
@@ -33,8 +33,7 @@ GEM
     aws-sigv4 (1.12.1)
       aws-eventstream (~> 1, >= 1.0.2)
     base64 (0.3.0)
-    benchmark (0.4.1)
-    bigdecimal (3.2.3)
+    bigdecimal (3.3.1)
     coderay (1.1.3)
     colorize (1.1.0)
     concurrent-ruby (1.3.5)
@@ -104,7 +103,7 @@ GEM
     logger (1.7.0)
     lumberjack (1.2.10)
     method_source (1.1.0)
-    minitest (5.25.5)
+    minitest (5.26.0)
     nenv (0.3.0)
     net-http (0.6.0)
       uri
@@ -173,7 +172,7 @@ GEM
     unicode-display_width (3.2.0)
       unicode-emoji (~> 4.1)
     unicode-emoji (4.1.0)
-    uri (1.0.3)
+    uri (1.0.4)
     vcr (6.3.1)
       base64
     webmock (3.25.1)
