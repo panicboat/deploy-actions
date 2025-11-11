@@ -59,7 +59,7 @@ runs:
         working-directory: deploy-actions/action-scripts
 
     - name: Copy configuration from source repository
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const path = require('path');
@@ -92,7 +92,7 @@ runs:
 
     - name: Parse deployment outputs
       id: parse
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       env:
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
         HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
@@ -105,7 +105,7 @@ runs:
 
     - name: Report results
       if: always()
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const path = require('path');
