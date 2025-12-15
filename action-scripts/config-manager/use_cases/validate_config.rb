@@ -166,9 +166,11 @@ module UseCases
               errors << "Stack at index #{index} in convention #{conv_index} missing required 'directory' field"
             end
 
-            if stack['directory'] && !stack['directory'].include?('{environment}')
-              errors << "Stack '#{stack['name']}' in convention #{conv_index} directory must include {environment} placeholder"
-            end
+            # {environment} placeholder is now optional to support environment-agnostic stacks
+            # (e.g., Docker builds that are environment-independent)
+            # if stack['directory'] && !stack['directory'].include?('{environment}')
+            #   errors << "Stack '#{stack['name']}' in convention #{conv_index} directory must include {environment} placeholder"
+            # end
           end
         end
 
