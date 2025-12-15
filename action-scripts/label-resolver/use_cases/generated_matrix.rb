@@ -122,9 +122,11 @@ module UseCases
                             end
 
               # Expand placeholders
-              expanded_pattern = full_pattern
-                .gsub('{service}', service_name)
-                .gsub('{environment}', env)
+              expanded_pattern = full_pattern.gsub('{service}', service_name)
+              # Only expand {environment} placeholder if present
+              if full_pattern.include?('{environment}')
+                expanded_pattern = expanded_pattern.gsub('{environment}', env)
+              end
 
               # Check if directory exists
               full_path = File.join(repo_root, expanded_pattern)
@@ -135,7 +137,7 @@ module UseCases
           return convention if has_existing_directory
         end
 
-        []
+        nil
       end
 
       # Check if stack directory exists for service/environment combination
@@ -319,10 +321,12 @@ module UseCases
       def expand_directory_pattern(pattern, service_name, target_environment)
         return nil unless pattern
 
-        # Expand both service and environment placeholders
-        expanded = pattern
-          .gsub('{service}', service_name)
-          .gsub('{environment}', target_environment)
+        # Expand service placeholder
+        expanded = pattern.gsub('{service}', service_name)
+        # Only expand {environment} placeholder if present (supports environment-agnostic stacks)
+        if pattern.include?('{environment}')
+          expanded = expanded.gsub('{environment}', target_environment)
+        end
 
         # Validate that all placeholders were replaced
         if expanded.include?('{') && expanded.include?('}')

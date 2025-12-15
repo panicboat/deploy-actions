@@ -136,9 +136,12 @@ module Entities
     def self.expand_directory_pattern(pattern, service_name, target_environment)
       return nil unless pattern
 
-      pattern
-        .gsub('{service}', service_name)
-        .gsub('{environment}', target_environment)
+      expanded = pattern.gsub('{service}', service_name)
+      # Only expand {environment} placeholder if present (supports environment-agnostic stacks)
+      if pattern.include?('{environment}')
+        expanded = expanded.gsub('{environment}', target_environment)
+      end
+      expanded
     end
   end
 end
