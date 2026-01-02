@@ -1,0 +1,32 @@
+name: 'Auto-Approve and Merge'
+description: 'Automatically approve and merge PRs'
+inputs:
+  app-id:
+    description: 'GitHub App ID'
+    required: true
+  private-key:
+    description: 'GitHub App private key'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@v2.2.1
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+
+    - name: Auto-approve PRs
+      uses: hmarr/auto-approve-action@v4
+      with:
+        github-token: ${{ steps.app-token.outputs.token }}
+
+    - name: Auto-merge PRs
+      continue-on-error: true
+      shell: bash
+      run: gh pr merge --squash --auto "$PR_URL"
+      env:
+        PR_URL: ${{ github.event.pull_request.html_url }}
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
