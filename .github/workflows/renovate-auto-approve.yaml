@@ -13,11 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor == 'renovate[bot]'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Auto-approve and Merge
         uses: ./auto-approve
         with:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          auto-merge-label: '🤖 automerge'

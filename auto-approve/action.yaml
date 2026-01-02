@@ -7,6 +7,10 @@ inputs:
   private-key:
     description: 'GitHub App private key'
     required: true
+  auto-merge-label:
+    description: 'Label required for auto-merge. If empty, all PRs are merged.'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -26,7 +30,21 @@ runs:
     - name: Auto-merge PRs
       continue-on-error: true
       shell: bash
-      run: gh pr merge --squash --auto "$PR_URL"
+      run: |
+        TARGET_LABEL="${{ inputs.auto-merge-label }}"
+
+        if [[ -n "$TARGET_LABEL" ]]; then
+          echo "Checking for label: $TARGET_LABEL"
+          CURRENT_LABELS=$(gh pr view "$PR_URL" --json labels --jq '.labels[].name')
+          if ! echo "$CURRENT_LABELS" | grep -Fqx "$TARGET_LABEL"; then
+            echo "::notice::Skipping auto-merge because label '$TARGET_LABEL' is missing."
+            exit 0
+          fi
+          echo "Label '$TARGET_LABEL' found."
+        fi
+
+        echo "Proceeding with auto-merge..."
+        gh pr merge --squash --auto "$PR_URL"
       env:
         PR_URL: ${{ github.event.pull_request.html_url }}
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
