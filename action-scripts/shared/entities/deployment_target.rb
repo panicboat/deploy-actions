@@ -98,14 +98,14 @@ module Entities
 
     # Check if deployment target is valid
     def valid?
-      return false unless service && environment && working_directory && aws_region
+      return false unless service && environment && working_directory
 
       case stack
       when 'terragrunt'
-        # Terragrunt targets need IAM roles
-        iam_role_plan && iam_role_apply
-      when 'kubernetes'
-        # Kubernetes targets don't need IAM roles
+        # Terragrunt targets need IAM roles and AWS region
+        aws_region && iam_role_plan && iam_role_apply
+      when 'kubernetes', 'docker'
+        # Kubernetes (GitOps) and Docker don't need AWS region or IAM roles
         true
       else
         # Generic validation - at minimum need basic fields

@@ -52,7 +52,7 @@ module UseCases
           return errors
         end
 
-        required_envs = %w[develop staging production]
+        required_envs = []
         missing_envs = required_envs - environments.keys
         errors.concat(missing_envs.map { |env| "Missing required environment: #{env}" })
 

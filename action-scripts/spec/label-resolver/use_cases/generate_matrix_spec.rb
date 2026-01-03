@@ -137,9 +137,12 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
           'environment' => 'develop'
         })
         allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
+          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
+          { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
         ])
         allow(config).to receive(:services).and_return({})
+        # Mock directory_conventions_for to return empty for non-existent service
+        allow(config).to receive(:directory_conventions_for).and_return([])
       end
 
       it 'skips non-existent services' do
@@ -171,8 +174,8 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
           { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
         ])
         allow(config).to receive(:services).and_return({ 'test-service' => {} })
-        allow(config).to receive(:directory_convention_for).with('test-service', 'terragrunt').and_return(nil)
-        allow(config).to receive(:directory_convention_for).with('test-service', 'kubernetes').and_return(nil)
+        allow(config).to receive(:directory_conventions_for).with('test-service', 'terragrunt').and_return([])
+        allow(config).to receive(:directory_conventions_for).with('test-service', 'kubernetes').and_return([])
       end
 
       it 'skips services without directory conventions' do
