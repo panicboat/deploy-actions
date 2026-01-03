@@ -1,0 +1,51 @@
+name: Claude Code Action
+description: Run Claude Code action with AWS Bedrock integration
+
+inputs:
+  token:
+    description: 'GitHub token for authentication'
+    required: true
+  aws-role-arn:
+    description: 'AWS IAM role ARN for Bedrock access'
+    required: true
+  aws-region:
+    description: 'AWS region'
+    required: false
+    default: 'us-west-2'
+  trigger-phrase:
+    description: 'Phrase to trigger Claude'
+    required: false
+    default: '@claude'
+  model:
+    description: 'Claude model to use'
+    required: false
+    default: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        token: ${{ inputs.token }}
+        fetch-depth: 1
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v5
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Run Claude Code
+      uses: anthropics/claude-code-action@beta
+      with:
+        github_token: ${{ inputs.token }}
+        trigger_phrase: ${{ inputs.trigger-phrase }}
+        model: ${{ inputs.model }}
+        use_bedrock: "true"
+      env:
+        ANTHROPIC_BEDROCK_BASE_URL: https://bedrock-runtime.${{ inputs.aws-region }}.amazonaws.com
+        ANTHROPIC_MAX_RETRIES: "3"
+        ANTHROPIC_TIMEOUT: "120"
+        ANTHROPIC_REQUEST_DELAY: "5"
+        CLAUDE_CODE_MAX_OUTPUT_TOKENS: 8192
