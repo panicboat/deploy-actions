@@ -77,19 +77,33 @@ module UseCases
 
         stacks.each do |stack_config|
           stack_name = stack_config['name']
+          stack_directory = stack_config['directory']
 
-          # Generate targets for all target environments
-          @target_environments.each do |env|
-            # Validate that the target environment exists
-            env_config = config.environment_config(env)
-            unless env_config
-              puts "Warning: Environment configuration not found for: #{env}"
-              next
+          # Check if stack is environment-specific (contains {environment} placeholder)
+          is_environment_specific = stack_directory&.include?('{environment}')
+
+          if is_environment_specific
+            # Generate targets for all target environments
+            @target_environments.each do |env|
+              # Validate that the target environment exists
+              env_config = config.environment_config(env)
+              unless env_config
+                puts "Warning: Environment configuration not found for: #{env}"
+                next
+              end
+
+              # Check if stack directory exists for this service/environment combination
+              if stack_directory_exists?(deploy_label.service, env, stack_name, config)
+                target = generate_deployment_target(deploy_label, env, stack_name, config)
+                targets << target if target&.valid?
+              end
             end
-
-            # Check if stack directory exists for this service/environment combination
-            if stack_directory_exists?(deploy_label.service, env, stack_name, config)
-              target = generate_deployment_target(deploy_label, env, stack_name, config)
+          else
+            # Environment-agnostic stack - generate only one target with nil environment
+            # Check if stack directory exists (use first environment for validation)
+            first_env = @target_environments.first
+            if stack_directory_exists?(deploy_label.service, first_env, stack_name, config)
+              target = generate_deployment_target(deploy_label, nil, stack_name, config)
               targets << target if target&.valid?
             end
           end
@@ -234,7 +248,8 @@ module UseCases
 
       # Generate a deployment target from deploy label, environment, and stack
       def generate_deployment_target(deploy_label, target_environment, stack, config)
-        env_config = config.environment_config(target_environment)
+        # For environment-agnostic stacks, env_config will be nil
+        env_config = target_environment ? config.environment_config(target_environment) : nil
 
         # Get all possible directory patterns and find the first existing one
         dir_patterns = config.directory_conventions_for(deploy_label.service, stack)
@@ -245,7 +260,7 @@ module UseCases
 
         # Try each pattern until we find an existing directory
         dir_patterns.each do |dir_pattern|
-          # Expand placeholders
+          # Expand placeholders (target_environment can be nil for environment-agnostic stacks)
           candidate_dir = expand_directory_pattern(dir_pattern, deploy_label.service, target_environment)
           next unless candidate_dir
 
@@ -266,7 +281,7 @@ module UseCases
         when 'kubernetes'
           create_kubernetes_target(deploy_label, target_environment, env_config, working_dir)
         else
-          # Generic target for future stacks
+          # Generic target for future stacks (including docker)
           create_generic_target(deploy_label, target_environment, stack, env_config, working_dir)
         end
       end
@@ -325,6 +340,11 @@ module UseCases
         expanded = pattern.gsub('{service}', service_name)
         # Only expand {environment} placeholder if present (supports environment-agnostic stacks)
         if pattern.include?('{environment}')
+          # target_environment should not be nil if {environment} placeholder exists
+          if target_environment.nil?
+            puts "Warning: Environment placeholder found but target_environment is nil: #{pattern}"
+            return nil
+          end
           expanded = expanded.gsub('{environment}', target_environment)
         end
 
@@ -353,16 +373,20 @@ module UseCases
                           end
 
             # Expand placeholders
-            expanded_pattern = full_pattern
-              .gsub('{service}', service_name)
-              .gsub('{environment}', target_environment)
+            expanded_pattern = full_pattern.gsub('{service}', service_name)
+            # Only expand {environment} if target_environment is not nil
+            if target_environment
+              expanded_pattern = expanded_pattern.gsub('{environment}', target_environment)
+            end
 
             # Check if working_dir matches this pattern
             if working_dir == expanded_pattern
               # Found a match, extract the root part
-              expanded_root = root_pattern
-                .gsub('{service}', service_name)
-                .gsub('{environment}', target_environment)
+              expanded_root = root_pattern.gsub('{service}', service_name)
+              # Only expand {environment} if target_environment is not nil
+              if target_environment
+                expanded_root = expanded_root.gsub('{environment}', target_environment)
+              end
               return expanded_root
             end
           end

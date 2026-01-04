@@ -278,6 +278,86 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         expect(result.deployment_targets.map(&:service).uniq).to eq(['test-service'])
       end
     end
+
+    context 'with environment-agnostic stack (docker)' do
+      let(:target_environments) { ['develop', 'staging', 'production'] }
+      let(:env_config_develop) do
+        {
+          'environment' => 'develop',
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+        }
+      end
+      let(:env_config_staging) do
+        {
+          'environment' => 'staging',
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply-role'
+        }
+      end
+      let(:env_config_production) do
+        {
+          'environment' => 'production',
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/prod-plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/prod-apply-role'
+        }
+      end
+
+      before do
+        allow(config).to receive(:environment_config).with('develop').and_return(env_config_develop)
+        allow(config).to receive(:environment_config).with('staging').and_return(env_config_staging)
+        allow(config).to receive(:environment_config).with('production').and_return(env_config_production)
+
+        # Mock directory_conventions_config for find_matching_convention
+        allow(config).to receive(:directory_conventions_config).and_return([
+          {
+            'root' => '{service}',
+            'stacks' => [
+              { 'name' => 'docker', 'directory' => 'workspace' },
+              { 'name' => 'terragrunt', 'directory' => 'terragrunt/envs/{environment}' },
+              { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
+            ]
+          }
+        ])
+
+        allow(config).to receive(:services).and_return({ 'test-service' => {} })
+        allow(config).to receive(:directory_conventions_for).with('test-service', 'docker').and_return(['{service}/workspace'])
+        allow(config).to receive(:directory_conventions_for).with('test-service', 'terragrunt').and_return(['{service}/terragrunt/envs/{environment}'])
+        allow(config).to receive(:directory_conventions_for).with('test-service', 'kubernetes').and_return(['{service}/kubernetes/overlays/{environment}'])
+        allow(config).to receive(:directory_conventions_root).and_return('{service}')
+
+        # Mock directory existence checks
+        allow(File).to receive(:directory?).and_return(true)
+      end
+
+      it 'generates only one docker target with nil environment despite multiple target environments' do
+        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
+
+        expect(result).to be_success
+
+        docker_targets = result.deployment_targets.select { |t| t.stack == 'docker' }
+        terragrunt_targets = result.deployment_targets.select { |t| t.stack == 'terragrunt' }
+        kubernetes_targets = result.deployment_targets.select { |t| t.stack == 'kubernetes' }
+
+        # Docker should have only 1 target with nil environment
+        expect(docker_targets.length).to eq(1)
+        expect(docker_targets.first.environment).to be_nil
+        expect(docker_targets.first.working_directory).to eq('test-service/workspace')
+
+        # Terragrunt and Kubernetes should have targets for all environments
+        expect(terragrunt_targets.length).to eq(3)
+        expect(terragrunt_targets.map(&:environment)).to contain_exactly('develop', 'staging', 'production')
+
+        expect(kubernetes_targets.length).to eq(3)
+        expect(kubernetes_targets.map(&:environment)).to contain_exactly('develop', 'staging', 'production')
+
+        # Total: 1 docker + 3 terragrunt + 3 kubernetes = 7 targets
+        expect(result.deployment_targets.length).to eq(7)
+      end
+    end
   end
 
   describe 'integration with real configuration' do
