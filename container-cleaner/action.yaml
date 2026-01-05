@@ -27,8 +27,7 @@ runs:
       uses: dataaxiom/ghcr-cleanup-action@v1
       with:
         token: ${{ inputs.token }}
-        owner: ${{ github.repository_owner }}
-        package: ${{ inputs.image-name }}
+        package: ${{ github.repository }}/${{ inputs.image-name }}
         delete-tags: ^pr-
         older-than: ${{ inputs.pr-retention-days }} days
         exclude-tags: ^(latest|v\d+\.\d+\.\d+.*)$
@@ -43,8 +42,7 @@ runs:
       uses: dataaxiom/ghcr-cleanup-action@v1
       with:
         token: ${{ inputs.token }}
-        owner: ${{ github.repository_owner }}
-        package: ${{ inputs.image-name }}
+        package: ${{ github.repository }}/${{ inputs.image-name }}
         delete-tags: ^sha-
         exclude-tags: ^(latest|v\d+\.\d+\.\d+.*)$
         use-regex: true
@@ -57,8 +55,7 @@ runs:
       uses: dataaxiom/ghcr-cleanup-action@v1
       with:
         token: ${{ inputs.token }}
-        owner: ${{ github.repository_owner }}
-        package: ${{ inputs.image-name }}
+        package: ${{ github.repository }}/${{ inputs.image-name }}
         keep-n-untagged: 0
         exclude-tags: ^(latest|v\d+\.\d+\.\d+.*)$
         use-regex: true
