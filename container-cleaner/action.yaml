@@ -11,7 +11,7 @@ inputs:
   pr-retention-days:
     description: 'Delete PR tags older than this many days'
     required: false
-    default: '7'
+    default: '14'
   dry-run:
     description: 'Show what would be deleted without actually deleting'
     required: false
@@ -21,31 +21,38 @@ runs:
   using: composite
   steps:
     # Step 1: Clean old PR tags (pr-*, older than retention days)
+    # Regex: ^pr- matches tags starting with "pr-" (e.g., pr-123)
+    # Excludes: latest, version tags (v1.2.3, v1.2.202501012230, v2.0.0-beta, etc.)
     - name: Clean old PR tags
       uses: dataaxiom/ghcr-cleanup-action@v1
       with:
         token: ${{ inputs.token }}
         owner: ${{ github.repository_owner }}
         package: ${{ inputs.image-name }}
-        delete-tags: pr-*
+        delete-tags: ^pr-
         older-than: ${{ inputs.pr-retention-days }} days
-        exclude-tags: latest
+        exclude-tags: ^(latest|v\d+\.\d+\.\d+.*)$
+        use-regex: true
         dry-run: ${{ inputs.dry-run }}
         validate: true
 
     # Step 2: Clean all SHA tags (sha-*, regardless of age)
+    # Regex: ^sha- matches tags starting with "sha-" (e.g., sha-1234abc)
+    # Excludes: latest, version tags (v1.2.3, v1.2.202501012230, v2.0.0-beta, etc.)
     - name: Clean SHA tags
       uses: dataaxiom/ghcr-cleanup-action@v1
       with:
         token: ${{ inputs.token }}
         owner: ${{ github.repository_owner }}
         package: ${{ inputs.image-name }}
-        delete-tags: sha-*
-        exclude-tags: latest
+        delete-tags: ^sha-
+        exclude-tags: ^(latest|v\d+\.\d+\.\d+.*)$
+        use-regex: true
         dry-run: ${{ inputs.dry-run }}
         validate: true
 
     # Step 3: Clean all untagged images
+    # Excludes: latest, version tags (v1.2.3, v1.2.202501012230, v2.0.0-beta, etc.)
     - name: Clean untagged images
       uses: dataaxiom/ghcr-cleanup-action@v1
       with:
@@ -53,6 +60,7 @@ runs:
         owner: ${{ github.repository_owner }}
         package: ${{ inputs.image-name }}
         keep-n-untagged: 0
-        exclude-tags: latest
+        exclude-tags: ^(latest|v\d+\.\d+\.\d+.*)$
+        use-regex: true
         dry-run: ${{ inputs.dry-run }}
         validate: true
