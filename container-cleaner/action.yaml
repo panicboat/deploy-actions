@@ -1,0 +1,58 @@
+name: Container Cleaner
+description: Delete old container images from GitHub Container Registry (optimized for container-builder)
+
+inputs:
+  token:
+    description: 'GitHub token for authentication (needs packages:delete permission)'
+    required: true
+  image-name:
+    description: 'Name of the image (e.g. service-name)'
+    required: true
+  pr-retention-days:
+    description: 'Delete PR tags older than this many days'
+    required: false
+    default: '7'
+  dry-run:
+    description: 'Show what would be deleted without actually deleting'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    # Step 1: Clean old PR tags (pr-*, older than retention days)
+    - name: Clean old PR tags
+      uses: dataaxiom/ghcr-cleanup-action@v1
+      with:
+        token: ${{ inputs.token }}
+        owner: ${{ github.repository_owner }}
+        package: ${{ inputs.image-name }}
+        delete-tags: pr-*
+        older-than: ${{ inputs.pr-retention-days }} days
+        exclude-tags: latest
+        dry-run: ${{ inputs.dry-run }}
+        validate: true
+
+    # Step 2: Clean all SHA tags (sha-*, regardless of age)
+    - name: Clean SHA tags
+      uses: dataaxiom/ghcr-cleanup-action@v1
+      with:
+        token: ${{ inputs.token }}
+        owner: ${{ github.repository_owner }}
+        package: ${{ inputs.image-name }}
+        delete-tags: sha-*
+        exclude-tags: latest
+        dry-run: ${{ inputs.dry-run }}
+        validate: true
+
+    # Step 3: Clean all untagged images
+    - name: Clean untagged images
+      uses: dataaxiom/ghcr-cleanup-action@v1
+      with:
+        token: ${{ inputs.token }}
+        owner: ${{ github.repository_owner }}
+        package: ${{ inputs.image-name }}
+        keep-n-untagged: 0
+        exclude-tags: latest
+        dry-run: ${{ inputs.dry-run }}
+        validate: true
