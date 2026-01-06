@@ -21,12 +21,9 @@ inputs:
     required: false
     default: 'Dockerfile'
   tags-template:
-    description: 'Docker tags template (see docker/metadata-action for syntax)'
+    description: 'Additional Docker tags template to append to defaults (see docker/metadata-action for syntax)'
     required: false
-    default: |
-      type=sha
-      type=ref,event=pr
-      type=raw,value=latest,enable={{is_default_branch}}
+    default: ''
 
 runs:
   using: composite
@@ -46,12 +43,31 @@ runs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Prepare tags template
+      id: prepare-tags
+      shell: bash
+      run: |
+        DEFAULT_TAGS="type=sha
+        type=ref,event=pr
+        type=raw,value=latest,enable={{is_default_branch}}"
+
+        if [ -n "${{ inputs.tags-template }}" ]; then
+          MERGED_TAGS="$DEFAULT_TAGS
+        ${{ inputs.tags-template }}"
+        else
+          MERGED_TAGS="$DEFAULT_TAGS"
+        fi
+
+        echo "tags<<EOF" >> $GITHUB_OUTPUT
+        echo "$MERGED_TAGS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
     - name: Extract metadata (tags, labels) for Docker
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ghcr.io/${{ github.repository }}/${{ inputs.image-name }}
-        tags: ${{ inputs.tags-template }}
+        tags: ${{ steps.prepare-tags.outputs.tags }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
