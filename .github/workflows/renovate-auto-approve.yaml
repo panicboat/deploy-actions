@@ -23,7 +23,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          token: ${{ inputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 1
 
       - name: Auto-approve and Merge
