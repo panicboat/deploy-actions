@@ -20,6 +20,12 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          token: ${{ inputs.token }}
+          fetch-depth: 1
+
       - name: Auto-approve and Merge
         uses: ./auto-approve
         with:
