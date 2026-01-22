@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:base", ":semanticCommits"],
+  "extends": ["config:base", ":semanticCommits", ":separateMajorReleases", "group:monorepos", "group:recommended"],
   "semanticCommitScope": "{{packageFileDir}}",
   "timezone": "Asia/Tokyo",
   "labels": ["🤖 renovate"],
@@ -15,12 +15,20 @@
 
   "schedule": ["before 4am every weekday"],
   "minimumReleaseAge": "1 day",
-
+  "separateMinorPatch": false,
   "packageRules": [
     {
-      "description": "Base rule - packageFileDir and depName separation",
-      "matchPaths": ["**"],
-      "groupName": "{{packageFileDir}} {{depName}}"
+      "description": "Default: separate PRs per package",
+      "matchPackagePatterns": ["*"],
+      "groupName": "{{packageFileDir}}/{{depName}}"
+    },
+
+    {
+      "description": "🚫 Production environments - disable automerge",
+      "matchPaths": ["**/production/**"],
+      "automerge": false,
+      "prPriority": -1,
+      "addLabels": ["⚠️ production"]
     },
 
     {
@@ -29,11 +37,11 @@
       "automerge": false,
       "addLabels": ["📈 major-update"]
     },
+
     {
-      "description": "✅ Non major updates - apply automerge label",
-      "matchUpdateTypes": ["minor","patch","pin","digest"],
-      "automerge": true,
-      "addLabels": []
+      "description": "✅ Minor/Patch updates - enable automerge",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true
     }
   ]
 }
