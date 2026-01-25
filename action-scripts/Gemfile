@@ -16,7 +16,7 @@ gem 'json', '~> 2.12'          # JSON handling
 
 # Utilities
 gem 'colorize', '~> 1.1'       # Colored terminal output
-gem 'activesupport', '~> 8.0'  # Utility methods
+gem 'activesupport', '~> 8.1', '>= 8.1.2'  # Utility methods
 gem "faraday-retry", "~> 2.2"  # Faraday middleware for retries
 
 # Development dependencies

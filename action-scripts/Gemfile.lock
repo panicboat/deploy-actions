@@ -195,7 +195,7 @@ PLATFORMS
   x86_64-linux-musl
 
 DEPENDENCIES
-  activesupport (~> 8.0)
+  activesupport (~> 8.1, >= 8.1.2)
   aws-sdk-core (~> 3.225)
   aws-sdk-sts (~> 1.12)
   colorize (~> 1.1)
