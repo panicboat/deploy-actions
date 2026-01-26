@@ -24,7 +24,7 @@ group :development do
   gem 'rubocop', '~> 1.76'          # Code style checker
   gem 'rubocop-rspec', '~> 3.6'     # RSpec style checker
   gem 'pry', '~> 0.15'               # Debugging
-  gem 'guard-rspec', '~> 4.7'       # Automated testing
+  gem 'guard-rspec', '~> 4.7', '>= 4.7.3'       # Automated testing
 end
 
 # Test dependencies
