@@ -207,7 +207,7 @@ DEPENDENCIES
   json (~> 2.12)
   octokit (~> 10.0)
   pry (~> 0.15)
-  rspec (~> 3.13)
+  rspec (~> 3.13, >= 3.13.2)
   rubocop (~> 1.76)
   rubocop-rspec (~> 3.6)
   thor (~> 1.3)
