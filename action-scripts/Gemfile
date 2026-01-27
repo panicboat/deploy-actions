@@ -31,6 +31,6 @@ end
 group :test do
   gem 'rspec', '~> 3.13', '>= 3.13.2'            # Testing framework
   gem 'webmock', '~> 3.25'          # HTTP request stubbing
-  gem 'vcr', '~> 6.3'               # HTTP interaction recording
+  gem 'vcr', '~> 6.4'               # HTTP interaction recording
   gem 'factory_bot', '~> 6.5', '>= 6.5.6'       # Test data factories
 end
