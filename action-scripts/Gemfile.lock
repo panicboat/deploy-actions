@@ -211,7 +211,7 @@ DEPENDENCIES
   rubocop (~> 1.82, >= 1.82.1)
   rubocop-rspec (~> 3.9)
   thor (~> 1.5)
-  vcr (~> 6.3)
+  vcr (~> 6.4)
   webmock (~> 3.25)
   yaml (~> 0.4)
 
