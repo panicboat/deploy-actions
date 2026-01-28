@@ -24,7 +24,7 @@ runs:
     # Regex: ^pr- matches tags starting with "pr-" (e.g., pr-123)
     # Excludes: latest, version tags (v1.2.3, v1.2.202501012230, v2.0.0-beta, etc.)
     - name: Clean old PR tags
-      uses: dataaxiom/ghcr-cleanup-action@v1
+      uses: dataaxiom/ghcr-cleanup-action@v1.0.16
       with:
         token: ${{ inputs.token }}
         package: ${{ github.event.repository.name }}/${{ inputs.image-name }}
@@ -39,7 +39,7 @@ runs:
     # Regex: ^sha- matches tags starting with "sha-" (e.g., sha-1234abc)
     # Excludes: latest, version tags (v1.2.3, v1.2.202501012230, v2.0.0-beta, etc.)
     - name: Clean SHA tags
-      uses: dataaxiom/ghcr-cleanup-action@v1
+      uses: dataaxiom/ghcr-cleanup-action@v1.0.16
       with:
         token: ${{ inputs.token }}
         package: ${{ github.event.repository.name }}/${{ inputs.image-name }}
@@ -52,7 +52,7 @@ runs:
     # Step 3: Clean all untagged images and orphaned images
     # Excludes: latest, version tags (v1.2.3, v1.2.202501012230, v2.0.0-beta, etc.)
     - name: Clean untagged images
-      uses: dataaxiom/ghcr-cleanup-action@v1
+      uses: dataaxiom/ghcr-cleanup-action@v1.0.16
       with:
         token: ${{ inputs.token }}
         package: ${{ github.event.repository.name }}/${{ inputs.image-name }}

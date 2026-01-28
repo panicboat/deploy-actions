@@ -43,13 +43,13 @@ runs:
   using: 'composite'
   steps:
     - name: Checkout deploy-actions
-      uses: actions/checkout@v6
+      uses: actions/checkout@v6.0.2
       with:
         repository: ${{ inputs.deploy-actions-repository }}
         path: deploy-actions
 
     - name: Checkout source repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v6.0.2
       with:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.github-token }}
@@ -57,14 +57,14 @@ runs:
         fetch-depth: 0
 
     - name: Setup Ruby
-      uses: ruby/setup-ruby@v1
+      uses: ruby/setup-ruby@v1.286.0
       with:
         ruby-version: '3.4.8'
         bundler-cache: true
         working-directory: deploy-actions/action-scripts
 
     - name: Copy configuration from source repository
-      uses: actions/github-script@v8
+      uses: actions/github-script@v8.0.0
       with:
         script: |
           const path = require('path');

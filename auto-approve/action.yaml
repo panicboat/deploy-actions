@@ -13,7 +13,7 @@ runs:
   using: 'composite'
   steps:
     - name: Auto-approve PRs
-      uses: hmarr/auto-approve-action@v4
+      uses: hmarr/auto-approve-action@v4.0.0
       with:
         github-token: ${{ inputs.token }}
 

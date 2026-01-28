@@ -49,13 +49,13 @@ runs:
   using: 'composite'
   steps:
     - name: Checkout source repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v6.0.2
       with:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.github-token }}
 
     - name: Validate working directory
-      uses: actions/github-script@v8
+      uses: actions/github-script@v8.0.0
       with:
         script: |
           const path = require('path');
@@ -63,7 +63,7 @@ runs:
           await validateWorkingDirectory({ core, inputs: ${{ toJSON(inputs) }} });
 
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v5
+      uses: aws-actions/configure-aws-credentials@v5.1.1
       with:
         role-to-assume: ${{ inputs.iam-role }}
         aws-region: ${{ inputs.aws-region }}
@@ -71,7 +71,7 @@ runs:
         audience: sts.amazonaws.com
 
     - name: Verify AWS credentials
-      uses: actions/github-script@v8
+      uses: actions/github-script@v8.0.0
       with:
         script: |
           const path = require('path');
@@ -80,7 +80,7 @@ runs:
 
     - name: Execute Terragrunt
       id: terragrunt
-      uses: gruntwork-io/terragrunt-action@v3
+      uses: gruntwork-io/terragrunt-action@v3.1.0
       with:
         tg_version: '0.83.2'
         tofu_version: '1.6.0'
@@ -97,7 +97,7 @@ runs:
     - name: Parse execution results
       if: always()
       id: parse-results
-      uses: actions/github-script@v8
+      uses: actions/github-script@v8.0.0
       with:
         script: |
           const path = require('path');
@@ -117,7 +117,7 @@ runs:
 
     - name: Comment PR with Terragrunt results
       if: inputs.pr-number != ''
-      uses: thollander/actions-comment-pull-request@v3
+      uses: thollander/actions-comment-pull-request@v3.0.1
       with:
         message: |
           ## 🏗️ Terragrunt ${{ inputs.action-type }} Results
