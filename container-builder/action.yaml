@@ -64,7 +64,7 @@ runs:
 
     - name: Extract metadata (tags, labels) for Docker
       id: meta
-      uses: docker/metadata-action@v5.10.0
+      uses: docker/metadata-action@v6.0.0
       with:
         images: ghcr.io/${{ github.repository }}/${{ inputs.image-name }}
         tags: ${{ steps.prepare-tags.outputs.tags }}
