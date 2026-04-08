@@ -41,7 +41,7 @@ runs:
       with:
         github_token: ${{ inputs.token }}
         trigger_phrase: ${{ inputs.trigger-phrase }}
-        model: ${{ inputs.model }}
+        claude_args: --model ${{ inputs.model }}
         use_bedrock: "true"
       env:
         ANTHROPIC_BEDROCK_BASE_URL: https://bedrock-runtime.${{ inputs.aws-region }}.amazonaws.com
