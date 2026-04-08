@@ -19,7 +19,7 @@ inputs:
   model:
     description: 'Claude model to use'
     required: false
-    default: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+    default: 'us.anthropic.claude-sonnet-4-6'
 
 runs:
   using: composite
