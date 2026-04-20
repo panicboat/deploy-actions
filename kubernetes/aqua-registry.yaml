@@ -1,8 +1,0 @@
-packages:
-  - type: github_release
-    repo_owner: homeport
-    repo_name: dyff
-    description: A diff tool for YAML files, and target-aware delta between Kubernetes resources
-    asset: dyff_{{trimV .Version}}_{{.OS}}_{{.Arch}}.tar.gz
-    files:
-      - name: dyff

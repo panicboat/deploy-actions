@@ -1,6 +1,6 @@
 # Kubernetes Diff
 
-Kustomize overlay をビルドし、base ブランチとの差分を dyff で比較して PR コメントに投稿する composite action。
+Kustomize overlay をビルドし、base ブランチとの差分を PR コメントに投稿する composite action。内部で `int128/kustomize-action` と `int128/diff-action` を使用する。
 
 ## Inputs
 
@@ -31,8 +31,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Generate GitHub App token
         id: app-token
@@ -53,5 +51,5 @@ jobs:
 
 ## Requirements
 
-- リポジトリは `fetch-depth: 0` でチェックアウトされている必要がある（base ブランチのマニフェストを `git show` で取得するため）
+- リポジトリがチェックアウトされていること（ワークスペースに head 状態のコードが存在する必要がある）
 - PR イベントコンテキストが利用可能であること（`github.event.pull_request.base.sha` を参照するため）

@@ -1,5 +1,5 @@
 name: 'Kubernetes Diff'
-description: 'Build kustomize overlays and post dyff comparison as a PR comment'
+description: 'Build kustomize overlays and post diff as a PR comment'
 
 branding:
   icon: 'layers'
@@ -30,154 +30,49 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Setup aqua
-      uses: aquaproj/aqua-installer@v4.0.0
+    - name: Checkout base ref
+      uses: actions/checkout@v4
       with:
-        aqua_version: v2.48.2
-        working_directory: ${{ github.action_path }}
-
-    - name: Extract base manifests
-      id: extract-base
-      shell: bash
-      env:
-        BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        OVERLAY_PATH: ${{ inputs.path }}
-      run: |
-        set -euo pipefail
-        BASE_DIR="/tmp/kubernetes-base"
-        SRC="$OVERLAY_PATH"
-        mkdir -p "$BASE_DIR"
-
-        if ! git rev-parse --verify "${BASE_SHA}:${SRC}" >/dev/null 2>&1; then
-          echo "Base directory not found in base ref; treating as new overlay."
-          echo "base-exists=false" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
-        while IFS= read -r file; do
-          rel="${file#"${SRC}/"}"
-          mkdir -p "$BASE_DIR/$(dirname "$rel")"
-          git show "${BASE_SHA}:${file}" > "$BASE_DIR/${rel}"
-        done < <(git ls-tree -r --name-only "$BASE_SHA" "${SRC}/")
-
-        echo "base-exists=true" >> "$GITHUB_OUTPUT"
-
-    - name: Build base manifests
-      id: build-base
-      shell: bash
-      env:
-        BASE_EXISTS: ${{ steps.extract-base.outputs.base-exists }}
-      run: |
-        set -euo pipefail
-        BASE_DIR="/tmp/kubernetes-base"
-        if [ "$BASE_EXISTS" = "false" ]; then
-          touch /tmp/base.yaml
-          exit 0
-        fi
-
-        if ! kustomize build "$BASE_DIR" > /tmp/base.yaml 2> /tmp/kustomize-base.log; then
-          echo "build-failed=true" >> "$GITHUB_OUTPUT"
-          cat /tmp/kustomize-base.log >&2
-          exit 1
-        fi
-      continue-on-error: true
+        ref: ${{ github.event.pull_request.base.sha }}
+        path: base
+        token: ${{ inputs.github-token }}
 
     - name: Build head manifests
-      id: build-head
-      shell: bash
-      env:
-        OVERLAY_PATH: ${{ inputs.path }}
-      run: |
-        set -euo pipefail
-        if ! kustomize build "$OVERLAY_PATH" > /tmp/head.yaml 2> /tmp/kustomize-head.log; then
-          echo "build-failed=true" >> "$GITHUB_OUTPUT"
-          cat /tmp/kustomize-head.log >&2
-          exit 1
-        fi
-      continue-on-error: true
+      id: kustomize-head
+      uses: int128/kustomize-action@v1
+      with:
+        kustomization: ${{ inputs.path }}/kustomization.yaml
+        write-individual-files: true
 
-    - name: Run dyff between
+    - name: Build base manifests
+      id: kustomize-base
+      uses: int128/kustomize-action@v1
+      with:
+        base-directory: base
+        kustomization: ${{ inputs.path }}/kustomization.yaml
+        write-individual-files: true
+
+    - name: Diff manifests
       id: diff
-      shell: bash
-      env:
-        BUILD_BASE_OUTCOME: ${{ steps.build-base.outcome }}
-        BUILD_HEAD_OUTCOME: ${{ steps.build-head.outcome }}
-      run: |
-        set -uo pipefail
-        if [ "$BUILD_BASE_OUTCOME" = "failure" ] || [ "$BUILD_HEAD_OUTCOME" = "failure" ]; then
-          echo "has-diff=false" >> "$GITHUB_OUTPUT"
-          echo "status=Failed" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "kustomize build failed."
-            echo ""
-            echo "--- Base build log ---"
-            cat /tmp/kustomize-base.log 2>/dev/null || echo "(no output)"
-            echo ""
-            echo "--- Head build log ---"
-            cat /tmp/kustomize-head.log 2>/dev/null || echo "(no output)"
-          } > /tmp/diff-output.txt
-          exit 0
-        fi
-
-        set +e
-        dyff between --omit-header --color off /tmp/base.yaml /tmp/head.yaml > /tmp/diff-output.txt 2>&1
-        status=$?
-        set -e
-
-        if [ "$status" -eq 0 ]; then
-          echo "has-diff=false" >> "$GITHUB_OUTPUT"
-          echo "status=No changes" >> "$GITHUB_OUTPUT"
-          echo "No changes" > /tmp/diff-output.txt
-        elif [ "$status" -eq 1 ]; then
-          echo "has-diff=true" >> "$GITHUB_OUTPUT"
-          echo "status=Changes detected" >> "$GITHUB_OUTPUT"
-        else
-          echo "has-diff=false" >> "$GITHUB_OUTPUT"
-          echo "status=Failed" >> "$GITHUB_OUTPUT"
-          echo "dyff failed with exit code $status" > /tmp/diff-output.txt
-        fi
-
-    - name: Compose comment
-      if: inputs.pr-number != ''
-      shell: bash
-      env:
-        DIFF_STATUS: ${{ steps.diff.outputs.status }}
-        SERVICE_NAME: ${{ inputs.service-name }}
-        ENVIRONMENT: ${{ inputs.environment }}
-      run: |
-        set -euo pipefail
-        DIFF_OUTPUT=$(head -c 60000 /tmp/diff-output.txt)
-        if [ "$(wc -c < /tmp/diff-output.txt)" -gt 60000 ]; then
-          DIFF_OUTPUT="${DIFF_OUTPUT}
-... (truncated)"
-        fi
-
-        {
-          echo "## Kubernetes Diff"
-          echo ""
-          echo "**Service**: \`${SERVICE_NAME}\`"
-          echo "**Environment**: \`${ENVIRONMENT}\`"
-          echo "**Status**: ${DIFF_STATUS}"
-          echo ""
-          echo "<details>"
-          echo "<summary>Output</summary>"
-          echo ""
-          echo '```'
-          echo "$DIFF_OUTPUT"
-          echo '```'
-          echo ""
-          echo "</details>"
-        } > /tmp/kubernetes-comment.md
+      uses: int128/diff-action@v2
+      with:
+        base: ${{ steps.kustomize-base.outputs.directory }}
+        head: ${{ steps.kustomize-head.outputs.directory }}
 
     - name: Comment PR
       if: inputs.pr-number != ''
       uses: thollander/actions-comment-pull-request@v3.0.1
       with:
-        file-path: /tmp/kubernetes-comment.md
+        message: |
+          ## Kubernetes Diff
+
+          **Service**: `${{ inputs.service-name }}`
+          **Environment**: `${{ inputs.environment }}`
+
+          ${{ steps.diff.outputs.comment-body || 'No changes' }}
         comment-tag: "kubernetes-${{ inputs.service-name }}-${{ inputs.environment }}"
         mode: upsert
         pr-number: ${{ inputs.pr-number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        reactions: ${{ steps.diff.outputs.status == 'Failed' && 'confused' || 'rocket' }}
+        reactions: ${{ steps.diff.outputs.has-diff == 'true' && 'rocket' || '' }}
       continue-on-error: true
