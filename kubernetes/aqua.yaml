@@ -1,0 +1,12 @@
+---
+registries:
+  - type: standard
+    ref: v4.311.0
+  - type: local
+    name: local
+    path: aqua-registry.yaml
+
+packages:
+  - name: kubernetes-sigs/kustomize@kustomize/v5.6.0
+  - name: homeport/dyff@v1.11.3
+    registry: local
