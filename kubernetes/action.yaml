@@ -1,6 +1,5 @@
 name: 'Kubernetes Diff'
 description: 'Build kustomize overlays and post dyff comparison as a PR comment'
-author: 'panicboat'
 
 branding:
   icon: 'layers'
@@ -40,10 +39,13 @@ runs:
     - name: Extract base manifests
       id: extract-base
       shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        OVERLAY_PATH: ${{ inputs.path }}
       run: |
-        BASE_SHA="${{ github.event.pull_request.base.sha }}"
+        set -euo pipefail
         BASE_DIR="/tmp/kubernetes-base"
-        SRC="${{ inputs.path }}"
+        SRC="$OVERLAY_PATH"
         mkdir -p "$BASE_DIR"
 
         if ! git rev-parse --verify "${BASE_SHA}:${SRC}" >/dev/null 2>&1; then
@@ -63,9 +65,12 @@ runs:
     - name: Build base manifests
       id: build-base
       shell: bash
+      env:
+        BASE_EXISTS: ${{ steps.extract-base.outputs.base-exists }}
       run: |
+        set -euo pipefail
         BASE_DIR="/tmp/kubernetes-base"
-        if [ "${{ steps.extract-base.outputs.base-exists }}" = "false" ]; then
+        if [ "$BASE_EXISTS" = "false" ]; then
           touch /tmp/base.yaml
           exit 0
         fi
@@ -80,8 +85,11 @@ runs:
     - name: Build head manifests
       id: build-head
       shell: bash
+      env:
+        OVERLAY_PATH: ${{ inputs.path }}
       run: |
-        if ! kustomize build "${{ inputs.path }}" > /tmp/head.yaml 2> /tmp/kustomize-head.log; then
+        set -euo pipefail
+        if ! kustomize build "$OVERLAY_PATH" > /tmp/head.yaml 2> /tmp/kustomize-head.log; then
           echo "build-failed=true" >> "$GITHUB_OUTPUT"
           cat /tmp/kustomize-head.log >&2
           exit 1
@@ -91,8 +99,12 @@ runs:
     - name: Run dyff between
       id: diff
       shell: bash
+      env:
+        BUILD_BASE_OUTCOME: ${{ steps.build-base.outcome }}
+        BUILD_HEAD_OUTCOME: ${{ steps.build-head.outcome }}
       run: |
-        if [ "${{ steps.build-base.outputs.build-failed }}" = "true" ] || [ "${{ steps.build-head.outputs.build-failed }}" = "true" ]; then
+        set -uo pipefail
+        if [ "$BUILD_BASE_OUTCOME" = "failure" ] || [ "$BUILD_HEAD_OUTCOME" = "failure" ]; then
           echo "has-diff=false" >> "$GITHUB_OUTPUT"
           echo "status=Failed" >> "$GITHUB_OUTPUT"
 
@@ -129,20 +141,30 @@ runs:
     - name: Compose comment
       if: inputs.pr-number != ''
       shell: bash
+      env:
+        DIFF_STATUS: ${{ steps.diff.outputs.status }}
+        SERVICE_NAME: ${{ inputs.service-name }}
+        ENVIRONMENT: ${{ inputs.environment }}
       run: |
-        STATUS="${{ steps.diff.outputs.status }}"
+        set -euo pipefail
+        DIFF_OUTPUT=$(head -c 60000 /tmp/diff-output.txt)
+        if [ "$(wc -c < /tmp/diff-output.txt)" -gt 60000 ]; then
+          DIFF_OUTPUT="${DIFF_OUTPUT}
+... (truncated)"
+        fi
+
         {
           echo "## Kubernetes Diff"
           echo ""
-          echo "**Service**: \`${{ inputs.service-name }}\`"
-          echo "**Environment**: \`${{ inputs.environment }}\`"
-          echo "**Status**: ${STATUS}"
+          echo "**Service**: \`${SERVICE_NAME}\`"
+          echo "**Environment**: \`${ENVIRONMENT}\`"
+          echo "**Status**: ${DIFF_STATUS}"
           echo ""
           echo "<details>"
           echo "<summary>Output</summary>"
           echo ""
           echo '```'
-          cat /tmp/diff-output.txt
+          echo "$DIFF_OUTPUT"
           echo '```'
           echo ""
           echo "</details>"
