@@ -208,7 +208,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: |
-      contains(github.event.comment.body, '@claude') || contains(github.event.issue.body, '@claude')
+      contains(github.event.comment.body, '@claude') ||
+      contains(github.event.issue.body, '@claude') ||
+      contains(github.event.review.body, '@claude')
     steps:
       - name: Generate GitHub App token
         id: app-token
@@ -344,7 +346,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: |
-      contains(github.event.comment.body, '@claude') || contains(github.event.issue.body, '@claude')
+      contains(github.event.comment.body, '@claude') ||
+      contains(github.event.issue.body, '@claude') ||
+      contains(github.event.review.body, '@claude')
     steps:
       - name: Generate GitHub App token
         id: app-token
@@ -446,7 +450,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: |
-      contains(github.event.comment.body, '@claude') || contains(github.event.issue.body, '@claude')
+      contains(github.event.comment.body, '@claude') ||
+      contains(github.event.issue.body, '@claude') ||
+      contains(github.event.review.body, '@claude')
     steps:
       - name: Generate GitHub App token
         id: app-token
