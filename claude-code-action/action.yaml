@@ -1,3 +1,4 @@
+---
 name: Claude Code Action
 description: Run Claude Code action with AWS Bedrock integration
 
@@ -7,7 +8,9 @@ inputs:
     required: true
   aws-role-arn:
     description: 'AWS IAM role ARN for Bedrock access'
-    required: true
+    required: false
+    default: >-
+      arn:aws:iam::559744160976:role/ai-assistant-develop-github-actions-role
   aws-region:
     description: 'AWS region'
     required: false
@@ -24,6 +27,16 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Authorize
+      shell: bash
+      run: |
+        owner="${{ github.repository_owner }}"
+        actor="${{ github.actor }}"
+        if [ "$owner" != "$actor" ]; then
+          echo "::error::$actor is not authorized to run Claude Code"
+          exit 1
+        fi
+
     - name: Checkout code
       uses: actions/checkout@v6.0.2
       with:
@@ -44,7 +57,8 @@ runs:
         claude_args: --model ${{ inputs.model }}
         use_bedrock: "true"
       env:
-        ANTHROPIC_BEDROCK_BASE_URL: https://bedrock-runtime.${{ inputs.aws-region }}.amazonaws.com
+        ANTHROPIC_BEDROCK_BASE_URL: >-
+          https://bedrock-runtime.${{ inputs.aws-region }}.amazonaws.com
         ANTHROPIC_MAX_RETRIES: "3"
         ANTHROPIC_TIMEOUT: "120"
         ANTHROPIC_REQUEST_DELAY: "5"
