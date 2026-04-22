@@ -133,7 +133,7 @@ runs:
           ${{ steps.parse-results.outputs.output }}
           ```
           </details>
-        comment-tag: "terragrunt-${{ inputs.service-name }}-${{ inputs.environment }}"
+        comment-tag: "terragrunt-${{ inputs.service-name }}-${{ inputs.environment }}-${{ inputs.action-type }}"
         mode: upsert
         pr-number: ${{ inputs.pr-number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
