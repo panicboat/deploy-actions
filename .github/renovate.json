@@ -44,5 +44,30 @@
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true
     }
+  ],
+
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track OpenTofu version pinned in terragrunt composite action",
+      "fileMatch": ["^terragrunt/action\\.yaml$"],
+      "matchStrings": [
+        "tofu_version:\\s*['\"](?<currentValue>[^'\"]+)['\"]"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "opentofu/opentofu",
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Track Terragrunt version pinned in terragrunt composite action",
+      "fileMatch": ["^terragrunt/action\\.yaml$"],
+      "matchStrings": [
+        "tg_version:\\s*['\"](?<currentValue>[^'\"]+)['\"]"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "gruntwork-io/terragrunt",
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    }
   ]
 }
