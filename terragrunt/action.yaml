@@ -115,7 +115,7 @@ runs:
           });
 
     - name: Comment PR with Terragrunt results
-      if: inputs.pr-number != ''
+      if: always() && inputs.pr-number != ''
       uses: thollander/actions-comment-pull-request@v3.0.1
       with:
         message: |
