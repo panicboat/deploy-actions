@@ -88,7 +88,6 @@ runs:
         tg_command: ${{ inputs.action-type }}
         tg_add_approve: ${{ inputs.action-type == 'apply' && '1' || '' }}
         github_token: ${{ inputs.github-token }}
-      continue-on-error: true
       env:
         TF_INPUT: false
         GITHUB_TOKEN: ${{ inputs.github-token }}
