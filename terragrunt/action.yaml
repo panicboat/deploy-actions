@@ -88,7 +88,6 @@ runs:
         tg_command: ${{ inputs.action-type }}
         tg_add_approve: ${{ inputs.action-type == 'apply' && '1' || '' }}
         github_token: ${{ inputs.github-token }}
-      continue-on-error: true
       env:
         TF_INPUT: false
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -116,7 +115,7 @@ runs:
           });
 
     - name: Comment PR with Terragrunt results
-      if: inputs.pr-number != ''
+      if: always() && inputs.pr-number != ''
       uses: thollander/actions-comment-pull-request@v3.0.1
       with:
         message: |
