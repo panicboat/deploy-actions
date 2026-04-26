@@ -17,7 +17,7 @@ module UseCases
           # Perform comprehensive validation
           validation_errors.concat(validate_environments(config))
           validation_errors.concat(validate_services(config))
-          validation_errors.concat(validate_directory_conventions(config))
+          validation_errors.concat(validate_stack_conventions(config))
           validation_errors.concat(validate_service_exclusions(config))
 
           if validation_errors.any?
@@ -52,37 +52,39 @@ module UseCases
           return errors
         end
 
-        required_envs = []
-        missing_envs = required_envs - environments.keys
-        errors.concat(missing_envs.map { |env| "Missing required environment: #{env}" })
-
         environments.each do |env_name, env_config|
-          errors.concat(validate_environment_config(env_name, env_config))
+          errors.concat(validate_environment_config(env_name, env_config, config))
         end
 
         errors
       end
 
       # Validate individual environment configuration
-      def validate_environment_config(env_name, env_config)
+      def validate_environment_config(env_name, env_config, config)
         errors = []
-        required_fields = %w[aws_region iam_role_plan iam_role_apply]
 
-        required_fields.each do |field|
-          unless env_config[field]
-            errors << "Environment '#{env_name}' missing required field: #{field}"
+        # Validate stacks structure if present
+        if env_config.key?('stacks')
+          stacks = env_config['stacks']
+          unless stacks.is_a?(Hash)
+            errors << "Environment '#{env_name}' 'stacks' must be a Hash"
+            return errors
           end
         end
 
-        # Validate AWS region format
-        if env_config['aws_region'] && !env_config['aws_region'].match(/^[a-z]{2}-[a-z]+-\d+$/)
-          errors << "Environment '#{env_name}' has invalid AWS region format: #{env_config['aws_region']}"
-        end
+        # Check required_attributes for each stack declared in stack_conventions
+        config.stack_conventions_config.each do |convention|
+          (convention['stacks'] || []).each do |stack_def|
+            stack_name = stack_def['name']
+            required = stack_def['required_attributes'] || []
+            next if required.empty?
 
-        # Validate IAM role ARN format
-        %w[iam_role_plan iam_role_apply].each do |role_field|
-          if env_config[role_field] && !env_config[role_field].start_with?('arn:aws:iam::')
-            errors << "Environment '#{env_name}' has invalid IAM role ARN format for #{role_field}"
+            stack_attrs = env_config.dig('stacks', stack_name) || {}
+            required.each do |attr|
+              unless stack_attrs.key?(attr)
+                errors << "Environment '#{env_name}' missing required attribute for stack '#{stack_name}': #{attr}"
+              end
+            end
           end
         end
 
@@ -99,8 +101,8 @@ module UseCases
             errors << "Service name cannot start with dot: #{service_name}"
           end
 
-          if service_config['directory_conventions']
-            service_config['directory_conventions'].each do |stack, pattern|
+          if service_config['stack_conventions']
+            service_config['stack_conventions'].each do |stack, pattern|
               unless pattern.include?('{service}')
                 errors << "Service '#{service_name}' directory convention for '#{stack}' must include {service} placeholder"
               end
@@ -112,9 +114,9 @@ module UseCases
       end
 
       # Validate directory conventions
-      def validate_directory_conventions(config)
+      def validate_stack_conventions(config)
         errors = []
-        conventions = config.directory_conventions
+        conventions = config.stack_conventions
 
         if conventions.empty?
           errors << "No directory conventions defined"
@@ -149,12 +151,6 @@ module UseCases
             errors << "Directory convention at index #{conv_index} 'stacks' cannot be empty"
             next
           end
-
-          # Check for required stacks
-          stack_names = stacks.map { |stack| stack['name'] }
-          required_stacks = %w[terragrunt]
-          missing_stacks = required_stacks - stack_names
-          errors.concat(missing_stacks.map { |stack| "Missing required stack: #{stack}" })
 
           # Validate each stack
           stacks.each_with_index do |stack, index|
@@ -231,8 +227,8 @@ module UseCases
             errors << "Service '#{service_name}' exclusion_config reason should be more descriptive (at least 10 characters)"
           end
 
-          unless service_config['directory_conventions']
-            puts "INFO: Service '#{service_name}' is excluded and has no directory_conventions defined"
+          unless service_config['stack_conventions']
+            puts "INFO: Service '#{service_name}' is excluded and has no stack_conventions defined"
           end
         end
 
@@ -250,7 +246,7 @@ module UseCases
         }
 
         # Count total stacks across all conventions
-        total_stacks = config.directory_conventions_config.sum { |conv| conv['stacks']&.length || 0 }
+        total_stacks = config.stack_conventions_config.sum { |conv| conv['stacks']&.length || 0 }
 
         summary_data = {
           environments_count: config.environments.length,

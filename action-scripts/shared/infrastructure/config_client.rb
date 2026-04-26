@@ -88,7 +88,7 @@ module Infrastructure
       raise "Configuration must be a Hash" unless config_data.is_a?(Hash)
 
       # Validate required sections
-      required_sections = %w[environments directory_conventions]
+      required_sections = %w[environments stack_conventions]
       missing_sections = required_sections - config_data.keys
       if missing_sections.any?
         raise "Missing required configuration sections: #{missing_sections.join(', ')}"
@@ -100,26 +100,41 @@ module Infrastructure
 
       environments.each_with_index do |env, index|
         raise "Environment #{index} must have 'environment' key" unless env['environment']
-        raise "Environment #{index} must have 'aws_region' key" unless env['aws_region']
-      end
 
-      # Validate new directory_conventions structure
-      conventions = config_data['directory_conventions']
-      raise "directory_conventions must be an Array" unless conventions.is_a?(Array)
-
-      conventions.each_with_index do |convention, conv_index|
-        raise "directory_conventions[#{conv_index}] must have 'root' key" unless convention.key?('root')
-        raise "directory_conventions[#{conv_index}] must have 'stacks' key" unless convention['stacks']
-
-        stacks = convention['stacks']
-        raise "directory_conventions[#{conv_index}].stacks must be an Array" unless stacks.is_a?(Array)
-
-        stacks.each_with_index do |stack, stack_index|
-          raise "directory_conventions[#{conv_index}].stacks[#{stack_index}] must have 'name' key" unless stack['name']
-          raise "directory_conventions[#{conv_index}].stacks[#{stack_index}] must have 'directory' key" unless stack['directory']
+        if env.key?('stacks')
+          stacks = env['stacks']
+          raise "Environment #{index} 'stacks' must be a Hash" unless stacks.is_a?(Hash)
+          stacks.each do |stack_name, stack_attrs|
+            unless stack_attrs.nil? || stack_attrs.is_a?(Hash)
+              raise "Environment #{index} stack '#{stack_name}' must be a Hash or null"
+            end
+          end
         end
       end
 
+      # Validate stack_conventions structure
+      conventions = config_data['stack_conventions']
+      raise "stack_conventions must be an Array" unless conventions.is_a?(Array)
+
+      conventions.each_with_index do |convention, conv_index|
+        raise "stack_conventions[#{conv_index}] must have 'root' key" unless convention.key?('root')
+        raise "stack_conventions[#{conv_index}] must have 'stacks' key" unless convention['stacks']
+
+        stacks = convention['stacks']
+        raise "stack_conventions[#{conv_index}].stacks must be an Array" unless stacks.is_a?(Array)
+
+        stacks.each_with_index do |stack, stack_index|
+          raise "stack_conventions[#{conv_index}].stacks[#{stack_index}] must have 'name' key" unless stack['name']
+          raise "stack_conventions[#{conv_index}].stacks[#{stack_index}] must have 'directory' key" unless stack['directory']
+
+          if stack.key?('required_attributes')
+            req = stack['required_attributes']
+            unless req.is_a?(Array) && req.all? { |k| k.is_a?(String) }
+              raise "stack_conventions[#{conv_index}].stacks[#{stack_index}].required_attributes must be an Array of String"
+            end
+          end
+        end
+      end
 
       # Validate services section if present
       if config_data['services']

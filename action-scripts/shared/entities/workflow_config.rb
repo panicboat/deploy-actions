@@ -15,22 +15,39 @@ module Entities
       environments[env_name]
     end
 
+    # Get stack-specific attribute hash for an environment+stack pair
+    def stack_attributes_for(env_name, stack_name)
+      env = environments[env_name]
+      return {} unless env
+      env.dig('stacks', stack_name) || {}
+    end
+
+    # Get required attribute keys declared for a stack in stack_conventions
+    def required_attributes_for(stack_name)
+      stack_conventions_config.each do |convention|
+        stack = (convention['stacks'] || []).find { |s| s['name'] == stack_name }
+        next unless stack
+        return stack['required_attributes'] || []
+      end
+      []
+    end
+
     # Get directory conventions for a service and stack with hierarchical structure
-    def directory_conventions_for(service_name, stack = 'terragrunt')
+    def stack_conventions_for(service_name, stack = 'terragrunt')
       service_config = services[service_name]
-      if service_config && service_config['directory_conventions']
-        # If service has directory_conventions, only return service-specific pattern if it exists
-        if service_config['directory_conventions'][stack]
-          return [service_config['directory_conventions'][stack]]
+      if service_config && service_config['stack_conventions']
+        # If service has stack_conventions, only return service-specific pattern if it exists
+        if service_config['stack_conventions'][stack]
+          return [service_config['stack_conventions'][stack]]
         else
-          # Service has directory_conventions but not for this stack
+          # Service has stack_conventions but not for this stack
           return []
         end
       end
 
       # Use hierarchical structure: root + stack directory
       patterns = []
-      directory_conventions_config.each do |convention|
+      stack_conventions_config.each do |convention|
         root_pattern = convention['root']
         stack_config = convention['stacks']&.find { |s| s['name'] == stack }
         next unless stack_config
@@ -46,8 +63,8 @@ module Entities
     end
 
     # Get directory convention for a service and stack (returns first match)
-    def directory_convention_for(service_name, stack = 'terragrunt')
-      conventions = directory_conventions_for(service_name, stack)
+    def stack_convention_for(service_name, stack = 'terragrunt')
+      conventions = stack_conventions_for(service_name, stack)
       conventions.first
     end
 
@@ -80,18 +97,18 @@ module Entities
 
 
     # Get directory conventions (for backward compatibility)
-    def directory_conventions
-      directory_conventions_config
+    def stack_conventions
+      stack_conventions_config
     end
 
     # Get directory conventions root patterns
-    def directory_conventions_root_patterns
-      directory_conventions_config.map { |conv| conv['root'] }.compact
+    def stack_convention_roots
+      stack_conventions_config.map { |conv| conv['root'] }.compact
     end
 
     # Get directory conventions root pattern (returns first pattern)
-    def directory_conventions_root
-      directory_conventions_root_patterns.first
+    def stack_convention_root
+      stack_convention_roots.first
     end
 
     # Validate configuration structure
@@ -99,7 +116,7 @@ module Entities
       errors = []
 
       errors << "Missing required section: environments" unless raw_config['environments']
-      errors << "Missing required section: directory_conventions" unless raw_config['directory_conventions']
+      errors << "Missing required section: stack_conventions" unless raw_config['stack_conventions']
 
       if raw_config['environments']
         raw_config['environments'].each_with_index do |env, index|
@@ -109,16 +126,16 @@ module Entities
         end
       end
 
-      if raw_config['directory_conventions']
-        unless raw_config['directory_conventions'].is_a?(Array)
-          errors << "directory_conventions must be an array"
+      if raw_config['stack_conventions']
+        unless raw_config['stack_conventions'].is_a?(Array)
+          errors << "stack_conventions must be an array"
         else
-          raw_config['directory_conventions'].each_with_index do |conv, index|
+          raw_config['stack_conventions'].each_with_index do |conv, index|
             unless conv['root']
-              errors << "directory_conventions[#{index}] missing required field: root"
+              errors << "stack_conventions[#{index}] missing required field: root"
             end
             unless conv['stacks']
-              errors << "directory_conventions[#{index}] missing required field: stacks"
+              errors << "stack_conventions[#{index}] missing required field: stacks"
             end
           end
         end
@@ -128,15 +145,15 @@ module Entities
     end
 
     # Get directory conventions configuration
-    def directory_conventions_config
-      @directory_conventions_config ||= raw_config['directory_conventions'] || []
+    def stack_conventions_config
+      @stack_conventions_config ||= raw_config['stack_conventions'] || []
     end
 
     # Get all possible directory patterns for service discovery
     def all_directory_patterns
       patterns = []
       
-      directory_conventions_config.each do |convention|
+      stack_conventions_config.each do |convention|
         root_pattern = convention['root']
         stacks = convention['stacks'] || []
         
@@ -168,7 +185,7 @@ module Entities
 
     # Get directory stacks configuration
     def directory_stacks
-      @directory_stacks ||= directory_conventions_config.first&.fetch('stacks', []) || []
+      @directory_stacks ||= stack_conventions_config.first&.fetch('stacks', []) || []
     end
   end
 end

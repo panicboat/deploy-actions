@@ -96,7 +96,7 @@ environments:
 Hierarchical directory structure for service discovery:
 
 ```yaml
-directory_conventions:
+stack_conventions:
   - root: "{service}"
     stacks:
       - name: terragrunt
@@ -120,7 +120,7 @@ services:
       type: "permanent"
 
   - name: special-service
-    directory_conventions:
+    stack_conventions:
       terragrunt: "custom/{service}/infra/{environment}"
 ```
 

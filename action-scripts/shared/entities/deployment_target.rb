@@ -3,149 +3,44 @@
 
 module Entities
   class DeploymentTarget
-    attr_reader :service, :environment, :stack, :iam_role_plan, :iam_role_apply,
-                :aws_region, :working_directory, :directory_conventions_root
+    attr_reader :service, :environment, :stack,
+                :working_directory, :stack_convention_root, :attributes
 
-    def initialize(
-      service:,
-      environment:,
-      stack: 'terragrunt',
-      iam_role_plan: nil,
-      iam_role_apply: nil,
-      aws_region: nil,
-      working_directory:,
-      directory_conventions_root: nil
-    )
-      @service = service
-      @environment = environment
-      @stack = stack
-      @iam_role_plan = iam_role_plan
-      @iam_role_apply = iam_role_apply
-      @aws_region = aws_region
-      @working_directory = working_directory
-      @directory_conventions_root = directory_conventions_root
+    def initialize(service:, stack:, working_directory:,
+                   environment: nil, stack_convention_root: nil,
+                   attributes: {})
+      raise ArgumentError, "service is required"           if service.nil?           || service.empty?
+      raise ArgumentError, "stack is required"             if stack.nil?             || stack.empty?
+      raise ArgumentError, "working_directory is required" if working_directory.nil? || working_directory.empty?
+
+      @service               = service
+      @environment           = environment
+      @stack                 = stack
+      @working_directory     = working_directory
+      @stack_convention_root = stack_convention_root
+      @attributes            = attributes.freeze
     end
 
-    # Convert to hash for GitHub Actions matrix
     def to_matrix_item
-      base_item = {
+      {
         service: service,
         environment: environment,
         stack: stack,
-        aws_region: aws_region,
         working_directory: working_directory,
-        directory_conventions_root: directory_conventions_root
-      }
-
-      # Add stack-specific configurations
-      case stack
-      when 'terragrunt'
-        base_item.merge({
-          iam_role_plan: iam_role_plan,
-          iam_role_apply: iam_role_apply
-        })
-      when 'kubernetes'
-        base_item
-      else
-        # Generic stack - include IAM roles if available
-        item = base_item.dup
-        item[:iam_role_plan] = iam_role_plan if iam_role_plan
-        item[:iam_role_apply] = iam_role_apply if iam_role_apply
-        item
-      end
+        stack_convention_root: stack_convention_root,
+      }.merge(attributes.transform_keys(&:to_sym))
     end
 
-    # Create from deploy label, target environment, and configuration
-    def self.from_deploy_label_and_environment(deploy_label, target_environment, config, stack: 'terragrunt')
-      return nil unless deploy_label.valid?
-
-      env_config = config.environment_config(target_environment)
-
-      # Get directory convention and expand placeholders
-      dir_pattern = config.directory_convention_for(deploy_label.service, stack)
-      return nil unless dir_pattern
-
-      working_dir = expand_directory_pattern(dir_pattern, deploy_label.service, target_environment)
-      return nil unless working_dir
-
-      case stack
-      when 'terragrunt'
-        new(
-          service: deploy_label.service,
-          environment: target_environment,
-          stack: stack,
-          iam_role_plan: env_config['iam_role_plan'],
-          iam_role_apply: env_config['iam_role_apply'],
-          aws_region: env_config['aws_region'],
-          working_directory: working_dir
-        )
-      when 'kubernetes'
-        new(
-          service: deploy_label.service,
-          environment: target_environment,
-          stack: stack,
-          working_directory: working_dir
-        )
-      else
-        new(
-          service: deploy_label.service,
-          environment: target_environment,
-          stack: stack,
-          working_directory: working_dir
-        )
-      end
-    end
-
-    # Check if deployment target is valid
-    def valid?
-      # Basic validation: service and working_directory are required
-      return false unless service && working_directory
-
-      case stack
-      when 'terragrunt'
-        # Terragrunt targets need environment, IAM roles and AWS region
-        environment && aws_region && iam_role_plan && iam_role_apply
-      when 'kubernetes'
-        # Kubernetes targets need environment
-        environment != nil
-      when 'docker'
-        # Docker is environment-agnostic, no environment required
-        true
-      else
-        # Generic validation - environment is optional for environment-agnostic stacks
-        true
-      end
-    end
-
-    # Equality comparison
     def ==(other)
       return false unless other.is_a?(DeploymentTarget)
-      service == other.service &&
-      environment == other.environment &&
-      stack == other.stack &&
-      working_directory == other.working_directory
+      [service, environment, stack, working_directory] ==
+        [other.service, other.environment, other.stack, other.working_directory]
     end
 
-    # Hash for use in collections
     def hash
       [service, environment, stack, working_directory].hash
     end
 
-    # Enable use in sets and as hash keys
     alias eql? ==
-
-    private
-
-    # Expand directory pattern with placeholders
-    def self.expand_directory_pattern(pattern, service_name, target_environment)
-      return nil unless pattern
-
-      expanded = pattern.gsub('{service}', service_name)
-      # Only expand {environment} placeholder if present (supports environment-agnostic stacks)
-      if pattern.include?('{environment}')
-        expanded = expanded.gsub('{environment}', target_environment)
-      end
-      expanded
-    end
   end
 end

@@ -63,23 +63,31 @@ module Interfaces
             )
           end
 
-          # Get environment and service configurations
-          env_config = config.environment_config(environment)
+          # Get service configurations
           service_config = config.services[service_name]
 
           # Test directory conventions
-          terragrunt_dir = config.directory_convention_for(service_name, 'terragrunt')
+          terragrunt_dir = config.stack_convention_for(service_name, 'terragrunt')
             &.gsub('{service}', service_name)
             &.gsub('{environment}', environment)
 
-          kubernetes_dir = config.directory_convention_for(service_name, 'kubernetes')
+          kubernetes_dir = config.stack_convention_for(service_name, 'kubernetes')
             &.gsub('{service}', service_name)
             &.gsub('{environment}', environment)
+
+          # Collect stack attributes for all stacks declared in stack_conventions
+          stack_attributes = {}
+          config.stack_conventions_config.each do |convention|
+            (convention['stacks'] || []).each do |stack_def|
+              stack_name = stack_def['name']
+              stack_attributes[stack_name] = config.stack_attributes_for(environment, stack_name)
+            end
+          end
 
           @presenter.present_service_test_result(
             service_name: service_name,
             environment: environment,
-            env_config: env_config,
+            stack_attributes: stack_attributes,
             service_config: service_config,
             terragrunt_directory: terragrunt_dir,
             kubernetes_directory: kubernetes_dir
@@ -166,36 +174,37 @@ module Interfaces
 
           environments:
             - environment: develop
-              aws_region: ap-northeast-1
-              iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-plan-role
-              iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-apply-role
+              stacks:
+                terragrunt:
+                  aws_region: ap-northeast-1
+                  iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-plan-role
+                  iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-apply-role
+                kubernetes: {}
 
             - environment: staging
-              aws_region: ap-northeast-1
-              iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-plan-role
-              iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-apply-role
+              stacks:
+                terragrunt:
+                  aws_region: ap-northeast-1
+                  iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-plan-role
+                  iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-apply-role
+                kubernetes: {}
 
             - environment: production
-              aws_region: ap-northeast-1
-              iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-plan-role
-              iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-apply-role
+              stacks:
+                terragrunt:
+                  aws_region: ap-northeast-1
+                  iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-plan-role
+                  iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-apply-role
+                kubernetes: {}
 
-          directory_conventions:
+          stack_conventions:
             - root: "{service}"
               stacks:
                 - name: terragrunt
                   directory: "terragrunt/{environment}"
+                  required_attributes: [aws_region, iam_role_plan, iam_role_apply]
                 - name: kubernetes
                   directory: "kubernetes/overlays/{environment}"
-            # Example: Multiple directory conventions for different service types
-            # - root: "apps/web/{service}"
-            #   stacks:
-            #     - name: terragrunt
-            #       directory: "terragrunt/{environment}"
-            # - root: "services/{service}"
-            #   stacks:
-            #     - name: terragrunt
-            #       directory: "terragrunt/{environment}"
 
           services:
             - name: excluded-service

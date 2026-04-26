@@ -60,9 +60,9 @@ module Interfaces
           puts "\n  Environment: #{env}".colorize(:cyan)
           targets.each do |target|
             puts "    #{target.service}:#{target.stack} -> #{target.working_directory}"
-            puts "      IAM Plan Role: #{target.iam_role_plan}" if target.iam_role_plan
-            puts "      IAM Apply Role: #{target.iam_role_apply}" if target.iam_role_apply
-            puts "      AWS Region: #{target.aws_region}"
+            target.attributes.each do |key, value|
+              puts "      #{key}: #{value}"
+            end
           end
         end
         puts ""
@@ -94,19 +94,25 @@ module Interfaces
         puts "Services: #{config.services.keys.join(', ')}"
 
         puts "\nDirectory Conventions:"
-        config.directory_conventions.each { |stack, pattern| puts "  #{stack}: #{pattern}" }
+        config.stack_conventions.each do |convention|
+          root = convention['root']
+          (convention['stacks'] || []).each do |stack|
+            puts "  #{stack['name']}: #{root}/#{stack['directory']}"
+          end
+        end
       end
 
       # Present service test results
-      def present_service_test_result(service_name:, environment:, env_config:, service_config:, terragrunt_directory:, kubernetes_directory:)
+      def present_service_test_result(service_name:, environment:, stack_attributes:, service_config:, terragrunt_directory:, kubernetes_directory:)
         puts "🔧 Service Configuration Test".colorize(:blue)
         puts "Service: #{service_name}"
         puts "Environment: #{environment}"
         puts "Terragrunt Directory: #{terragrunt_directory}"
         puts "Kubernetes Directory: #{kubernetes_directory}"
-        puts "IAM Plan Role: #{env_config['iam_role_plan']}"
-        puts "IAM Apply Role: #{env_config['iam_role_apply']}"
-        puts "AWS Region: #{env_config['aws_region']}"
+        stack_attributes.each do |stack_name, attrs|
+          puts "Stack '#{stack_name}':"
+          attrs.each { |key, value| puts "  #{key}: #{value}" }
+        end
       end
 
       # Present diagnostic results

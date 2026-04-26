@@ -105,7 +105,7 @@ PRラベルを自動的に管理：
 
 ```yaml
 # サービス検出用のディレクトリ規則（階層構造）
-directory_conventions:
+stack_conventions:
   - root: "{service}"
     stacks:
       - name: terragrunt

@@ -128,15 +128,26 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         allow(config_client).to receive(:load_workflow_config).and_return(config)
         allow(config).to receive_message_chain(:services, :key?).with(service_name).and_return(true)
         allow(config).to receive_message_chain(:environments, :key?).with(environment).and_return(true)
-        allow(config).to receive(:environment_config).with(environment).and_return({
-          'environment' => environment,
-          'aws_region' => 'ap-northeast-1'
-        })
         allow(config).to receive_message_chain(:services, :[]).with(service_name).and_return({
           'name' => service_name
         })
-        allow(config).to receive(:directory_convention_for).with(service_name, 'terragrunt').and_return('services/{service}/terragrunt/envs/{environment}')
-        allow(config).to receive(:directory_convention_for).with(service_name, 'kubernetes').and_return('services/{service}/kubernetes/overlays/{environment}')
+        allow(config).to receive(:stack_convention_for).with(service_name, 'terragrunt').and_return('services/{service}/terragrunt/envs/{environment}')
+        allow(config).to receive(:stack_convention_for).with(service_name, 'kubernetes').and_return('services/{service}/kubernetes/overlays/{environment}')
+        allow(config).to receive(:stack_conventions_config).and_return([
+          {
+            'root' => '{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
+              { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
+            ]
+          }
+        ])
+        allow(config).to receive(:stack_attributes_for).with(environment, 'terragrunt').and_return({
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123:role/plan',
+          'iam_role_apply' => 'arn:aws:iam::123:role/apply'
+        })
+        allow(config).to receive(:stack_attributes_for).with(environment, 'kubernetes').and_return({})
         allow(presenter).to receive(:present_service_test_result)
       end
 
@@ -146,7 +157,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         expect(presenter).to have_received(:present_service_test_result).with(
           service_name: service_name,
           environment: environment,
-          env_config: hash_including('environment' => environment),
+          stack_attributes: hash_including('terragrunt' => hash_including('aws_region' => 'ap-northeast-1')),
           service_config: hash_including('name' => service_name),
           terragrunt_directory: 'services/test-service/terragrunt/envs/develop',
           kubernetes_directory: 'services/test-service/kubernetes/overlays/develop'
@@ -257,7 +268,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         template = args[:template]
         expect(template).to be_a(String)
         expect(template).to include('environments:')
-        expect(template).to include('directory_conventions:')
+        expect(template).to include('stack_conventions:')
         expect(template).to include('services:')
       end
     end

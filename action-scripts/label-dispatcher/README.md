@@ -105,7 +105,7 @@ The dispatcher uses `workflow-config.yaml` for configuration:
 
 ```yaml
 # Directory conventions for service detection (hierarchical structure)
-directory_conventions:
+stack_conventions:
   - root: "{service}"
     stacks:
       - name: terragrunt
