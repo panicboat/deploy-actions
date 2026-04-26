@@ -20,8 +20,8 @@ jobs:
   rspec:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: ruby/setup-ruby@0cb964fd540e0a24c900370abf38a33466142735 # v1
         with:
           ruby-version-file: action-scripts/.ruby-version
           bundler-cache: true
@@ -31,8 +31,8 @@ jobs:
   validate-config:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: ruby/setup-ruby@0cb964fd540e0a24c900370abf38a33466142735 # v1
         with:
           ruby-version-file: action-scripts/.ruby-version
           bundler-cache: true
