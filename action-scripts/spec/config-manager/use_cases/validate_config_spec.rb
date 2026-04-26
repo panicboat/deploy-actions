@@ -110,6 +110,111 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
         expect(result.error_message).to include('stack_conventions')
       end
     end
+
+    context 'when required_attributes are not satisfied' do
+      let(:config_hash) do
+        {
+          'environments' => [
+            {
+              'environment' => 'develop',
+              'stacks' => {
+                'terragrunt' => {
+                  'aws_region' => 'ap-northeast-1'
+                  # iam_role_plan / iam_role_apply missing
+                }
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            }
+          ],
+          'services' => []
+        }
+      end
+      let(:config) { Entities::WorkflowConfig.new(config_hash) }
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'reports missing required attributes' do
+        result = use_case.execute
+
+        expect(result).to be_failure
+        expect(result.validation_errors.join(' ')).to include('iam_role_plan')
+        expect(result.validation_errors.join(' ')).to include('iam_role_apply')
+      end
+    end
+
+    context 'when required_attributes is empty array' do
+      let(:config_hash) do
+        {
+          'environments' => [{ 'environment' => 'develop', 'stacks' => { 'terragrunt' => {} } }],
+          'stack_conventions' => [
+            {
+              'root' => '{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => []
+                }
+              ]
+            }
+          ],
+          'services' => []
+        }
+      end
+      let(:config) { Entities::WorkflowConfig.new(config_hash) }
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'skips validation' do
+        result = use_case.execute
+        expect(result).to be_success
+      end
+    end
+
+    context 'when required_attributes is omitted' do
+      let(:config_hash) do
+        {
+          'environments' => [{ 'environment' => 'develop' }],
+          'stack_conventions' => [
+            {
+              'root' => '{service}',
+              'stacks' => [
+                {
+                  'name' => 'kubernetes',
+                  'directory' => 'kubernetes/overlays/{environment}'
+                }
+              ]
+            }
+          ],
+          'services' => []
+        }
+      end
+      let(:config) { Entities::WorkflowConfig.new(config_hash) }
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'is treated as no required attributes' do
+        result = use_case.execute
+        expect(result).to be_success
+      end
+    end
   end
 
   describe 'integration with real config client' do
