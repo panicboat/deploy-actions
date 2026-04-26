@@ -39,7 +39,7 @@ environments:
         iam_role_plan: arn:aws:iam::123456789012:role/terragrunt-plan-production-role
         iam_role_apply: arn:aws:iam::123456789012:role/terragrunt-apply-production-role
 
-directory_conventions:
+stack_conventions:
   - root: "{service}"
     stacks:
       - name: terragrunt
@@ -60,7 +60,7 @@ services:
 
 - `environments[].environment` は必須。
 - `environments[].stacks` は省略可（全 stack で attribute 不要なケース）。書く場合は Hash で、キーは stack 名、値は任意キー / 任意値の Hash。値は YAML scalar（string / number / boolean）を想定。
-- `directory_conventions[].stacks[].required_attributes` は省略可。配列で書く場合、要素は文字列（attribute 名）。空配列 `[]` は「必須なし」と同義。
+- `stack_conventions[].stacks[].required_attributes` は省略可。配列で書く場合、要素は文字列（attribute 名）。空配列 `[]` は「必須なし」と同義。
 - `aws_region` という名前のキーが書かれていても format チェックは行わない（汎用化）。
 
 ## Component design
@@ -71,10 +71,10 @@ services:
 module Entities
   class DeploymentTarget
     attr_reader :service, :environment, :stack,
-                :working_directory, :directory_conventions_root, :attributes
+                :working_directory, :stack_convention_root, :attributes
 
     def initialize(service:, stack:, working_directory:,
-                   environment: nil, directory_conventions_root: nil,
+                   environment: nil, stack_convention_root: nil,
                    attributes: {})
       raise ArgumentError, "service is required"           if service.nil?           || service.empty?
       raise ArgumentError, "stack is required"             if stack.nil?             || stack.empty?
@@ -84,7 +84,7 @@ module Entities
       @environment                = environment
       @stack                      = stack
       @working_directory          = working_directory
-      @directory_conventions_root = directory_conventions_root
+      @stack_convention_root = stack_convention_root
       @attributes                 = attributes.freeze
     end
 
@@ -94,7 +94,7 @@ module Entities
         environment: environment,
         stack: stack,
         working_directory: working_directory,
-        directory_conventions_root: directory_conventions_root,
+        stack_convention_root: stack_convention_root,
       }.merge(attributes.transform_keys(&:to_sym))
     end
 
@@ -126,22 +126,22 @@ end
 新規メソッド：
 
 - `stack_attributes_for(env_name, stack_name)` → Hash。`environments[env_name]&.dig('stacks', stack_name) || {}`。未定義 environment / 未定義 stack のいずれでも `{}` を返す。
-- `required_attributes_for(stack_name)` → Array<String>。`directory_conventions_config` を順に走査し、最初に見つかった `stacks[].name == stack_name` の `required_attributes`（または `[]`）を返す。
+- `required_attributes_for(stack_name)` → Array<String>。`stack_conventions_config` を順に走査し、最初に見つかった `stacks[].name == stack_name` の `required_attributes`（または `[]`）を返す。
 
-既存の `environment_config(env)` は環境ハッシュ全体を返す（`stacks` キーを含む）。`directory_conventions_for`, `directory_convention_for`, `excluded_services`, `directory_conventions_root_patterns` 等は変更なし。
+既存の `environment_config(env)` は環境ハッシュ全体を返す（`stacks` キーを含む）。`stack_conventions_for`, `stack_convention_for`, `excluded_services`, `stack_convention_roots` 等は変更なし。
 
 ### `Infrastructure::ConfigClient#validate_config!`
 
 - `aws_region` 必須チェックを削除。
 - `environments[].stacks` がある場合、Hash であることを確認。各 stack の値も Hash であることを確認。
-- `directory_conventions[].stacks[].required_attributes` がある場合、Array<String> であることを確認。
+- `stack_conventions[].stacks[].required_attributes` がある場合、Array<String> であることを確認。
 
 ### `UseCases::ConfigManagement::ValidateConfig`
 
 `validate_environment_config` を書き換え：
 
 - 旧: `required_fields = %w[aws_region iam_role_plan iam_role_apply]` をハードコードチェック。
-- 新: `directory_conventions` を走査し、各 stack の `required_attributes` について、当該 environment の `stacks.<stack>` 配下に当該キーが存在するか確認。`required_attributes` が未定義 / 空配列の場合はスキップ。
+- 新: `stack_conventions` を走査し、各 stack の `required_attributes` について、当該 environment の `stacks.<stack>` 配下に当該キーが存在するか確認。`required_attributes` が未定義 / 空配列の場合はスキップ。
 
 format チェック（AWS region / IAM ARN）は削除。
 
@@ -156,7 +156,7 @@ def create_deployment_target(deploy_label, env, stack, working_dir, config)
     environment: env,
     stack: stack,
     working_directory: working_dir,
-    directory_conventions_root: extract_root_from_working_dir(working_dir, deploy_label.service, env, config),
+    stack_convention_root: extract_root_from_working_dir(working_dir, deploy_label.service, env, config),
     attributes: env ? config.stack_attributes_for(env, stack) : {},
   )
 end
@@ -183,7 +183,7 @@ terragrunt target（後段 action 影響なし）：
   "environment": "develop",
   "stack": "terragrunt",
   "working_directory": "foo/terragrunt/develop",
-  "directory_conventions_root": "foo",
+  "stack_convention_root": "foo",
   "aws_region": "ap-northeast-1",
   "iam_role_plan": "arn:aws:iam::...",
   "iam_role_apply": "arn:aws:iam::..."
@@ -198,7 +198,7 @@ kubernetes target（旧仕様で副作用的に出力されていた `aws_region
   "environment": "develop",
   "stack": "kubernetes",
   "working_directory": "foo/kubernetes/overlays/develop",
-  "directory_conventions_root": "foo"
+  "stack_convention_root": "foo"
 }
 ```
 
@@ -206,9 +206,9 @@ kubernetes target（旧仕様で副作用的に出力されていた `aws_region
 
 config-manager の検証は以下の順で実行：
 
-1. `Infrastructure::ConfigClient#validate_config!`：YAML 構造の最低限の整合性（`environments` Array, `directory_conventions` Array, `stacks` Hash, `required_attributes` Array<String>）。
-2. `Entities::WorkflowConfig#validate!`：必須セクション（environments / directory_conventions）の存在。
-3. `UseCases::ConfigManagement::ValidateConfig`：directory_conventions に宣言された `required_attributes` を、各 environment の `stacks.<name>` 配下と突合。
+1. `Infrastructure::ConfigClient#validate_config!`：YAML 構造の最低限の整合性（`environments` Array, `stack_conventions` Array, `stacks` Hash, `required_attributes` Array<String>）。
+2. `Entities::WorkflowConfig#validate!`：必須セクション（environments / stack_conventions）の存在。
+3. `UseCases::ConfigManagement::ValidateConfig`：stack_conventions に宣言された `required_attributes` を、各 environment の `stacks.<name>` 配下と突合。
 
 `required_attributes: []` または未定義 → 検証スキップ（任意属性のみのスタックを許容）。
 
@@ -220,7 +220,7 @@ config-manager の検証は以下の順で実行：
 
 | ファイル | 主な変更 |
 |---|---|
-| `spec/factories.rb` | `:deployment_target` factory：`aws_region`/`iam_role_plan`/`iam_role_apply` を `attributes` hash に移動。`:workflow_config` factory：environments を新 stacks 構造に書き換え、directory_conventions に required_attributes を追加。 |
+| `spec/factories.rb` | `:deployment_target` factory：`aws_region`/`iam_role_plan`/`iam_role_apply` を `attributes` hash に移動。`:workflow_config` factory：environments を新 stacks 構造に書き換え、stack_conventions に required_attributes を追加。 |
 | `spec/shared/entities/workflow_config_spec.rb` | `stack_attributes_for`, `required_attributes_for` のテスト追加。旧 environment 直下属性のテスト削除。 |
 | `spec/shared/entities/deployment_target_spec.rb` | （新規）コンストラクタ invariant raise、`to_matrix_item` のフラット展開、`==`/`hash` の同値性。 |
 | `spec/config-manager/use_cases/validate_config_spec.rb` | required_attributes ベースの検証テストに置換。AWS region / IAM ARN format テスト削除。required_attributes 未定義 / 空配列の許容テスト追加。 |
