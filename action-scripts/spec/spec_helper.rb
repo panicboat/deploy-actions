@@ -118,23 +118,33 @@ module SpecHelpers
     <<~YAML
       environments:
         - environment: develop
-          aws_region: ap-northeast-1
-          iam_role_plan: arn:aws:iam::123456789012:role/plan-role
-          iam_role_apply: arn:aws:iam::123456789012:role/apply-role
+          stacks:
+            terragrunt:
+              aws_region: ap-northeast-1
+              iam_role_plan: arn:aws:iam::123456789012:role/plan-role
+              iam_role_apply: arn:aws:iam::123456789012:role/apply-role
+            kubernetes: {}
         - environment: staging
-          aws_region: ap-northeast-1
-          iam_role_plan: arn:aws:iam::123456789012:role/staging-plan-role
-          iam_role_apply: arn:aws:iam::123456789012:role/staging-apply-role
+          stacks:
+            terragrunt:
+              aws_region: ap-northeast-1
+              iam_role_plan: arn:aws:iam::123456789012:role/staging-plan-role
+              iam_role_apply: arn:aws:iam::123456789012:role/staging-apply-role
+            kubernetes: {}
         - environment: production
-          aws_region: ap-northeast-1
-          iam_role_plan: arn:aws:iam::123456789012:role/production-plan-role
-          iam_role_apply: arn:aws:iam::123456789012:role/production-apply-role
+          stacks:
+            terragrunt:
+              aws_region: ap-northeast-1
+              iam_role_plan: arn:aws:iam::123456789012:role/production-plan-role
+              iam_role_apply: arn:aws:iam::123456789012:role/production-apply-role
+            kubernetes: {}
 
       stack_conventions:
         - root: "{service}"
           stacks:
             - name: terragrunt
               directory: "terragrunt/{environment}"
+              required_attributes: [aws_region, iam_role_plan, iam_role_apply]
             - name: kubernetes
               directory: "kubernetes/overlays/{environment}"
 

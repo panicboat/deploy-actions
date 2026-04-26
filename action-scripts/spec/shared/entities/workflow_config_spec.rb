@@ -8,21 +8,34 @@ RSpec.describe Entities::WorkflowConfig do
       'environments' => [
         {
           'environment' => 'develop',
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+          'stacks' => {
+            'terragrunt' => {
+              'aws_region' => 'ap-northeast-1',
+              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+            },
+            'kubernetes' => {}
+          }
         },
         {
           'environment' => 'staging',
-          'aws_region' => 'us-west-2',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply'
+          'stacks' => {
+            'terragrunt' => {
+              'aws_region' => 'us-west-2',
+              'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan',
+              'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply'
+            }
+          }
         },
         {
           'environment' => 'production',
-          'aws_region' => 'us-west-2',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/production-plan',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply'
+          'stacks' => {
+            'terragrunt' => {
+              'aws_region' => 'us-west-2',
+              'iam_role_plan' => 'arn:aws:iam::123456789012:role/production-plan',
+              'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply'
+            }
+          }
         }
       ],
       'stack_conventions' => [
@@ -31,7 +44,8 @@ RSpec.describe Entities::WorkflowConfig do
           'stacks' => [
             {
               'name' => 'terragrunt',
-              'directory' => 'terragrunt/{environment}'
+              'directory' => 'terragrunt/{environment}',
+              'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
             },
             {
               'name' => 'kubernetes',
@@ -70,12 +84,12 @@ RSpec.describe Entities::WorkflowConfig do
   describe '#environments' do
     it 'returns environments hash keyed by environment name' do
       environments = workflow_config.environments
-      
+
       expect(environments).to be_a(Hash)
       expect(environments.keys).to contain_exactly('develop', 'staging', 'production')
-      expect(environments['develop']['aws_region']).to eq('ap-northeast-1')
-      expect(environments['staging']['aws_region']).to eq('us-west-2')
-      expect(environments['production']['aws_region']).to eq('us-west-2')
+      expect(environments['develop']['stacks']['terragrunt']['aws_region']).to eq('ap-northeast-1')
+      expect(environments['staging']['stacks']['terragrunt']['aws_region']).to eq('us-west-2')
+      expect(environments['production']['stacks']['terragrunt']['aws_region']).to eq('us-west-2')
     end
   end
 
@@ -92,12 +106,12 @@ RSpec.describe Entities::WorkflowConfig do
 
   describe '#environment_config' do
     context 'with existing environment' do
-      it 'returns environment configuration' do
+      it 'returns environment configuration including stacks' do
         config = workflow_config.environment_config('develop')
-        
+
         expect(config['environment']).to eq('develop')
-        expect(config['aws_region']).to eq('ap-northeast-1')
-        expect(config['iam_role_plan']).to eq('arn:aws:iam::123456789012:role/plan-role')
+        expect(config['stacks']['terragrunt']['aws_region']).to eq('ap-northeast-1')
+        expect(config['stacks']['terragrunt']['iam_role_plan']).to eq('arn:aws:iam::123456789012:role/plan-role')
       end
     end
 
