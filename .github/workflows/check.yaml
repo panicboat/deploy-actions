@@ -1,0 +1,40 @@
+name: check
+
+on:
+  pull_request:
+    paths:
+      - 'action-scripts/**'
+      - 'label-dispatcher/**'
+      - 'label-resolver/**'
+      - '.github/workflows/check.yaml'
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: action-scripts
+
+jobs:
+  rspec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: ruby/setup-ruby@0cb964fd540e0a24c900370abf38a33466142735 # v1
+        with:
+          ruby-version-file: action-scripts/.ruby-version
+          bundler-cache: true
+          working-directory: action-scripts
+      - run: bundle exec rspec
+
+  validate-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: ruby/setup-ruby@0cb964fd540e0a24c900370abf38a33466142735 # v1
+        with:
+          ruby-version-file: action-scripts/.ruby-version
+          bundler-cache: true
+          working-directory: action-scripts
+      - run: bundle exec ruby config-manager/bin/config-manager validate
