@@ -20,9 +20,14 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       let(:env_config) do
         {
           'environment' => 'develop',
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+          'stacks' => {
+            'terragrunt' => {
+              'aws_region' => 'ap-northeast-1',
+              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+            },
+            'kubernetes' => {}
+          }
         }
       end
 
@@ -31,6 +36,8 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         allow(config).to receive(:stack_convention_for).with('test-service', 'terragrunt').and_return('test-service/terragrunt/{environment}')
         allow(config).to receive(:stack_convention_for).with('test-service', 'kubernetes').and_return('test-service/kubernetes/overlays/{environment}')
         allow(config).to receive(:stack_convention_root).and_return('{service}')
+        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return(env_config['stacks']['terragrunt'])
+        allow(config).to receive(:stack_attributes_for).with('develop', 'kubernetes').and_return({})
 
         # Mock new directory structure
         allow(config).to receive(:send).with(:directory_stacks).and_return([
@@ -93,6 +100,12 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         })
+        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return({
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+        })
+        allow(config).to receive(:stack_attributes_for).with('develop', 'kubernetes').and_return({})
         allow(config).to receive(:stack_convention_root).and_return('{service}')
 
         # Mock directory conventions for both services
@@ -190,14 +203,19 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       let(:env_config) do
         {
           'environment' => 'develop',
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+          'stacks' => {
+            'terragrunt' => {
+              'aws_region' => 'ap-northeast-1',
+              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+            }
+          }
         }
       end
 
       before do
         allow(config).to receive(:environment_config).with('develop').and_return(env_config)
+        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return(env_config['stacks']['terragrunt'])
         allow(config).to receive(:send).with(:directory_stacks).and_return([
           { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
           { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
@@ -257,6 +275,12 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
           'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
           'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
         })
+        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return({
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+        })
+        allow(config).to receive(:stack_attributes_for).with('develop', 'kubernetes').and_return({})
         allow(config).to receive(:stack_convention_root).and_return('{service}')
         allow(config).to receive(:send).with(:directory_stacks).and_return([
           { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
@@ -310,6 +334,25 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         allow(config).to receive(:environment_config).with('develop').and_return(env_config_develop)
         allow(config).to receive(:environment_config).with('staging').and_return(env_config_staging)
         allow(config).to receive(:environment_config).with('production').and_return(env_config_production)
+        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return({
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+        })
+        allow(config).to receive(:stack_attributes_for).with('staging', 'terragrunt').and_return({
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply-role'
+        })
+        allow(config).to receive(:stack_attributes_for).with('production', 'terragrunt').and_return({
+          'aws_region' => 'ap-northeast-1',
+          'iam_role_plan' => 'arn:aws:iam::123456789012:role/prod-plan-role',
+          'iam_role_apply' => 'arn:aws:iam::123456789012:role/prod-apply-role'
+        })
+        allow(config).to receive(:stack_attributes_for).with('develop', 'kubernetes').and_return({})
+        allow(config).to receive(:stack_attributes_for).with('staging', 'kubernetes').and_return({})
+        allow(config).to receive(:stack_attributes_for).with('production', 'kubernetes').and_return({})
+        allow(config).to receive(:stack_attributes_for).with(anything, 'docker').and_return({})
 
         # Mock stack_conventions_config for find_matching_convention
         allow(config).to receive(:stack_conventions_config).and_return([
