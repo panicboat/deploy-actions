@@ -94,8 +94,8 @@ jobs:
   rspec:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: ruby/setup-ruby@0cb964fd540e0a24c900370abf38a33466142735 # v1
         with:
           ruby-version-file: action-scripts/.ruby-version
           bundler-cache: true
@@ -105,8 +105,8 @@ jobs:
   validate-config:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: ruby/setup-ruby@0cb964fd540e0a24c900370abf38a33466142735 # v1
         with:
           ruby-version-file: action-scripts/.ruby-version
           bundler-cache: true
@@ -141,7 +141,8 @@ jobs:
 
 ## Security
 
-- `actions/checkout@v4`, `ruby/setup-ruby@v1` のみ使用。サードパーティ製アクションは導入しない
+- `actions/checkout` (v4) と `ruby/setup-ruby` (v1) のみ使用。サードパーティ製アクションは導入しない
+- 各 action は full commit SHA でピン止めし、`# v<major>` コメントで読み手向けに対応するタグを併記する。バージョン更新は Renovate などで追跡する
 - secrets を参照するステップはなし（GITHUB_TOKEN も明示的には使わない）
 - `pull_request` イベントのみ使用するため、フォークからの PR で secrets が露出する `pull_request_target` のリスクなし
 
