@@ -109,6 +109,92 @@ RSpec.describe Entities::WorkflowConfig do
     end
   end
 
+  describe '#stack_attributes_for' do
+    let(:config_hash) do
+      {
+        'environments' => [
+          {
+            'environment' => 'develop',
+            'stacks' => {
+              'terragrunt' => {
+                'aws_region' => 'ap-northeast-1',
+                'iam_role_plan' => 'arn:aws:iam::123:role/plan'
+              },
+              'kubernetes' => {}
+            }
+          }
+        ],
+        'stack_conventions' => [
+          { 'root' => '{service}', 'stacks' => [
+            { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
+          ] }
+        ]
+      }
+    end
+
+    it 'returns attributes hash for an existing environment and stack' do
+      expect(workflow_config.stack_attributes_for('develop', 'terragrunt')).to eq(
+        'aws_region' => 'ap-northeast-1',
+        'iam_role_plan' => 'arn:aws:iam::123:role/plan'
+      )
+    end
+
+    it 'returns empty hash for stack defined as empty hash' do
+      expect(workflow_config.stack_attributes_for('develop', 'kubernetes')).to eq({})
+    end
+
+    it 'returns empty hash for stack not defined under environment' do
+      expect(workflow_config.stack_attributes_for('develop', 'docker')).to eq({})
+    end
+
+    it 'returns empty hash for non-existent environment' do
+      expect(workflow_config.stack_attributes_for('non-existent', 'terragrunt')).to eq({})
+    end
+
+    it 'returns empty hash when environment has no stacks key' do
+      hash = config_hash.dup
+      hash['environments'] = [{ 'environment' => 'develop' }]
+      config = described_class.new(hash)
+      expect(config.stack_attributes_for('develop', 'terragrunt')).to eq({})
+    end
+  end
+
+  describe '#required_attributes_for' do
+    let(:config_hash) do
+      {
+        'environments' => [{ 'environment' => 'develop' }],
+        'stack_conventions' => [
+          {
+            'root' => '{service}',
+            'stacks' => [
+              {
+                'name' => 'terragrunt',
+                'directory' => 'terragrunt/{environment}',
+                'required_attributes' => ['aws_region', 'iam_role_plan']
+              },
+              {
+                'name' => 'kubernetes',
+                'directory' => 'kubernetes/overlays/{environment}'
+              }
+            ]
+          }
+        ]
+      }
+    end
+
+    it 'returns required attributes list for the stack' do
+      expect(workflow_config.required_attributes_for('terragrunt')).to eq(['aws_region', 'iam_role_plan'])
+    end
+
+    it 'returns empty array when required_attributes is not defined' do
+      expect(workflow_config.required_attributes_for('kubernetes')).to eq([])
+    end
+
+    it 'returns empty array when stack is not in any convention' do
+      expect(workflow_config.required_attributes_for('docker')).to eq([])
+    end
+  end
+
 
   describe '#stack_conventions_for' do
     context 'with service-specific convention' do

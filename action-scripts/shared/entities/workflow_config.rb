@@ -15,6 +15,23 @@ module Entities
       environments[env_name]
     end
 
+    # Get stack-specific attribute hash for an environment+stack pair
+    def stack_attributes_for(env_name, stack_name)
+      env = environments[env_name]
+      return {} unless env
+      env.dig('stacks', stack_name) || {}
+    end
+
+    # Get required attribute keys declared for a stack in stack_conventions
+    def required_attributes_for(stack_name)
+      stack_conventions_config.each do |convention|
+        stack = (convention['stacks'] || []).find { |s| s['name'] == stack_name }
+        next unless stack
+        return stack['required_attributes'] || []
+      end
+      []
+    end
+
     # Get directory conventions for a service and stack with hierarchical structure
     def stack_conventions_for(service_name, stack = 'terragrunt')
       service_config = services[service_name]
