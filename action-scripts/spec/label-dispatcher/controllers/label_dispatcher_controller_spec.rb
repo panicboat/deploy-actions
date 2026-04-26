@@ -164,6 +164,7 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
       end
 
       before do
+        allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return(nil)
         allow(detect_services_use_case).to receive(:execute).and_return(detection_result)
         allow(presenter).to receive(:present_label_dispatch_result)
         allow(controller).to receive(:get_pr_info_from_api).and_return({
