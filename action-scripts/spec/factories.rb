@@ -22,30 +22,35 @@ FactoryBot.define do
     environment { "develop" }
     stack { "terragrunt" }
     working_directory { "test-service/terragrunt/develop" }
-    aws_region { "ap-northeast-1" }
-    iam_role_plan { "arn:aws:iam::123456789012:role/plan-role" }
-    iam_role_apply { "arn:aws:iam::123456789012:role/apply-role" }
     directory_conventions_root { "test-service" }
-    
+    attributes do
+      {
+        "aws_region" => "ap-northeast-1",
+        "iam_role_plan" => "arn:aws:iam::123456789012:role/plan-role",
+        "iam_role_apply" => "arn:aws:iam::123456789012:role/apply-role"
+      }
+    end
+
     initialize_with do
       new(
         service: service,
         environment: environment,
         stack: stack,
         working_directory: working_directory,
-        aws_region: aws_region,
-        iam_role_plan: iam_role_plan,
-        iam_role_apply: iam_role_apply,
-        directory_conventions_root: directory_conventions_root
+        directory_conventions_root: directory_conventions_root,
+        attributes: attributes
       )
     end
-    
+
     trait :kubernetes do
       stack { "kubernetes" }
+      working_directory { "test-service/kubernetes/overlays/develop" }
+      attributes { {} }
     end
-    
+
     trait :staging do
       environment { "staging" }
+      working_directory { "test-service/terragrunt/staging" }
     end
   end
 
