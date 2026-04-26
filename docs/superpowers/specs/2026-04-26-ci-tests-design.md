@@ -1,0 +1,166 @@
+# CI Tests Introduction Design
+
+## Background
+
+`deploy-actions` リポジトリには `action-scripts/` 配下に RSpec のテスト群（13 spec files、213 examples）と RuboCop の設定が整備されているが、`.github/workflows/` が存在せず、PR/push 時に自動実行されていない。テスト失敗や lint 違反、`workflow-config.yaml` のスキーマ不正がレビュー時に検出されず、merge 後に気づくリスクがある。
+
+## Goal
+
+PR 作成・更新のたびに以下を自動実行し、結果を GitHub の Checks に表示する。
+
+- RSpec によるユニットテスト
+- RuboCop による Ruby Lint
+- `workflow-config.yaml` のスキーマ検証
+
+## Non-goals
+
+- Branch protection の必須チェック化（後で GitHub UI から手動設定）
+- main への push トリガーの追加
+- JS スクリプト（`label-dispatcher/*.js`, `label-resolver/*.js`）への lint / 構文チェック
+- カバレッジ計測の導入
+- リリース / デプロイ用 workflow の追加
+
+## Architecture
+
+`.github/workflows/check.yaml` を 1 ファイル新設し、`pull_request` で 3 つのジョブを並列実行する。
+
+```
+.github/workflows/check.yaml
+├─ job: rubocop          # bundle exec rubocop
+├─ job: rspec            # bundle exec rspec
+└─ job: validate-config  # bundle exec ruby config-manager/bin/config-manager validate
+```
+
+すべてのジョブは `runs-on: ubuntu-latest` で `action-scripts/` を作業ディレクトリとし、共通の前段ステップ（checkout → setup-ruby + bundler-cache）を持つ。並列のため失敗箇所が一目でわかり、最遅のジョブ時間で完了する。
+
+## Triggers and Path Filter
+
+```yaml
+on:
+  pull_request:
+    paths:
+      - 'action-scripts/**'
+      - 'label-dispatcher/**'
+      - 'label-resolver/**'
+      - '.github/workflows/check.yaml'
+```
+
+- `pull_request` のみ。main への push では走らない
+- README のみの変更などはスキップされる
+- `label-dispatcher/` `label-resolver/` を含むのは、これらのアクションが `workflow-config.yaml` のスキーマと整合する必要があり、関連変更時にも検証を回したいため
+
+同一 PR で push が連続した場合、古い実行をキャンセルする:
+
+```yaml
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+## Files
+
+### New
+
+- `.github/workflows/check.yaml` — workflow 定義
+- `action-scripts/.ruby-version` — `3.4.5`（現在のローカル環境に合わせる）
+
+### Unchanged
+
+- `action-scripts/Gemfile` — rubocop / rubocop-rspec / rspec / webmock / vcr / factory_bot は既に揃っている
+- `action-scripts/spec/Rakefile` — CI からは生コマンドで呼ぶため変更しない
+- `action-scripts/workflow-config.yaml` — そのまま検証対象として使用
+
+## Workflow Definition
+
+```yaml
+name: check
+
+on:
+  pull_request:
+    paths:
+      - 'action-scripts/**'
+      - 'label-dispatcher/**'
+      - 'label-resolver/**'
+      - '.github/workflows/check.yaml'
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: action-scripts
+
+jobs:
+  rubocop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version-file: action-scripts/.ruby-version
+          bundler-cache: true
+          working-directory: action-scripts
+      - run: bundle exec rubocop
+
+  rspec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version-file: action-scripts/.ruby-version
+          bundler-cache: true
+          working-directory: action-scripts
+      - run: bundle exec rspec
+
+  validate-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version-file: action-scripts/.ruby-version
+          bundler-cache: true
+          working-directory: action-scripts
+      - run: bundle exec ruby config-manager/bin/config-manager validate
+```
+
+### Notes on YAML Semantics
+
+- `defaults.run.working-directory` は `run:` ステップにのみ適用され、`uses:` ステップ（actions/checkout, ruby/setup-ruby）には影響しない
+- `ruby/setup-ruby` の `working-directory` 入力は Gemfile の探索位置を示す独立パラメータなので、各ジョブで明示する
+- `ruby-version-file` のパスはリポジトリルートからの相対パス
+
+## Job Behavior
+
+| Job | コマンド | 失敗条件 |
+|-----|---------|---------|
+| rubocop | `bundle exec rubocop` | RuboCop 違反検出時 |
+| rspec | `bundle exec rspec` | spec 失敗時。`.rspec` の `--require spec_helper` が効くため設定不要 |
+| validate-config | `bundle exec ruby config-manager/bin/config-manager validate` | YAML パースエラー、スキーマ違反、必須属性欠落など |
+
+`spec_helper.rb` で `WebMock.disable_net_connect!` 設定済のため、CI 環境でも外部通信は発生しない。VCR カセット未録画でも spec 内で stub されているもののみ通信する設計。
+
+## Testing
+
+`workflow_dispatch` を入れない方針なので、検証は本ブランチを push してドラフト PR を立てることで行う。
+
+検証項目:
+1. 3 ジョブが並列起動する
+2. すべて green になる
+3. パスフィルタ動作確認: README のみ変更したコミットを足し、ジョブが skip される（または起動しない）ことを確認
+4. concurrency 動作確認: 連続 push で古い実行が cancel される
+
+## Security
+
+- `actions/checkout@v4`, `ruby/setup-ruby@v1` のみ使用。サードパーティ製アクションは導入しない
+- secrets を参照するステップはなし（GITHUB_TOKEN も明示的には使わない）
+- `pull_request` イベントのみ使用するため、フォークからの PR で secrets が露出する `pull_request_target` のリスクなし
+
+## Future Work
+
+- Branch protection で `rubocop` / `rspec` / `validate-config` を必須チェックに登録
+- カバレッジ計測（SimpleCov）の追加
+- JS スクリプトに対する lint / 構文チェック
+- main への push 時にも走らせるか検討（リグレッション検出のため）
