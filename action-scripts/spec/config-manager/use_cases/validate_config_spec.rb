@@ -28,7 +28,7 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
         Entities::WorkflowConfig.new({
           'environments' => [],
           'services' => [],
-          'directory_conventions' => [
+          'stack_conventions' => [
             {
               'root' => '{service}',
               'stacks' => []
@@ -98,7 +98,7 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
     context 'with empty configuration' do
       before do
         allow(config_client).to receive(:load_workflow_config).and_raise(
-          StandardError.new('Configuration validation failed: Missing required configuration sections: directory_conventions')
+          StandardError.new('Configuration validation failed: Missing required configuration sections: stack_conventions')
         )
       end
 
@@ -107,7 +107,7 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
 
         expect(result).to be_failure
         expect(result.error_message).to include('Configuration validation failed')
-        expect(result.error_message).to include('directory_conventions')
+        expect(result.error_message).to include('stack_conventions')
       end
     end
   end

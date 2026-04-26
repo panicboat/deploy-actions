@@ -96,7 +96,7 @@ environments:
 サービス発見のための階層ディレクトリ構造：
 
 ```yaml
-directory_conventions:
+stack_conventions:
   - root: "{service}"
     stacks:
       - name: terragrunt
@@ -120,7 +120,7 @@ services:
       type: "permanent"
 
   - name: special-service
-    directory_conventions:
+    stack_conventions:
       terragrunt: "custom/{service}/infra/{environment}"
 ```
 

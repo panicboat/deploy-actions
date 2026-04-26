@@ -17,7 +17,7 @@ module UseCases
           # Perform comprehensive validation
           validation_errors.concat(validate_environments(config))
           validation_errors.concat(validate_services(config))
-          validation_errors.concat(validate_directory_conventions(config))
+          validation_errors.concat(validate_stack_conventions(config))
           validation_errors.concat(validate_service_exclusions(config))
 
           if validation_errors.any?
@@ -99,8 +99,8 @@ module UseCases
             errors << "Service name cannot start with dot: #{service_name}"
           end
 
-          if service_config['directory_conventions']
-            service_config['directory_conventions'].each do |stack, pattern|
+          if service_config['stack_conventions']
+            service_config['stack_conventions'].each do |stack, pattern|
               unless pattern.include?('{service}')
                 errors << "Service '#{service_name}' directory convention for '#{stack}' must include {service} placeholder"
               end
@@ -112,9 +112,9 @@ module UseCases
       end
 
       # Validate directory conventions
-      def validate_directory_conventions(config)
+      def validate_stack_conventions(config)
         errors = []
-        conventions = config.directory_conventions
+        conventions = config.stack_conventions
 
         if conventions.empty?
           errors << "No directory conventions defined"
@@ -231,8 +231,8 @@ module UseCases
             errors << "Service '#{service_name}' exclusion_config reason should be more descriptive (at least 10 characters)"
           end
 
-          unless service_config['directory_conventions']
-            puts "INFO: Service '#{service_name}' is excluded and has no directory_conventions defined"
+          unless service_config['stack_conventions']
+            puts "INFO: Service '#{service_name}' is excluded and has no stack_conventions defined"
           end
         end
 
@@ -250,7 +250,7 @@ module UseCases
         }
 
         # Count total stacks across all conventions
-        total_stacks = config.directory_conventions_config.sum { |conv| conv['stacks']&.length || 0 }
+        total_stacks = config.stack_conventions_config.sum { |conv| conv['stacks']&.length || 0 }
 
         summary_data = {
           environments_count: config.environments.length,

@@ -130,7 +130,7 @@ module SpecHelpers
           iam_role_plan: arn:aws:iam::123456789012:role/production-plan-role
           iam_role_apply: arn:aws:iam::123456789012:role/production-apply-role
 
-      directory_conventions:
+      stack_conventions:
         - root: "{service}"
           stacks:
             - name: terragrunt
@@ -140,7 +140,7 @@ module SpecHelpers
 
       services:
         - name: demo
-          directory_conventions:
+          stack_conventions:
             terragrunt: "services/{service}/terragrunt/envs/{environment}"
         - name: excluded-service
           exclude_from_automation: true

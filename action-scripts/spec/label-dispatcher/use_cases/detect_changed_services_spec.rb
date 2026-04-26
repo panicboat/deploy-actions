@@ -109,9 +109,9 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
         
         # Mock custom directory conventions
-        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('infrastructures/auth/terragrunt')
-        allow(config).to receive(:directory_convention_for).with('frontend', 'kubernetes').and_return('apps/frontend/kubernetes')
-        allow(config).to receive(:directory_convention_for).with('legacy', anything).and_return(nil)
+        allow(config).to receive(:stack_convention_for).with('auth', 'terragrunt').and_return('infrastructures/auth/terragrunt')
+        allow(config).to receive(:stack_convention_for).with('frontend', 'kubernetes').and_return('apps/frontend/kubernetes')
+        allow(config).to receive(:stack_convention_for).with('legacy', anything).and_return(nil)
         
         allow(config).to receive(:services).and_return({
           'auth' => { 'name' => 'auth' },
@@ -122,14 +122,14 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
           { 'name' => 'terragrunt', 'directory' => 'infrastructures/{service}/terragrunt/{environment}' },
           { 'name' => 'kubernetes', 'directory' => 'apps/{service}/kubernetes/overlays/{environment}' }
         ])
-        allow(config).to receive(:directory_conventions).and_return({
+        allow(config).to receive(:stack_conventions).and_return({
           'root' => '',  # Empty root for custom patterns
           'stacks' => [
             { 'name' => 'terragrunt', 'directory' => 'infrastructures/{service}/terragrunt/{environment}' },
             { 'name' => 'kubernetes', 'directory' => 'apps/{service}/kubernetes/overlays/{environment}' }
           ]
         })
-        allow(config).to receive(:directory_conventions_config).and_return([
+        allow(config).to receive(:stack_conventions_config).and_return([
           {
             'root' => '',
             'stacks' => [
@@ -182,7 +182,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     context 'with nil refs (working directory comparison)' do
       before do
         allow(file_client).to receive(:get_changed_files).with(base_ref: nil, head_ref: nil).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).and_return('services/auth/terragrunt')
+        allow(config).to receive(:stack_convention_for).and_return('services/auth/terragrunt')
         allow(config).to receive(:services).and_return({'auth' => { 'name' => 'auth' }})
         allow(config).to receive(:send).with(:directory_stacks).and_return([
           { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
@@ -210,9 +210,9 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
 
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('my-service-name', 'terragrunt').and_return('services/{service}')
-        allow(config).to receive(:directory_convention_for).with('service_with_underscores', 'terragrunt').and_return('services/{service}')
-        allow(config).to receive(:directory_convention_for).with('123-numeric-service', 'terragrunt').and_return('services/{service}')
+        allow(config).to receive(:stack_convention_for).with('my-service-name', 'terragrunt').and_return('services/{service}')
+        allow(config).to receive(:stack_convention_for).with('service_with_underscores', 'terragrunt').and_return('services/{service}')
+        allow(config).to receive(:stack_convention_for).with('123-numeric-service', 'terragrunt').and_return('services/{service}')
         allow(config).to receive(:services).and_return({
           'my-service-name' => { 'name' => 'my-service-name' },
           'service_with_underscores' => { 'name' => 'service_with_underscores' },
@@ -221,13 +221,13 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         allow(config).to receive(:send).with(:directory_stacks).and_return([
           { 'name' => 'terragrunt', 'directory' => '' }
         ])
-        allow(config).to receive(:directory_conventions).and_return({
+        allow(config).to receive(:stack_conventions).and_return({
           'root' => 'services/{service}',
           'stacks' => [
             { 'name' => 'terragrunt', 'directory' => '' }
           ]
         })
-        allow(config).to receive(:directory_conventions_config).and_return([
+        allow(config).to receive(:stack_conventions_config).and_return([
           {
             'root' => 'services/{service}',
             'stacks' => [
@@ -257,8 +257,8 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
 
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('services/{service}/terragrunt')
-        allow(config).to receive(:directory_convention_for).with('auth', 'kubernetes').and_return('services/{service}/kubernetes')
+        allow(config).to receive(:stack_convention_for).with('auth', 'terragrunt').and_return('services/{service}/terragrunt')
+        allow(config).to receive(:stack_convention_for).with('auth', 'kubernetes').and_return('services/{service}/kubernetes')
         allow(config).to receive(:services).and_return({
           'auth' => { 'name' => 'auth' }
         })
@@ -266,14 +266,14 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
           { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
           { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
         ])
-        allow(config).to receive(:directory_conventions).and_return({
+        allow(config).to receive(:stack_conventions).and_return({
           'root' => 'services/{service}',
           'stacks' => [
             { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
             { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
           ]
         })
-        allow(config).to receive(:directory_conventions_config).and_return([
+        allow(config).to receive(:stack_conventions_config).and_return([
           {
             'root' => 'services/{service}',
             'stacks' => [
@@ -382,7 +382,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
 
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('auth', 'terragrunt').and_return('{service}/terragrunt/envs/{environment}')
+        allow(config).to receive(:stack_convention_for).with('auth', 'terragrunt').and_return('{service}/terragrunt/envs/{environment}')
         allow(config).to receive(:services).and_return({
           'auth' => { 'name' => 'auth' }
         })
@@ -404,11 +404,11 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
 
       before do
         allow(file_client).to receive(:get_changed_files).and_return(changed_files)
-        allow(config).to receive(:directory_convention_for).with('special-service', 'terragrunt').and_return('infrastructures/{service}/terraform')
+        allow(config).to receive(:stack_convention_for).with('special-service', 'terragrunt').and_return('infrastructures/{service}/terraform')
         allow(config).to receive(:services).and_return({
           'special-service' => {
             'name' => 'special-service',
-            'directory_conventions' => {
+            'stack_conventions' => {
               'terragrunt' => 'infrastructures/{service}/terraform'
             }
           }
@@ -417,13 +417,13 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         allow(config).to receive(:send).with(:directory_stacks).and_return([
           { 'name' => 'terragrunt', 'directory' => 'terraform' }
         ])
-        allow(config).to receive(:directory_conventions).and_return({
+        allow(config).to receive(:stack_conventions).and_return({
           'root' => 'infrastructures/{service}',
           'stacks' => [
             { 'name' => 'terragrunt', 'directory' => 'terraform' }
           ]
         })
-        allow(config).to receive(:directory_conventions_config).and_return([
+        allow(config).to receive(:stack_conventions_config).and_return([
           {
             'root' => 'infrastructures/{service}',
             'stacks' => [

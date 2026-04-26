@@ -77,7 +77,7 @@ FactoryBot.define do
             'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply-role'
           }
         ],
-        'directory_conventions' => [
+        'stack_conventions' => [
           {
             'root' => '{service}',
             'stacks' => [

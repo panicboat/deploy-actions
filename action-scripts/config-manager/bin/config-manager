@@ -120,8 +120,8 @@ class ConfigManagerCLI < Thor
           puts "  ✅ Automated Services (#{automated_services.length}):"
           automated_services.each do |service|
             puts "    #{service[:name]}:"
-            if service[:config]['directory_conventions']
-              service[:config]['directory_conventions'].each do |stack, pattern|
+            if service[:config]['stack_conventions']
+              service[:config]['stack_conventions'].each do |stack, pattern|
                 puts "      #{stack}: #{pattern}"
               end
             else
@@ -140,7 +140,7 @@ class ConfigManagerCLI < Thor
 
             puts "    #{service[:name]} (#{type}):"
             puts "      Reason: #{reason}"
-            if service[:config]['directory_conventions']
+            if service[:config]['stack_conventions']
               puts "      Directory conventions: configured (for future migration)"
             else
               puts "      Directory conventions: not configured"

@@ -135,8 +135,8 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         allow(config).to receive_message_chain(:services, :[]).with(service_name).and_return({
           'name' => service_name
         })
-        allow(config).to receive(:directory_convention_for).with(service_name, 'terragrunt').and_return('services/{service}/terragrunt/envs/{environment}')
-        allow(config).to receive(:directory_convention_for).with(service_name, 'kubernetes').and_return('services/{service}/kubernetes/overlays/{environment}')
+        allow(config).to receive(:stack_convention_for).with(service_name, 'terragrunt').and_return('services/{service}/terragrunt/envs/{environment}')
+        allow(config).to receive(:stack_convention_for).with(service_name, 'kubernetes').and_return('services/{service}/kubernetes/overlays/{environment}')
         allow(presenter).to receive(:present_service_test_result)
       end
 
@@ -257,7 +257,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         template = args[:template]
         expect(template).to be_a(String)
         expect(template).to include('environments:')
-        expect(template).to include('directory_conventions:')
+        expect(template).to include('stack_conventions:')
         expect(template).to include('services:')
       end
     end

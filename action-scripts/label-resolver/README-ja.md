@@ -137,7 +137,7 @@ environments:
     iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
     iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
 
-directory_conventions:
+stack_conventions:
   - root: "{service}"
     stacks:
       - name: terragrunt

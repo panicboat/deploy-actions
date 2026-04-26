@@ -68,11 +68,11 @@ module Interfaces
           service_config = config.services[service_name]
 
           # Test directory conventions
-          terragrunt_dir = config.directory_convention_for(service_name, 'terragrunt')
+          terragrunt_dir = config.stack_convention_for(service_name, 'terragrunt')
             &.gsub('{service}', service_name)
             &.gsub('{environment}', environment)
 
-          kubernetes_dir = config.directory_convention_for(service_name, 'kubernetes')
+          kubernetes_dir = config.stack_convention_for(service_name, 'kubernetes')
             &.gsub('{service}', service_name)
             &.gsub('{environment}', environment)
 
@@ -180,7 +180,7 @@ module Interfaces
               iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-plan-role
               iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-apply-role
 
-          directory_conventions:
+          stack_conventions:
             - root: "{service}"
               stacks:
                 - name: terragrunt

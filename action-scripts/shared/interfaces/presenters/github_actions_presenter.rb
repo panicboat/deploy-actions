@@ -119,7 +119,7 @@ module Interfaces
         puts "Terragrunt version: #{config.terragrunt_version}"
 
         puts "\nDirectory Conventions:"
-        config.directory_conventions.each { |stack, pattern| puts "  #{stack}: #{pattern}" }
+        config.stack_conventions.each { |stack, pattern| puts "  #{stack}: #{pattern}" }
       end
 
       # Present service test results

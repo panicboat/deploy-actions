@@ -116,7 +116,7 @@ module UseCases
       def find_matching_convention(service_name, config)
         repo_root = find_repository_root
 
-        config.directory_conventions_config.each do |convention|
+        config.stack_conventions_config.each do |convention|
           # Check if any stack in this convention has existing directories for this service
           stacks = convention['stacks'] || []
 
@@ -156,7 +156,7 @@ module UseCases
 
       # Check if stack directory exists for service/environment combination
       def stack_directory_exists?(service_name, environment, stack, config)
-        dir_patterns = config.directory_conventions_for(service_name, stack)
+        dir_patterns = config.stack_conventions_for(service_name, stack)
         return false if dir_patterns.empty?
 
         repo_root = find_repository_root
@@ -201,7 +201,7 @@ module UseCases
           next unless stack_name
 
           # Get all possible directory patterns for this service and stack
-          dir_patterns = config.directory_conventions_for(service_name, stack_name)
+          dir_patterns = config.stack_conventions_for(service_name, stack_name)
           next if dir_patterns.empty?
 
           # Check each possible directory pattern
@@ -227,8 +227,8 @@ module UseCases
 
         # Also check service-specific directory conventions
         service_config = config.services[service_name]
-        if service_config && service_config['directory_conventions']
-          service_config['directory_conventions'].each do |stack, pattern|
+        if service_config && service_config['stack_conventions']
+          service_config['stack_conventions'].each do |stack, pattern|
             # Get directory path by expanding placeholders
             dir_path = expand_directory_pattern(pattern, service_name, target_environment)
             next unless dir_path
@@ -252,7 +252,7 @@ module UseCases
         env_config = target_environment ? config.environment_config(target_environment) : nil
 
         # Get all possible directory patterns and find the first existing one
-        dir_patterns = config.directory_conventions_for(deploy_label.service, stack)
+        dir_patterns = config.stack_conventions_for(deploy_label.service, stack)
         return nil if dir_patterns.empty?
 
         working_dir = nil
@@ -289,7 +289,7 @@ module UseCases
       # Create Terragrunt deployment target
       def create_terragrunt_target(deploy_label, target_environment, env_config, working_dir)
         config = @config_client.load_workflow_config
-        directory_conventions_root = extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config)
+        stack_convention_root = extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config)
 
         Entities::DeploymentTarget.new(
           service: deploy_label.service,
@@ -299,14 +299,14 @@ module UseCases
           iam_role_apply: env_config['iam_role_apply'],
           aws_region: env_config['aws_region'],
           working_directory: working_dir,
-          directory_conventions_root: directory_conventions_root
+          stack_convention_root: stack_convention_root
         )
       end
 
       # Create Kubernetes deployment target
       def create_kubernetes_target(deploy_label, target_environment, env_config, working_dir)
         config = @config_client.load_workflow_config
-        directory_conventions_root = extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config)
+        stack_convention_root = extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config)
 
         Entities::DeploymentTarget.new(
           service: deploy_label.service,
@@ -314,21 +314,21 @@ module UseCases
           stack: 'kubernetes',
           aws_region: env_config['aws_region'],
           working_directory: working_dir,
-          directory_conventions_root: directory_conventions_root
+          stack_convention_root: stack_convention_root
         )
       end
 
       # Create generic deployment target for future stacks
       def create_generic_target(deploy_label, target_environment, stack, env_config, working_dir)
         config = @config_client.load_workflow_config
-        directory_conventions_root = extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config)
+        stack_convention_root = extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config)
 
         Entities::DeploymentTarget.new(
           service: deploy_label.service,
           environment: target_environment,
           stack: stack,
           working_directory: working_dir,
-          directory_conventions_root: directory_conventions_root
+          stack_convention_root: stack_convention_root
         )
       end
 
@@ -360,7 +360,7 @@ module UseCases
       # Extract root directory from working directory based on configuration
       def extract_root_from_working_dir(working_dir, service_name, target_environment, config)
         # Try to match working_dir against all possible patterns to find the root
-        config.directory_conventions_config.each do |convention|
+        config.stack_conventions_config.each do |convention|
           root_pattern = convention['root']
           stacks = convention['stacks'] || []
 

@@ -88,7 +88,7 @@ module Infrastructure
       raise "Configuration must be a Hash" unless config_data.is_a?(Hash)
 
       # Validate required sections
-      required_sections = %w[environments directory_conventions]
+      required_sections = %w[environments stack_conventions]
       missing_sections = required_sections - config_data.keys
       if missing_sections.any?
         raise "Missing required configuration sections: #{missing_sections.join(', ')}"
@@ -103,20 +103,20 @@ module Infrastructure
         raise "Environment #{index} must have 'aws_region' key" unless env['aws_region']
       end
 
-      # Validate new directory_conventions structure
-      conventions = config_data['directory_conventions']
-      raise "directory_conventions must be an Array" unless conventions.is_a?(Array)
+      # Validate new stack_conventions structure
+      conventions = config_data['stack_conventions']
+      raise "stack_conventions must be an Array" unless conventions.is_a?(Array)
 
       conventions.each_with_index do |convention, conv_index|
-        raise "directory_conventions[#{conv_index}] must have 'root' key" unless convention.key?('root')
-        raise "directory_conventions[#{conv_index}] must have 'stacks' key" unless convention['stacks']
+        raise "stack_conventions[#{conv_index}] must have 'root' key" unless convention.key?('root')
+        raise "stack_conventions[#{conv_index}] must have 'stacks' key" unless convention['stacks']
 
         stacks = convention['stacks']
-        raise "directory_conventions[#{conv_index}].stacks must be an Array" unless stacks.is_a?(Array)
+        raise "stack_conventions[#{conv_index}].stacks must be an Array" unless stacks.is_a?(Array)
 
         stacks.each_with_index do |stack, stack_index|
-          raise "directory_conventions[#{conv_index}].stacks[#{stack_index}] must have 'name' key" unless stack['name']
-          raise "directory_conventions[#{conv_index}].stacks[#{stack_index}] must have 'directory' key" unless stack['directory']
+          raise "stack_conventions[#{conv_index}].stacks[#{stack_index}] must have 'name' key" unless stack['name']
+          raise "stack_conventions[#{conv_index}].stacks[#{stack_index}] must have 'directory' key" unless stack['directory']
         end
       end
 
