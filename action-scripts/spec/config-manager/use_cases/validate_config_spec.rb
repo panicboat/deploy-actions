@@ -215,6 +215,48 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
         expect(result).to be_success
       end
     end
+
+    context 'when stack is not declared in environment.stacks' do
+      let(:config_hash) do
+        {
+          'environments' => [
+            {
+              'environment' => 'local',
+              'stacks' => {
+                'kubernetes' => {}
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                },
+                {
+                  'name' => 'kubernetes',
+                  'directory' => 'kubernetes/overlays/{environment}'
+                }
+              ]
+            }
+          ],
+          'services' => []
+        }
+      end
+      let(:config) { Entities::WorkflowConfig.new(config_hash) }
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'skips required_attributes validation for the undeclared stack' do
+        result = use_case.execute
+        expect(result).to be_success
+      end
+    end
   end
 
   describe 'integration with real config client' do
