@@ -100,10 +100,19 @@ module Infrastructure
 
       environments.each_with_index do |env, index|
         raise "Environment #{index} must have 'environment' key" unless env['environment']
-        raise "Environment #{index} must have 'aws_region' key" unless env['aws_region']
+
+        if env.key?('stacks')
+          stacks = env['stacks']
+          raise "Environment #{index} 'stacks' must be a Hash" unless stacks.is_a?(Hash)
+          stacks.each do |stack_name, stack_attrs|
+            unless stack_attrs.nil? || stack_attrs.is_a?(Hash)
+              raise "Environment #{index} stack '#{stack_name}' must be a Hash or null"
+            end
+          end
+        end
       end
 
-      # Validate new stack_conventions structure
+      # Validate stack_conventions structure
       conventions = config_data['stack_conventions']
       raise "stack_conventions must be an Array" unless conventions.is_a?(Array)
 
@@ -117,9 +126,15 @@ module Infrastructure
         stacks.each_with_index do |stack, stack_index|
           raise "stack_conventions[#{conv_index}].stacks[#{stack_index}] must have 'name' key" unless stack['name']
           raise "stack_conventions[#{conv_index}].stacks[#{stack_index}] must have 'directory' key" unless stack['directory']
+
+          if stack.key?('required_attributes')
+            req = stack['required_attributes']
+            unless req.is_a?(Array) && req.all? { |k| k.is_a?(String) }
+              raise "stack_conventions[#{conv_index}].stacks[#{stack_index}].required_attributes must be an Array of String"
+            end
+          end
         end
       end
-
 
       # Validate services section if present
       if config_data['services']
