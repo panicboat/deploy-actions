@@ -2,18 +2,18 @@
 
 ## Background
 
-`deploy-actions` リポジトリには `action-scripts/` 配下に RSpec のテスト群（13 spec files、213 examples）と RuboCop の設定が整備されているが、`.github/workflows/` が存在せず、PR/push 時に自動実行されていない。テスト失敗や lint 違反、`workflow-config.yaml` のスキーマ不正がレビュー時に検出されず、merge 後に気づくリスクがある。
+`deploy-actions` リポジトリには `action-scripts/` 配下に RSpec のテスト群（13 spec files、213 examples）が整備されているが、`.github/workflows/` が存在せず、PR/push 時に自動実行されていない。テスト失敗や `workflow-config.yaml` のスキーマ不正がレビュー時に検出されず、merge 後に気づくリスクがある。
 
 ## Goal
 
 PR 作成・更新のたびに以下を自動実行し、結果を GitHub の Checks に表示する。
 
 - RSpec によるユニットテスト
-- RuboCop による Ruby Lint
 - `workflow-config.yaml` のスキーマ検証
 
 ## Non-goals
 
+- RuboCop による Ruby Lint（既存コードに 905 offenses あり、別件で導入）
 - Branch protection の必須チェック化（後で GitHub UI から手動設定）
 - main への push トリガーの追加
 - JS スクリプト（`label-dispatcher/*.js`, `label-resolver/*.js`）への lint / 構文チェック
@@ -22,11 +22,10 @@ PR 作成・更新のたびに以下を自動実行し、結果を GitHub の Ch
 
 ## Architecture
 
-`.github/workflows/check.yaml` を 1 ファイル新設し、`pull_request` で 3 つのジョブを並列実行する。
+`.github/workflows/check.yaml` を 1 ファイル新設し、`pull_request` で 2 つのジョブを並列実行する。
 
 ```
 .github/workflows/check.yaml
-├─ job: rubocop          # bundle exec rubocop
 ├─ job: rspec            # bundle exec rspec
 └─ job: validate-config  # bundle exec ruby config-manager/bin/config-manager validate
 ```
@@ -63,12 +62,10 @@ concurrency:
 
 - `.github/workflows/check.yaml` — workflow 定義
 - `action-scripts/.ruby-version` — `3.4.5`（現在のローカル環境に合わせる）
-- `action-scripts/.rubocop.yml` — RuboCop のルートコンフィグ。`.rubocop_todo.yml` を `inherit_from` し、`AllCops.SuggestExtensions: false` を設定
-- `action-scripts/.rubocop_todo.yml` — `bundle exec rubocop --auto-gen-config` で生成。既存コードの 905 offenses をグランドファザー化し、新規・改修箇所だけ CI で検査する
 
 ### Unchanged
 
-- `action-scripts/Gemfile` — rubocop / rubocop-rspec / rspec / webmock / vcr / factory_bot は既に揃っている
+- `action-scripts/Gemfile` — rspec / webmock / vcr / factory_bot は既に揃っている
 - `action-scripts/spec/Rakefile` — CI からは生コマンドで呼ぶため変更しない
 - `action-scripts/workflow-config.yaml` — そのまま検証対象として使用
 
@@ -94,17 +91,6 @@ defaults:
     working-directory: action-scripts
 
 jobs:
-  rubocop:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version-file: action-scripts/.ruby-version
-          bundler-cache: true
-          working-directory: action-scripts
-      - run: bundle exec rubocop
-
   rspec:
     runs-on: ubuntu-latest
     steps:
@@ -138,7 +124,6 @@ jobs:
 
 | Job | コマンド | 失敗条件 |
 |-----|---------|---------|
-| rubocop | `bundle exec rubocop` | RuboCop 違反検出時 |
 | rspec | `bundle exec rspec` | spec 失敗時。`.rspec` の `--require spec_helper` が効くため設定不要 |
 | validate-config | `bundle exec ruby config-manager/bin/config-manager validate` | YAML パースエラー、スキーマ違反、必須属性欠落など |
 
@@ -149,7 +134,7 @@ jobs:
 `workflow_dispatch` を入れない方針なので、検証は本ブランチを push してドラフト PR を立てることで行う。
 
 検証項目:
-1. 3 ジョブが並列起動する
+1. 2 ジョブが並列起動する
 2. すべて green になる
 3. パスフィルタ動作確認: README のみ変更したコミットを足し、ジョブが skip される（または起動しない）ことを確認
 4. concurrency 動作確認: 連続 push で古い実行が cancel される
@@ -162,9 +147,8 @@ jobs:
 
 ## Future Work
 
-- Branch protection で `rubocop` / `rspec` / `validate-config` を必須チェックに登録
-- `.rubocop_todo.yml` の段階的解消（`rubocop -A` での自動修正 + 手動修正）
-- `rubocop-rspec` の有効化（spec 用ルールの追加検査）
+- Branch protection で `rspec` / `validate-config` を必須チェックに登録
+- RuboCop 導入（`.rubocop_todo.yml` でグランドファザー化 + 段階的解消）
 - カバレッジ計測（SimpleCov）の追加
 - JS スクリプトに対する lint / 構文チェック
 - main への push 時にも走らせるか検討（リグレッション検出のため）
