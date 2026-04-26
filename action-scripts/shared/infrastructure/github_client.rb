@@ -1,5 +1,5 @@
 # GitHub API client for interacting with GitHub repositories
-# Handles PR labels, comments, and repository operations
+# Handles PR labels and PR information retrieval
 
 module Infrastructure
   class GitHubClient
@@ -39,32 +39,6 @@ module Infrastructure
       raise "Failed to get PR info: #{error.message}"
     end
 
-    # Get PR information with file changes
-    def get_pr_info_with_files(pr_number)
-      pr_info = get_pr_info(pr_number)
-
-      # Get changed files
-      files = @client.pull_request_files(@repository, pr_number)
-      changed_files = files.map(&:filename)
-
-      pr_info.merge({
-        changed_files: changed_files,
-        files_count: files.length,
-        additions: files.sum(&:additions),
-        deletions: files.sum(&:deletions)
-      })
-    rescue Octokit::Error => error
-      raise "Failed to get PR files: #{error.message}"
-    end
-
-    # Get commit SHA from reference
-    def get_commit_sha(ref)
-      reference = @client.ref(@repository, "heads/#{ref}")
-      reference.object.sha
-    rescue Octokit::Error => error
-      raise "Failed to get commit SHA for ref #{ref}: #{error.message}"
-    end
-
     # Add a label to a PR
     def add_label_to_pr(pr_number, label)
       @client.add_labels_to_an_issue(@repository, pr_number, [label])
@@ -91,58 +65,6 @@ module Infrastructure
       })
     rescue Octokit::Error => error
       raise "Failed to ensure label exists #{label_name}: #{error.message}"
-    end
-
-    # Create a comment on a PR
-    def create_pr_comment(pr_number, content)
-      @client.add_comment(@repository, pr_number, content)
-    rescue Octokit::Error => error
-      raise "Failed to create PR comment: #{error.message}"
-    end
-
-    # Update or create a tagged comment on a PR
-    def update_pr_comment(pr_number, content, tag)
-      comments = @client.issue_comments(@repository, pr_number)
-      existing_comment = comments.find { |comment| comment.body.include?("<!-- #{tag} -->") }
-
-      tagged_content = content + "\n\n<!-- #{tag} -->"
-
-      if existing_comment
-        @client.update_comment(@repository, existing_comment.id, tagged_content)
-      else
-        @client.add_comment(@repository, pr_number, tagged_content)
-      end
-    rescue Octokit::Error => error
-      raise "Failed to update PR comment: #{error.message}"
-    end
-
-    # Create pull request with labels
-    def create_pull_request(repository:, base:, head:, title:, body:, labels: [])
-      pr = @client.create_pull_request(repository, base, head, title, body)
-      
-      # Add labels if provided
-      unless labels.empty?
-        @client.add_labels_to_an_issue(repository, pr.number, labels)
-      end
-      
-      pr.html_url
-    rescue Octokit::Error => error
-      raise "Failed to create pull request: #{error.message}"
-    end
-
-    # Enable auto-merge for pull request
-    def enable_auto_merge(pull_request_url, merge_method: 'squash')
-      # Extract PR number from URL
-      pr_number = pull_request_url.split('/').last.to_i
-      
-      # Use GitHub CLI for auto-merge since Octokit doesn't support it directly
-      system("gh pr merge --auto --#{merge_method} #{pull_request_url}")
-      
-      unless $?.success?
-        raise "Failed to enable auto-merge for PR ##{pr_number}"
-      end
-    rescue => error
-      raise "Failed to enable auto-merge: #{error.message}"
     end
 
     private

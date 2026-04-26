@@ -77,34 +77,23 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
           labels_removed: ['deploy:old-service']
         )
       end
-      let(:comment_result) { double('Result', success?: true, failure?: false) }
-
       before do
         allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return('true')
         allow(detect_services_use_case).to receive(:execute).and_return(detection_result)
         allow(manage_labels_use_case).to receive(:execute).and_return(manage_result)
-        allow(manage_labels_use_case).to receive(:update_deployment_comment).and_return(comment_result)
         allow(presenter).to receive(:present_label_dispatch_result)
         allow(controller).to receive(:get_pr_info_from_api).and_return({
           base_sha: 'abc123',
           head_sha: 'def456'
         })
-        allow(controller).to receive(:build_excluded_services_config).and_return({})
       end
 
-      it 'manages GitHub labels and updates comments' do
+      it 'manages GitHub labels' do
         controller.dispatch_labels(pr_number: pr_number)
 
         expect(manage_labels_use_case).to have_received(:execute).with(
           pr_number: pr_number,
           required_labels: ['deploy:test-service']
-        )
-        expect(manage_labels_use_case).to have_received(:update_deployment_comment).with(
-          pr_number: pr_number,
-          deploy_labels: deploy_labels,
-          changed_files: changed_files,
-          excluded_services: excluded_services,
-          excluded_services_config: {}
         )
         expect(presenter).to have_received(:present_label_dispatch_result).with(
           deploy_labels: deploy_labels,
@@ -159,47 +148,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
         controller.dispatch_labels(pr_number: pr_number)
 
         expect(presenter).to have_received(:present_error).with(manage_result)
-      end
-    end
-
-    context 'when comment update fails' do
-      let(:detection_result) do
-        double(
-          'Result',
-          success?: true,
-          failure?: false,
-          deploy_labels: deploy_labels,
-          changed_files: changed_files,
-          excluded_services: excluded_services
-        )
-      end
-      let(:manage_result) do
-        double(
-          'Result',
-          success?: true,
-          failure?: false,
-          labels_added: ['deploy:test-service'],
-          labels_removed: []
-        )
-      end
-      let(:comment_result) { double('Result', success?: false, failure?: true, error_message: 'Comment update failed') }
-
-      before do
-        allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return('true')
-        allow(detect_services_use_case).to receive(:execute).and_return(detection_result)
-        allow(manage_labels_use_case).to receive(:execute).and_return(manage_result)
-        allow(manage_labels_use_case).to receive(:update_deployment_comment).and_return(comment_result)
-        allow(presenter).to receive(:present_label_dispatch_result)
-        allow(controller).to receive(:get_pr_info_from_api).and_return({})
-        allow(controller).to receive(:build_excluded_services_config).and_return({})
-        allow(controller).to receive(:puts)
-      end
-
-      it 'logs warning but continues processing' do
-        controller.dispatch_labels(pr_number: pr_number)
-
-        expect(controller).to have_received(:puts).with(/Warning.*Comment update failed/)
-        expect(presenter).to have_received(:present_label_dispatch_result)
       end
     end
 
@@ -443,76 +391,4 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     end
   end
 
-  describe '#build_excluded_services_config' do
-    let(:excluded_services) { ['service1', 'service2'] }
-
-    before do
-      # Mock Infrastructure::ConfigClient
-      config_client = double('ConfigClient')
-      workflow_config = double('WorkflowConfig')
-      allow(Infrastructure::ConfigClient).to receive(:new).and_return(config_client)
-      allow(config_client).to receive(:load_workflow_config).and_return(workflow_config)
-      
-      services_config = {
-        'service1' => {
-          'exclusion_config' => {
-            'reason' => 'Custom reason 1',
-            'type' => 'permanent'
-          }
-        },
-        'service2' => {
-          'exclusion_config' => {
-            'reason' => 'Custom reason 2',
-            'type' => 'temporary'
-          }
-        }
-      }
-      allow(workflow_config).to receive(:services).and_return(services_config)
-    end
-
-    it 'builds excluded services configuration' do
-      result = controller.send(:build_excluded_services_config, excluded_services)
-
-      expect(result).to eq({
-        'service1' => {
-          reason: 'Custom reason 1',
-          type: 'permanent'
-        },
-        'service2' => {
-          reason: 'Custom reason 2',
-          type: 'temporary'
-        }
-      })
-    end
-
-    context 'with empty excluded services' do
-      it 'returns empty hash' do
-        result = controller.send(:build_excluded_services_config, [])
-
-        expect(result).to eq({})
-      end
-    end
-
-    context 'when config loading fails' do
-      before do
-        allow(Infrastructure::ConfigClient).to receive(:new).and_raise(StandardError.new('Config error'))
-        allow(controller).to receive(:puts)
-      end
-
-      it 'falls back to default configuration' do
-        result = controller.send(:build_excluded_services_config, excluded_services)
-
-        expect(result).to eq({
-          'service1' => {
-            reason: 'Manual deployment required',
-            type: 'unspecified'
-          },
-          'service2' => {
-            reason: 'Manual deployment required',
-            type: 'unspecified'
-          }
-        })
-      end
-    end
-  end
 end
