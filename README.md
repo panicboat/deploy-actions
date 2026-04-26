@@ -73,15 +73,19 @@ The toolkit reads `workflow-config.yaml`:
 ```yaml
 environments:
   - environment: develop
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+    stacks:
+      terragrunt:
+        aws_region: ap-northeast-1
+        iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
+        iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+      kubernetes: {}
 
-directory_conventions:
+stack_conventions:
   - root: "{service}"
     stacks:
       - name: terragrunt
         directory: "terragrunt/{environment}"
+        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
 
@@ -91,11 +95,6 @@ services:
     exclusion_config:
       reason: "Manual deployment required"
       type: "permanent"
-
-branch_patterns:
-  develop: develop
-  staging: staging
-  production: production
 ```
 
 See `action-scripts/workflow-config.yaml` for a runnable sample.
