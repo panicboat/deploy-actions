@@ -22,7 +22,7 @@ FactoryBot.define do
     environment { "develop" }
     stack { "terragrunt" }
     working_directory { "test-service/terragrunt/develop" }
-    directory_conventions_root { "test-service" }
+    stack_convention_root { "test-service" }
     attributes do
       {
         "aws_region" => "ap-northeast-1",
@@ -37,7 +37,7 @@ FactoryBot.define do
         environment: environment,
         stack: stack,
         working_directory: working_directory,
-        directory_conventions_root: directory_conventions_root,
+        stack_convention_root: stack_convention_root,
         attributes: attributes
       )
     end

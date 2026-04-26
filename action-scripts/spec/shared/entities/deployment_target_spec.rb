@@ -11,14 +11,14 @@ RSpec.describe Entities::DeploymentTarget do
           stack: 'terragrunt',
           working_directory: 'foo/terragrunt/develop',
           environment: 'develop',
-          directory_conventions_root: 'foo',
+          stack_convention_root: 'foo',
           attributes: { 'aws_region' => 'ap-northeast-1' }
         )
         expect(target.service).to eq('foo')
         expect(target.stack).to eq('terragrunt')
         expect(target.working_directory).to eq('foo/terragrunt/develop')
         expect(target.environment).to eq('develop')
-        expect(target.directory_conventions_root).to eq('foo')
+        expect(target.stack_convention_root).to eq('foo')
         expect(target.attributes).to eq('aws_region' => 'ap-northeast-1')
       end
     end
@@ -88,7 +88,7 @@ RSpec.describe Entities::DeploymentTarget do
         stack: 'terragrunt',
         working_directory: 'foo/terragrunt/develop',
         environment: 'develop',
-        directory_conventions_root: 'foo',
+        stack_convention_root: 'foo',
         attributes: {
           'aws_region' => 'ap-northeast-1',
           'iam_role_plan' => 'arn:aws:iam::123:role/plan',
@@ -101,7 +101,7 @@ RSpec.describe Entities::DeploymentTarget do
         environment: 'develop',
         stack: 'terragrunt',
         working_directory: 'foo/terragrunt/develop',
-        directory_conventions_root: 'foo',
+        stack_convention_root: 'foo',
         aws_region: 'ap-northeast-1',
         iam_role_plan: 'arn:aws:iam::123:role/plan',
         iam_role_apply: 'arn:aws:iam::123:role/apply'
@@ -114,7 +114,7 @@ RSpec.describe Entities::DeploymentTarget do
         stack: 'kubernetes',
         working_directory: 'foo/kubernetes/overlays/develop',
         environment: 'develop',
-        directory_conventions_root: 'foo'
+        stack_convention_root: 'foo'
       )
 
       expect(target.to_matrix_item).to eq(
@@ -122,7 +122,7 @@ RSpec.describe Entities::DeploymentTarget do
         environment: 'develop',
         stack: 'kubernetes',
         working_directory: 'foo/kubernetes/overlays/develop',
-        directory_conventions_root: 'foo'
+        stack_convention_root: 'foo'
       )
     end
   end
