@@ -79,7 +79,10 @@ module UseCases
             required = stack_def['required_attributes'] || []
             next if required.empty?
 
-            stack_attrs = env_config.dig('stacks', stack_name) || {}
+            # Skip when the environment does not declare this stack — it opts out of the stack
+            stack_attrs = env_config.dig('stacks', stack_name)
+            next if stack_attrs.nil?
+
             required.each do |attr|
               unless stack_attrs.key?(attr)
                 errors << "Environment '#{env_name}' missing required attribute for stack '#{stack_name}': #{attr}"
