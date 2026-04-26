@@ -14,7 +14,7 @@ The Label Dispatcher analyzes file changes in pull requests, detects affected se
 - **Service Mapping**: Map file changes to service deployments
 - **Label Management**: Automatically add/remove deployment labels on PRs
 - **Exclusion Support**: Handle services excluded from automation
-- **GitHub Integration**: Seamless PR label and comment management
+- **GitHub Integration**: Seamless PR label management
 - **Directory Conventions**: Flexible service directory detection
 - **Deployment Strategy Agnostic**: Works with any branching strategy or development workflow
 
@@ -97,7 +97,6 @@ Automatically manages PR labels:
 Manages services excluded from automation:
 - Identifies excluded services from configuration
 - Provides exclusion reason and type information
-- Updates PR comments with exclusion details
 - Supports temporary and permanent exclusions
 
 ## Configuration
@@ -138,7 +137,7 @@ The Label Dispatcher follows a clean architecture pattern:
 
 ### Use Cases
 - `DetectChangedServices`: Analyzes file changes and maps to services
-- `ManageLabels`: Handles PR label operations and comments
+- `ManageLabels`: Handles PR label operations
 
 ### Infrastructure
 - `GitHubClient`: GitHub API interactions
@@ -218,15 +217,6 @@ The dispatcher uses standardized label formats:
 - `deploy:service-name` - Deploy specific service
 - `deploy:all` - Deploy all services (special case)
 - Labels are automatically managed and synchronized
-
-## Comment Management
-
-The dispatcher updates PR comments with:
-
-- **Detected Services**: List of services that will be deployed
-- **Excluded Services**: Services excluded from automation with reasons
-- **File Changes**: Summary of relevant file modifications
-- **Configuration Status**: Validation and processing status
 
 ## Safety Features
 
