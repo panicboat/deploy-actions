@@ -45,7 +45,7 @@ on:
 ```
 
 - `pull_request` のみ。main への push では走らない
-- README のみの変更などはスキップされる
+- 上記いずれにも触れていない PR（README のみの変更で作成された PR など）は workflow が起動しない。既に対象パスを含む PR では、後から追加した README-only の commit でも workflow は起動する（GitHub Actions は PR 全体の累積差分で評価するため）
 - `label-dispatcher/` `label-resolver/` を含むのは、これらのアクションが `workflow-config.yaml` のスキーマと整合する必要があり、関連変更時にも検証を回したいため
 
 同一 PR で push が連続した場合、古い実行をキャンセルする:
@@ -136,7 +136,7 @@ jobs:
 検証項目:
 1. 2 ジョブが並列起動する
 2. すべて green になる
-3. パスフィルタ動作確認: README のみ変更したコミットを足し、ジョブが skip される（または起動しない）ことを確認
+3. パスフィルタ動作確認: 対象パスを一切触らない PR を別途作って、workflow がそもそも起動しないことを確認（既存 PR への README 追加 commit ではない点に注意）
 4. concurrency 動作確認: 連続 push で古い実行が cancel される
 
 ## Security
