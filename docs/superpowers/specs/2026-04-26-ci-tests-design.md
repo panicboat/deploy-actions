@@ -63,6 +63,8 @@ concurrency:
 
 - `.github/workflows/check.yaml` — workflow 定義
 - `action-scripts/.ruby-version` — `3.4.5`（現在のローカル環境に合わせる）
+- `action-scripts/.rubocop.yml` — RuboCop のルートコンフィグ。`.rubocop_todo.yml` を `inherit_from` し、`AllCops.SuggestExtensions: false` を設定
+- `action-scripts/.rubocop_todo.yml` — `bundle exec rubocop --auto-gen-config` で生成。既存コードの 905 offenses をグランドファザー化し、新規・改修箇所だけ CI で検査する
 
 ### Unchanged
 
@@ -161,6 +163,8 @@ jobs:
 ## Future Work
 
 - Branch protection で `rubocop` / `rspec` / `validate-config` を必須チェックに登録
+- `.rubocop_todo.yml` の段階的解消（`rubocop -A` での自動修正 + 手動修正）
+- `rubocop-rspec` の有効化（spec 用ルールの追加検査）
 - カバレッジ計測（SimpleCov）の追加
 - JS スクリプトに対する lint / 構文チェック
 - main への push 時にも走らせるか検討（リグレッション検出のため）
