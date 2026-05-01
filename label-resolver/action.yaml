@@ -39,27 +39,27 @@ runs:
   using: 'composite'
   steps:
     - name: Checkout deploy-actions
-      uses: actions/checkout@v6.0.2
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         repository: panicboat/deploy-actions
         path: deploy-actions
 
     - name: Checkout source repository
-      uses: actions/checkout@v6.0.2
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.github-token }}
         path: source-repo
 
     - name: Setup Ruby
-      uses: ruby/setup-ruby@v1.306.0
+      uses: ruby/setup-ruby@c4e5b1316158f92e3d49443a9d58b31d25ac0f8f # v1.306.0
       with:
         ruby-version: '4.0.3'
         bundler-cache: true
         working-directory: deploy-actions/action-scripts
 
     - name: Copy configuration from source repository
-      uses: actions/github-script@v9.0.0
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       with:
         script: |
           const path = require('path');
@@ -92,7 +92,7 @@ runs:
 
     - name: Parse deployment outputs
       id: parse
-      uses: actions/github-script@v9
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       env:
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
         HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
@@ -105,7 +105,7 @@ runs:
 
     - name: Report results
       if: always()
-      uses: actions/github-script@v9
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       with:
         script: |
           const path = require('path');
