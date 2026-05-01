@@ -50,7 +50,7 @@ bundle exec ruby label-dispatcher/bin/dispatcher help_usage
 
 ```yaml
 - name: ラベル配信
-  uses: panicboat/deploy-actions/label-dispatcher@main
+  uses: panicboat/deploy-actions/label-dispatcher@v1
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}

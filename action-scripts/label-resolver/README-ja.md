@@ -67,14 +67,14 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 ```yaml
 # 単一環境デプロイメント
 - name: デプロイメントターゲットの解決
-  uses: panicboat/deploy-actions/label-resolver@main
+  uses: panicboat/deploy-actions/label-resolver@v1
   with:
     pr_number: ${{ github.event.pull_request.number }}
     target_environments: ${{ inputs.target_environment }}
 
 # 複数環境デプロイメント
 - name: デプロイメントターゲットの解決
-  uses: panicboat/deploy-actions/label-resolver@main
+  uses: panicboat/deploy-actions/label-resolver@v1
   with:
     pr_number: ${{ github.event.pull_request.number }}
     target_environments: "develop,staging"

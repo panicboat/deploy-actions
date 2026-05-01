@@ -67,14 +67,14 @@ The resolver is typically called from GitHub Actions workflows:
 ```yaml
 # Single environment deployment
 - name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@main
+  uses: panicboat/deploy-actions/label-resolver@v1
   with:
     pr_number: ${{ github.event.pull_request.number }}
     target_environments: ${{ inputs.target_environment }}
 
 # Multiple environment deployment
 - name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@main
+  uses: panicboat/deploy-actions/label-resolver@v1
   with:
     pr_number: ${{ github.event.pull_request.number }}
     target_environments: "develop,staging"
