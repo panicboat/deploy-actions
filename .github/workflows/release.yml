@@ -22,8 +22,7 @@ jobs:
         id: release
         with:
           token: ${{ steps.app-token.outputs.token }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          release-type: simple
 
       - name: Checkout for major tag update
         if: ${{ steps.release.outputs.release_created }}
