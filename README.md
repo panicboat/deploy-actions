@@ -48,7 +48,7 @@ Translates `deploy:<service>` labels and branch context into a deployment-target
 ### Label Dispatcher
 
 ```yaml
-- uses: panicboat/deploy-actions/label-dispatcher@main
+- uses: panicboat/deploy-actions/label-dispatcher@v1
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
@@ -58,7 +58,7 @@ Translates `deploy:<service>` labels and branch context into a deployment-target
 ### Label Resolver
 
 ```yaml
-- uses: panicboat/deploy-actions/label-resolver@main
+- uses: panicboat/deploy-actions/label-resolver@v1
   with:
     action-type: plan  # or apply
     pr-number: ${{ github.event.pull_request.number }}
@@ -113,7 +113,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     steps:
-      - uses: panicboat/deploy-actions/label-dispatcher@main
+      - uses: panicboat/deploy-actions/label-dispatcher@v1
         with:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
@@ -134,7 +134,7 @@ jobs:
     if: contains(github.event.label.name, 'deploy:')
     steps:
       - id: resolve
-        uses: panicboat/deploy-actions/label-resolver@main
+        uses: panicboat/deploy-actions/label-resolver@v1
         with:
           action-type: plan
           pr-number: ${{ github.event.pull_request.number }}

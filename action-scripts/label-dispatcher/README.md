@@ -50,7 +50,7 @@ The dispatcher is typically called from GitHub Actions workflows:
 
 ```yaml
 - name: Dispatch labels
-  uses: panicboat/deploy-actions/label-dispatcher@main
+  uses: panicboat/deploy-actions/label-dispatcher@v1
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
