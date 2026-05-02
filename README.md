@@ -60,10 +60,10 @@ Translates `deploy:<service>` labels and branch context into a deployment-target
 ```yaml
 - uses: panicboat/deploy-actions/label-resolver@v1
   with:
-    action-type: plan  # or apply
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
     github-token: ${{ secrets.GITHUB_TOKEN }}
+    environments: develop  # optional, comma-separated (e.g. develop,staging)
 ```
 
 ## Configuration
@@ -136,12 +136,11 @@ jobs:
       - id: resolve
         uses: panicboat/deploy-actions/label-resolver@v1
         with:
-          action-type: plan
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Then run your own deploy step using ${{ steps.resolve.outputs.deployment-targets }}
+      # Then run your own deploy step using ${{ steps.resolve.outputs.targets }}
 ```
 
 The execution layer (`terragrunt`, `kubernetes`, etc.) is intentionally not part of this repository — the maintainer's personal wrappers live at [`panicboat/panicboat-actions`](https://github.com/panicboat/panicboat-actions).
@@ -150,7 +149,7 @@ The execution layer (`terragrunt`, `kubernetes`, etc.) is intentionally not part
 
 ### Prerequisites
 
-- Ruby 3.4+
+- Ruby 4.0.3
 - Bundler
 - Git
 
