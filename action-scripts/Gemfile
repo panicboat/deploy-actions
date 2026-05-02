@@ -12,7 +12,7 @@ gem 'aws-sdk-sts', '~> 1.12'   # AWS STS for role assumption
 
 # Configuration & Data
 gem 'yaml', '~> 0.4'           # YAML parsing
-gem 'json', '~> 2.12'          # JSON handling
+gem 'json', '~> 2.19', '>= 2.19.4'          # JSON handling
 
 # Utilities
 gem 'colorize', '~> 1.1'       # Colored terminal output
