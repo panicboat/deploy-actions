@@ -354,7 +354,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         allow(config).to receive(:stack_attributes_for).with('production', 'kubernetes').and_return({})
         allow(config).to receive(:stack_attributes_for).with(anything, 'docker').and_return({})
 
-        # Mock stack_conventions_config for find_matching_convention
+        # Mock stack_conventions_config for find_matching_conventions
         allow(config).to receive(:stack_conventions_config).and_return([
           {
             'root' => '{service}',
@@ -399,6 +399,122 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
         # Total: 1 docker + 3 terragrunt + 3 kubernetes = 7 targets
         expect(result.deployment_targets.length).to eq(7)
+      end
+    end
+
+    context 'with service spanning multiple stack conventions' do
+      let(:target_environments) { ['production'] }
+      let(:env_config) do
+        {
+          'environment' => 'production',
+          'stacks' => {
+            'terragrunt' => {
+              'aws_region' => 'ap-northeast-1',
+              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+            },
+            'kubernetes' => {}
+          }
+        }
+      end
+
+      before do
+        allow(config).to receive(:environment_config).with('production').and_return(env_config)
+        allow(config).to receive(:stack_attributes_for).with('production', 'terragrunt').and_return(env_config['stacks']['terragrunt'])
+        allow(config).to receive(:stack_attributes_for).with('production', 'kubernetes').and_return({})
+        allow(config).to receive(:services).and_return({ 'test-service' => {} })
+
+        # Two separate conventions, each contributing a different stack
+        allow(config).to receive(:stack_conventions_config).and_return([
+          {
+            'root' => 'aws/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => 'envs/{environment}' }
+            ]
+          },
+          {
+            'root' => 'kubernetes/components/{service}',
+            'stacks' => [
+              { 'name' => 'kubernetes', 'directory' => '{environment}' }
+            ]
+          }
+        ])
+
+        allow(config).to receive(:stack_conventions_for).with('test-service', 'terragrunt').and_return(['aws/test-service/envs/{environment}'])
+        allow(config).to receive(:stack_conventions_for).with('test-service', 'kubernetes').and_return(['kubernetes/components/test-service/{environment}'])
+
+        allow(File).to receive(:directory?).and_return(true)
+      end
+
+      it 'generates targets from every matching convention, not just the first' do
+        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
+
+        expect(result).to be_success
+        expect(result.deployment_targets.length).to eq(2)
+
+        terragrunt_target = result.deployment_targets.find { |t| t.stack == 'terragrunt' }
+        kubernetes_target = result.deployment_targets.find { |t| t.stack == 'kubernetes' }
+
+        expect(terragrunt_target).not_to be_nil
+        expect(terragrunt_target.working_directory).to eq('aws/test-service/envs/production')
+        expect(terragrunt_target.stack_convention_root).to eq('aws/test-service')
+
+        expect(kubernetes_target).not_to be_nil
+        expect(kubernetes_target.working_directory).to eq('kubernetes/components/test-service/production')
+        expect(kubernetes_target.stack_convention_root).to eq('kubernetes/components/test-service')
+      end
+    end
+
+    context 'with same stack name in multiple matching conventions' do
+      let(:target_environments) { ['production'] }
+      let(:env_config) do
+        {
+          'environment' => 'production',
+          'stacks' => {
+            'terragrunt' => {
+              'aws_region' => 'ap-northeast-1',
+              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
+              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
+            }
+          }
+        }
+      end
+
+      before do
+        allow(config).to receive(:environment_config).with('production').and_return(env_config)
+        allow(config).to receive(:stack_attributes_for).with('production', 'terragrunt').and_return(env_config['stacks']['terragrunt'])
+        allow(config).to receive(:services).and_return({ 'test-service' => {} })
+
+        # Two conventions, both contributing terragrunt — first one wins
+        allow(config).to receive(:stack_conventions_config).and_return([
+          {
+            'root' => 'aws/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => 'envs/{environment}' }
+            ]
+          },
+          {
+            'root' => 'github/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'directory' => 'envs/{environment}' }
+            ]
+          }
+        ])
+
+        allow(config).to receive(:stack_conventions_for).with('test-service', 'terragrunt').and_return([
+          'aws/test-service/envs/{environment}',
+          'github/test-service/envs/{environment}'
+        ])
+
+        allow(File).to receive(:directory?).and_return(true)
+      end
+
+      it 'dedupes by stack name and generates a single terragrunt target' do
+        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
+
+        expect(result).to be_success
+        expect(result.deployment_targets.length).to eq(1)
+        expect(result.deployment_targets.first.stack).to eq('terragrunt')
       end
     end
   end
