@@ -69,11 +69,15 @@ module UseCases
       def generate_targets_for_service(deploy_label, config)
         targets = []
 
-        # Get all available stacks from the first matching convention only
-        matching_convention = find_matching_convention(deploy_label.service, config)
-        return targets unless matching_convention
+        # A service can legitimately span multiple conventions (e.g. aws/{service} for
+        # terragrunt + kubernetes/components/{service} for kubernetes manifests).
+        # Collect stacks from every matching convention; dedup by stack name (first wins)
+        # so duplicate stack names across conventions don't multiply targets — downstream
+        # lookup is keyed on stack name and converges to the same working directory.
+        matching_conventions = find_matching_conventions(deploy_label.service, config)
+        return targets if matching_conventions.empty?
 
-        stacks = matching_convention['stacks'] || []
+        stacks = matching_conventions.flat_map { |c| c['stacks'] || [] }.uniq { |s| s['name'] }
 
         stacks.each do |stack_config|
           stack_name = stack_config['name']
@@ -112,20 +116,17 @@ module UseCases
         targets
       end
 
-      # Find the first matching convention that has existing directories for this service
-      def find_matching_convention(service_name, config)
+      # Find every convention that has existing directories for this service.
+      # Returns conventions in declaration order so callers can rely on first-wins dedup
+      # for stack names that appear in more than one convention.
+      def find_matching_conventions(service_name, config)
         repo_root = find_repository_root
 
-        config.stack_conventions_config.each do |convention|
-          # Check if any stack in this convention has existing directories for this service
+        config.stack_conventions_config.select do |convention|
           stacks = convention['stacks'] || []
 
-          has_existing_directory = stacks.any? do |stack_config|
-            stack_name = stack_config['name']
-
-            # Check across all target environments
+          stacks.any? do |stack_config|
             @target_environments.any? do |env|
-              # Build the pattern for this convention
               root_pattern = convention['root']
               stack_directory = stack_config['directory']
 
@@ -135,23 +136,15 @@ module UseCases
                               "#{root_pattern}/#{stack_directory}"
                             end
 
-              # Expand placeholders
               expanded_pattern = full_pattern.gsub('{service}', service_name)
-              # Only expand {environment} placeholder if present
               if full_pattern.include?('{environment}')
                 expanded_pattern = expanded_pattern.gsub('{environment}', env)
               end
 
-              # Check if directory exists
-              full_path = File.join(repo_root, expanded_pattern)
-              File.directory?(full_path)
+              File.directory?(File.join(repo_root, expanded_pattern))
             end
           end
-
-          return convention if has_existing_directory
         end
-
-        nil
       end
 
       # Check if stack directory exists for service/environment combination
