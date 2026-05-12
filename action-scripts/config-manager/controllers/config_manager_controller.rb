@@ -179,7 +179,6 @@ module Interfaces
                   aws_region: ap-northeast-1
                   iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-plan-role
                   iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-apply-role
-                kubernetes: {}
 
             - environment: staging
               stacks:
@@ -187,7 +186,6 @@ module Interfaces
                   aws_region: ap-northeast-1
                   iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-plan-role
                   iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-apply-role
-                kubernetes: {}
 
             - environment: production
               stacks:
@@ -195,7 +193,6 @@ module Interfaces
                   aws_region: ap-northeast-1
                   iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-plan-role
                   iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-apply-role
-                kubernetes: {}
 
           stack_conventions:
             - root: "{service}"
