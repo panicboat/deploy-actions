@@ -78,7 +78,6 @@ environments:
         aws_region: ap-northeast-1
         iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
         iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-      kubernetes: {}
 
 stack_conventions:
   - root: "{service}"
