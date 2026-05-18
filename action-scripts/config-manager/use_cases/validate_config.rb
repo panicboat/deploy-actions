@@ -165,17 +165,35 @@ module UseCases
               errors << "Stack at index #{index} in convention #{conv_index} missing required 'directory' field"
             end
 
-            # {environment} placeholder is now optional to support environment-agnostic stacks
-            # (e.g., Docker builds that are environment-independent)
-            # if stack['directory'] && !stack['directory'].include?('{environment}')
-            #   errors << "Stack '#{stack['name']}' in convention #{conv_index} directory must include {environment} placeholder"
-            # end
+            errors.concat(validate_placeholder_names(convention, stack, conv_index))
           end
         end
 
         errors
       end
 
+
+      FIXED_RESERVED_PLACEHOLDERS = %w[stack working_directory stack_convention_root].freeze
+
+      # Check pattern placeholders against the fixed reserved name list.
+      # Placeholders matching DeploymentTarget fixed field names would shadow
+      # those fields in matrix output, so reject them at validate time.
+      def validate_placeholder_names(convention, stack, conv_index)
+        errors = []
+        root_pattern = convention['root'] || ''
+        dir_pattern = stack['directory'] || ''
+
+        placeholders = Entities::PatternMatcher.placeholders(root_pattern) +
+                       Entities::PatternMatcher.placeholders(dir_pattern)
+
+        placeholders.uniq.each do |name|
+          if FIXED_RESERVED_PLACEHOLDERS.include?(name)
+            errors << "Convention #{conv_index} stack '#{stack['name']}' uses reserved placeholder name '{#{name}}'"
+          end
+        end
+
+        errors
+      end
 
       # Validate service exclusion configuration
       def validate_service_exclusions(config)

@@ -257,6 +257,48 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
         expect(result).to be_success
       end
     end
+
+    context 'when a stack_conventions placeholder uses a fixed reserved name' do
+      let(:config) do
+        Entities::WorkflowConfig.new({
+          'environments' => [
+            {
+              'environment' => 'develop',
+              'stacks' => {
+                'terragrunt' => {
+                  'aws_region' => 'ap-northeast-1',
+                  'iam_role_plan' => 'arn:aws:iam::1:role/plan',
+                  'iam_role_apply' => 'arn:aws:iam::1:role/apply'
+                }
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{stack}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            }
+          ],
+          'services' => []
+        })
+      end
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'returns a validation error mentioning the reserved name' do
+        result = use_case.execute
+        expect(result).to be_failure
+        expect(result.validation_errors.join("\n")).to match(/reserved.*stack/i)
+      end
+    end
   end
 
   describe 'integration with real config client' do
