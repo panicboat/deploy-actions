@@ -13,6 +13,25 @@ module Entities
       return [] if pattern.nil?
       pattern.scan(PLACEHOLDER_REGEX).map(&:first)
     end
+
+    # Substitutes {name} with values[name]. Values are looked up by string key.
+    # Raises UnresolvedPlaceholderError if a placeholder has no value.
+    # Raises ArgumentError if a substituted value contains "/".
+    def self.expand(pattern, values)
+      return pattern if pattern.nil?
+
+      pattern.gsub(PLACEHOLDER_REGEX) do
+        name = Regexp.last_match(1)
+        unless values.key?(name)
+          raise UnresolvedPlaceholderError, "no value for '{#{name}}' in pattern: #{pattern}"
+        end
+        value = values[name].to_s
+        if value.include?('/')
+          raise ArgumentError, "value for '{#{name}}' must not contain '/': #{value}"
+        end
+        value
+      end
+    end
   end
 
   class UnresolvedPlaceholderError < StandardError; end
