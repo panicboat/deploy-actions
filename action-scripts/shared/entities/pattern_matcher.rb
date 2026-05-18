@@ -32,6 +32,59 @@ module Entities
         value
       end
     end
+
+    # Returns a Hash mapping placeholder names to captured values, or nil if
+    # the path does not match the pattern in full. Captures cannot span "/".
+    def self.extract(pattern, path)
+      return nil if pattern.nil? || path.nil?
+      regex = Regexp.new("\\A#{compile_regex_body(pattern)}\\z")
+      match_to_hash(regex.match(path), pattern)
+    end
+
+    # Like extract, but only requires the pattern to match the prefix of path.
+    # Path may carry additional "/"-separated segments after the pattern.
+    def self.extract_prefix(pattern, path)
+      return nil if pattern.nil? || path.nil?
+      regex = Regexp.new("\\A#{compile_regex_body(pattern)}(?:/.*)?\\z")
+      match_to_hash(regex.match(path), pattern)
+    end
+
+    # Build a regex body where each {name} becomes a named capture (or
+    # backreference for duplicates) and every other character is escaped.
+    def self.compile_regex_body(pattern)
+      seen = []
+      buffer = +''
+      rest = pattern.dup
+
+      loop do
+        break if rest.empty?
+
+        if (m = rest.match(/\A\{([a-z_][a-z0-9_]*)\}/))
+          name = m[1]
+          if seen.include?(name)
+            buffer << "\\k<#{name}>"
+          else
+            buffer << "(?<#{name}>[^/]+)"
+            seen << name
+          end
+          rest = rest[m[0].length..]
+        else
+          buffer << Regexp.escape(rest[0])
+          rest = rest[1..]
+        end
+      end
+
+      buffer
+    end
+    private_class_method :compile_regex_body
+
+    def self.match_to_hash(match_data, pattern)
+      return nil unless match_data
+      placeholders(pattern).uniq.each_with_object({}) do |name, hash|
+        hash[name] = match_data[name]
+      end
+    end
+    private_class_method :match_to_hash
   end
 
   class UnresolvedPlaceholderError < StandardError; end

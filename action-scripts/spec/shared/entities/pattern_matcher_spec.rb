@@ -78,4 +78,78 @@ RSpec.describe Entities::PatternMatcher do
       ).to eq('x')
     end
   end
+
+  describe '.extract' do
+    it 'returns the captured value as a Hash on a full match' do
+      expect(described_class.extract('{service}', 'api')).to eq('service' => 'api')
+    end
+
+    it 'returns all captures on a full match with multiple placeholders' do
+      expect(
+        described_class.extract('{team}/{service}/terragrunt/{environment}', 'payments/api/terragrunt/develop')
+      ).to eq('team' => 'payments', 'service' => 'api', 'environment' => 'develop')
+    end
+
+    it 'returns nil when path has more segments than pattern' do
+      expect(described_class.extract('{service}', 'api/extra')).to be_nil
+    end
+
+    it 'returns nil when path has fewer segments than pattern' do
+      expect(described_class.extract('{a}/{b}', 'one')).to be_nil
+    end
+
+    it 'returns nil when a literal segment does not match' do
+      expect(described_class.extract('a/{service}', 'b/c')).to be_nil
+    end
+
+    it 'returns an empty hash when the pattern has no placeholders and matches' do
+      expect(described_class.extract('static', 'static')).to eq({})
+    end
+
+    it 'returns nil when a duplicate placeholder gets different values' do
+      expect(described_class.extract('{a}/{a}', 'x/y')).to be_nil
+    end
+
+    it 'returns the single value when a duplicate placeholder gets the same value' do
+      expect(described_class.extract('{a}/{a}', 'x/x')).to eq('a' => 'x')
+    end
+
+    it 'returns nil for nil pattern or path' do
+      expect(described_class.extract(nil, 'x')).to be_nil
+      expect(described_class.extract('{a}', nil)).to be_nil
+    end
+  end
+
+  describe '.extract_prefix' do
+    it 'matches the prefix and ignores additional segments' do
+      result = described_class.extract_prefix(
+        '{service}/terragrunt',
+        'foo/terragrunt/develop/main.tf'
+      )
+      expect(result).to eq('service' => 'foo')
+    end
+
+    it 'matches when path equals the pattern exactly' do
+      expect(
+        described_class.extract_prefix('{service}/terragrunt', 'foo/terragrunt')
+      ).to eq('service' => 'foo')
+    end
+
+    it 'returns nil when the path is shorter than the pattern' do
+      expect(described_class.extract_prefix('{a}/{b}/c', 'x/y')).to be_nil
+    end
+
+    it 'returns nil when a literal segment does not match' do
+      expect(described_class.extract_prefix('a/{b}', 'x/y/z')).to be_nil
+    end
+
+    it 'returns an empty hash when the pattern has no placeholders and the prefix matches' do
+      expect(described_class.extract_prefix('static', 'static/sub/path')).to eq({})
+    end
+
+    it 'returns nil for nil pattern or path' do
+      expect(described_class.extract_prefix(nil, 'x')).to be_nil
+      expect(described_class.extract_prefix('{a}', nil)).to be_nil
+    end
+  end
 end
