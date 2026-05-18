@@ -59,7 +59,7 @@ module Entities
       loop do
         break if rest.empty?
 
-        if (m = rest.match(/\A\{([a-z_][a-z0-9_]*)\}/))
+        if (m = rest.match(/\A#{PLACEHOLDER_REGEX.source}/))
           name = m[1]
           if seen.include?(name)
             buffer << "\\k<#{name}>"
