@@ -171,6 +171,8 @@ module UseCases
           end
         end
 
+        errors.concat(validate_structural_equivalence(conventions))
+
         errors
       end
 
@@ -228,6 +230,64 @@ module UseCases
           end
         end
         keys.uniq
+      end
+
+      # Detect conventions that share a stack name and have the same placeholder
+      # *positions* but use different placeholder *names*. If consumers point
+      # both at the same on-disk path, the matrix output's captures key name
+      # becomes YAML-order dependent — reject this at validate time.
+      def validate_structural_equivalence(conventions)
+        errors = []
+
+        full_patterns = []
+        conventions.each_with_index do |convention, conv_index|
+          (convention['stacks'] || []).each_with_index do |stack, stack_index|
+            name = stack['name']
+            next if name.nil?
+            root = convention['root'] || ''
+            dir = stack['directory'] || ''
+            joined = root.empty? ? dir : "#{root}/#{dir}"
+            full_patterns << {
+              stack: name,
+              pattern: joined,
+              conv_index: conv_index,
+              stack_index: stack_index
+            }
+          end
+        end
+
+        full_patterns.group_by { |p| p[:stack] }.each_value do |group|
+          next if group.length < 2
+
+          by_signature = group.group_by { |p| structural_signature(p[:pattern]) }
+          by_signature.each_value do |patterns|
+            next if patterns.length < 2
+
+            base = patterns.first
+            base_names = Entities::PatternMatcher.placeholders(base[:pattern])
+            patterns.drop(1).each do |other|
+              other_names = Entities::PatternMatcher.placeholders(other[:pattern])
+              next if other_names == base_names
+
+              errors << "Conventions #{base[:conv_index]} and #{other[:conv_index]} stack '#{base[:stack]}' share a placeholder structure but use different names: #{base_names.inspect} vs #{other_names.inspect}"
+            end
+          end
+        end
+
+        errors
+      end
+
+      # Return a structural signature for a pattern by replacing each placeholder
+      # with a positional marker {X0}, {X1}, ... in occurrence order. Two
+      # patterns share a signature iff they have the same literal text and the
+      # same placeholder positions, regardless of placeholder names.
+      def structural_signature(pattern)
+        index = 0
+        pattern.gsub(Entities::PatternMatcher::PLACEHOLDER_REGEX) do
+          token = "{X#{index}}"
+          index += 1
+          token
+        end
       end
 
       # Validate service exclusion configuration
