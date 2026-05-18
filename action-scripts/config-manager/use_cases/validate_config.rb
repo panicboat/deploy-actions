@@ -241,7 +241,7 @@ module UseCases
 
         full_patterns = []
         conventions.each_with_index do |convention, conv_index|
-          (convention['stacks'] || []).each_with_index do |stack, stack_index|
+          (convention['stacks'] || []).each do |stack|
             name = stack['name']
             next if name.nil?
             root = convention['root'] || ''
@@ -250,8 +250,7 @@ module UseCases
             full_patterns << {
               stack: name,
               pattern: joined,
-              conv_index: conv_index,
-              stack_index: stack_index
+              conv_index: conv_index
             }
           end
         end
@@ -263,14 +262,13 @@ module UseCases
           by_signature.each_value do |patterns|
             next if patterns.length < 2
 
-            base = patterns.first
-            base_names = Entities::PatternMatcher.placeholders(base[:pattern])
-            patterns.drop(1).each do |other|
-              other_names = Entities::PatternMatcher.placeholders(other[:pattern])
-              next if other_names == base_names
+            name_lists = patterns.map { |p| Entities::PatternMatcher.placeholders(p[:pattern]) }
+            next if name_lists.uniq.length == 1
 
-              errors << "Conventions #{base[:conv_index]} and #{other[:conv_index]} stack '#{base[:stack]}' share a placeholder structure but use different names: #{base_names.inspect} vs #{other_names.inspect}"
+            entries = patterns.zip(name_lists).map do |p, names|
+              "convention #{p[:conv_index]}=#{names.inspect}"
             end
+            errors << "Stack '#{patterns.first[:stack]}' has conventions sharing the same placeholder structure but using different names: #{entries.join(', ')}"
           end
         end
 
