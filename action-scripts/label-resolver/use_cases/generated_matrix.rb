@@ -136,24 +136,14 @@ module UseCases
                               "#{root_pattern}/#{stack_directory}"
                             end
 
-              values = { 'service' => service_name }
-              values['environment'] = env if full_pattern.include?('{environment}')
-
-              expanded_pattern = begin
-                Entities::PatternMatcher.expand(full_pattern, values)
+              begin
+                expanded = expand_directory_pattern(full_pattern, service_name, env)
               rescue Entities::UnresolvedPlaceholderError
-                # Pattern has arbitrary placeholders; replace unknowns with "*" and glob.
-                glob_pat = full_pattern.gsub(Entities::PatternMatcher::PLACEHOLDER_REGEX) do
-                  name = Regexp.last_match(1)
-                  values.key?(name) ? values[name] : '*'
-                end
-                matches = Dir.glob(glob_pat, base: repo_root).select do |rel|
-                  File.directory?(File.join(repo_root, rel))
-                end
-                next matches.any?
+                next false
               end
+              next false unless expanded
 
-              File.directory?(File.join(repo_root, expanded_pattern))
+              File.directory?(File.join(repo_root, expanded))
             end
           end
         end
@@ -362,6 +352,10 @@ module UseCases
             File.directory?(File.join(repo_root, rel))
           end
           return nil if matches.empty?
+          if matches.length > 1
+            raise "Pattern '#{pattern}' matches multiple directories (glob '#{glob_pattern}'): #{matches.inspect}. " \
+                  "Refine stack_conventions or rename services to make the resolution deterministic."
+          end
 
           matches.first
         end
