@@ -93,22 +93,21 @@ module UseCases
 
       private
 
-      # Discover services by matching changed files against directory pattern
+      # Discover services by matching changed files against a directory
+      # pattern. Uses PatternMatcher.extract_prefix so arbitrary placeholders
+      # ({team}, {region}, etc.) match correctly even though only {service}
+      # is propagated downstream from this layer.
       def discover_services_from_pattern(changed_files, pattern)
-        # Convert pattern like "{service}/terragrunt" to regex
-        regex_pattern = pattern.gsub('{service}', '([^/]+)')
-        # Also handle {environment} placeholders in pattern
-        regex_pattern = regex_pattern.gsub('{environment}', '[^/]+')
-
         services = Set.new
         changed_files.each do |file|
-          # Match pattern from the beginning of the file path
-          if match = file.match(/^#{regex_pattern}/)
-            service_name = match[1]
-            services << service_name unless service_name.start_with?('.')
-          end
-        end
+          captures = Entities::PatternMatcher.extract_prefix(pattern, file)
+          next unless captures
 
+          service_name = captures['service']
+          next if service_name.nil? || service_name.start_with?('.')
+
+          services << service_name
+        end
         services
       end
 
