@@ -92,8 +92,7 @@ module UseCases
               # Validate that the target environment exists
               env_config = config.environment_config(env)
               unless env_config
-                puts "Warning: Environment configuration not found for: #{env}"
-                next
+                raise "environment configuration not found for: #{env} (should have been caught by validate_config)"
               end
 
               # Check if stack directory exists for this service/environment combination
