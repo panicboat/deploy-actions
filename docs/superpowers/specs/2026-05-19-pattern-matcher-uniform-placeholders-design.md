@@ -78,6 +78,12 @@ module Entities
     # the path does not match the pattern. Captures cannot span "/".
     def self.extract(pattern, path)
     end
+
+    # Like extract, but only requires the pattern to match the prefix of path.
+    # Any additional segments after the pattern are allowed. Used by
+    # label-dispatcher for "file path begins with this pattern" matching.
+    def self.extract_prefix(pattern, path)
+    end
   end
 
   class UnresolvedPlaceholderError < StandardError; end
@@ -147,9 +153,11 @@ DeploymentTarget(
 changed_files × all_directory_patterns
         │
         ▼
-PatternMatcher.extract(pattern, file_path)
+PatternMatcher.extract_prefix(pattern, file_path)
         │
-        │  Take the "service" key from the captures Hash.
+        │  Prefix match because changed files have additional path segments
+        │  after the pattern (e.g. ".../develop/main.tf").
+        │  Take the "service" key from the returned captures Hash.
         │  Any other captures are ignored at this layer.
         ▼
 Set of service names
@@ -309,6 +317,11 @@ GitHub Actions matrix の strategy に流す場合は `fromJson(needs.resolve.ou
   - 部分マッチ（pattern より path が短い／長い）は `nil`
   - キャプチャ部分に `/` を含むパスは `nil`
   - 重複 `{a}/{a}` で値が一致するパスはマッチ、不一致は `nil`
+- `extract_prefix`
+  - pattern が path の prefix（区切り境界）にマッチすれば残部の有無を問わず名前付き Hash を返す
+  - 例: pattern=`"{service}/terragrunt"` path=`"foo/terragrunt/develop/main.tf"` → `{ "service" => "foo" }`
+  - prefix が一致しなければ `nil`
+  - pattern セグメントの途中で path セグメントが短く終わる場合は `nil`
 
 ### Modified Specs
 
