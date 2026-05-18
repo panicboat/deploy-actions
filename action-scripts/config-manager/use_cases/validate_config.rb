@@ -181,6 +181,12 @@ module UseCases
       # allowed parts of the pattern grammar and map to dedicated keyword args on
       # DeploymentTarget rather than into the captures Hash.
       FIXED_RESERVED_PLACEHOLDERS = %w[stack working_directory stack_convention_root].freeze
+
+      # Matches any literal that looks like a placeholder slot: '{...}' where
+      # ... is one or more characters that are not braces. Combined with
+      # PatternMatcher.placeholders this lets us find {...} forms that don't
+      # match the placeholder grammar (e.g. {Team}, {my-var}, {a b}).
+      INVALID_PLACEHOLDER_LITERAL = /\{[^{}]*\}/
       def validate_placeholder_names(convention, stack, conv_index, dynamic_reserved)
         errors = []
         root_pattern = convention['root'] || ''
@@ -196,6 +202,13 @@ module UseCases
           if dynamic_reserved.include?(name)
             errors << "Convention #{conv_index} stack '#{stack['name']}' placeholder '{#{name}}' collides with environments attribute key '#{name}'"
           end
+        end
+
+        all_braced = [root_pattern, dir_pattern].flat_map { |p| p.to_s.scan(INVALID_PLACEHOLDER_LITERAL) }
+        valid_braced = placeholders.map { |n| "{#{n}}" }
+        invalid = all_braced - valid_braced
+        invalid.uniq.each do |literal|
+          errors << "Convention #{conv_index} stack '#{stack['name']}' contains invalid placeholder literal '#{literal}'"
         end
 
         errors
