@@ -126,6 +126,8 @@ module UseCases
           return errors
         end
 
+        dynamic_reserved = collect_attribute_keys(config)
+
         # Validate each directory convention
         conventions.each_with_index do |convention, conv_index|
           unless convention.is_a?(Hash)
@@ -165,7 +167,7 @@ module UseCases
               errors << "Stack at index #{index} in convention #{conv_index} missing required 'directory' field"
             end
 
-            errors.concat(validate_placeholder_names(convention, stack, conv_index))
+            errors.concat(validate_placeholder_names(convention, stack, conv_index, dynamic_reserved))
           end
         end
 
@@ -175,10 +177,11 @@ module UseCases
 
       FIXED_RESERVED_PLACEHOLDERS = %w[stack working_directory stack_convention_root].freeze
 
-      # Check pattern placeholders against the fixed reserved name list.
-      # Placeholders matching DeploymentTarget fixed field names would shadow
-      # those fields in matrix output, so reject them at validate time.
-      def validate_placeholder_names(convention, stack, conv_index)
+      # Check pattern placeholders against the fixed reserved name list and
+      # dynamic attribute keys. Placeholders matching DeploymentTarget fixed
+      # field names or environment attribute keys would collide with existing
+      # top-level keys in matrix output, so reject them at validate time.
+      def validate_placeholder_names(convention, stack, conv_index, dynamic_reserved)
         errors = []
         root_pattern = convention['root'] || ''
         dir_pattern = stack['directory'] || ''
@@ -190,9 +193,28 @@ module UseCases
           if FIXED_RESERVED_PLACEHOLDERS.include?(name)
             errors << "Convention #{conv_index} stack '#{stack['name']}' uses reserved placeholder name '{#{name}}'"
           end
+          if dynamic_reserved.include?(name)
+            errors << "Convention #{conv_index} stack '#{stack['name']}' placeholder '{#{name}}' collides with attribute key '#{name}'"
+          end
         end
 
         errors
+      end
+
+      # Collect every key used under environments[].stacks[<stack>] across all
+      # environments. These keys end up as top-level keys in matrix output via
+      # DeploymentTarget#to_matrix_item.
+      def collect_attribute_keys(config)
+        keys = []
+        config.environments.each_value do |env_config|
+          stacks = env_config['stacks']
+          next unless stacks.is_a?(Hash)
+          stacks.each_value do |attrs|
+            next unless attrs.is_a?(Hash)
+            keys.concat(attrs.keys.map(&:to_s))
+          end
+        end
+        keys.uniq
       end
 
       # Validate service exclusion configuration
