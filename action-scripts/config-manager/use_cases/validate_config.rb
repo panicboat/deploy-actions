@@ -175,12 +175,12 @@ module UseCases
       end
 
 
+      # Placeholder names matching DeploymentTarget fixed field names would shadow
+      # those fields in the matrix output Hash, so reject them at validate time.
+      # {service} and {environment} are intentionally excluded: they are required /
+      # allowed parts of the pattern grammar and map to dedicated keyword args on
+      # DeploymentTarget rather than into the captures Hash.
       FIXED_RESERVED_PLACEHOLDERS = %w[stack working_directory stack_convention_root].freeze
-
-      # Check pattern placeholders against the fixed reserved name list and
-      # dynamic attribute keys. Placeholders matching DeploymentTarget fixed
-      # field names or environment attribute keys would collide with existing
-      # top-level keys in matrix output, so reject them at validate time.
       def validate_placeholder_names(convention, stack, conv_index, dynamic_reserved)
         errors = []
         root_pattern = convention['root'] || ''
@@ -194,7 +194,7 @@ module UseCases
             errors << "Convention #{conv_index} stack '#{stack['name']}' uses reserved placeholder name '{#{name}}'"
           end
           if dynamic_reserved.include?(name)
-            errors << "Convention #{conv_index} stack '#{stack['name']}' placeholder '{#{name}}' collides with attribute key '#{name}'"
+            errors << "Convention #{conv_index} stack '#{stack['name']}' placeholder '{#{name}}' collides with environments attribute key '#{name}'"
           end
         end
 
