@@ -465,6 +465,62 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       end
     end
 
+    context 'when stack_conventions root contains an arbitrary placeholder' do
+      let(:config_yaml_hash) do
+        {
+          'environments' => [
+            {
+              'environment' => 'develop',
+              'stacks' => {
+                'terragrunt' => {
+                  'aws_region' => 'ap-northeast-1',
+                  'iam_role_plan' => 'arn:aws:iam::1:role/plan',
+                  'iam_role_apply' => 'arn:aws:iam::1:role/apply'
+                }
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{team}/{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            }
+          ],
+          'services' => []
+        }
+      end
+      let(:config) { Entities::WorkflowConfig.new(config_yaml_hash) }
+
+      before do
+        allow(File).to receive(:directory?).and_return(true)
+        allow(Dir).to receive(:glob).and_call_original
+        allow(Dir).to receive(:glob).with(/\*\/api\/terragrunt\/develop/, any_args).and_return(
+          ['payments/api/terragrunt/develop']
+        )
+      end
+
+      it 'flattens the captured value into matrix items' do
+        config_client = double('ConfigClient')
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+        labels = [Entities::DeployLabel.from_service(service: 'api')]
+        result = described_class.new(config_client: config_client).execute(
+          deploy_labels: labels,
+          target_environments: ['develop']
+        )
+        expect(result).to be_success
+        targets = result.deployment_targets
+        expect(targets).not_to be_empty
+        item = targets.first.to_matrix_item
+        expect(item).to include(service: 'api', team: 'payments')
+      end
+    end
+
     context 'with same stack name in multiple matching conventions' do
       let(:target_environments) { ['production'] }
       let(:env_config) do
