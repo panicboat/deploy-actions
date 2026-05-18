@@ -315,24 +315,20 @@ module UseCases
                             "#{root_pattern}/#{stack_config['directory']}"
                           end
 
-            values = { 'service' => service_name }
-            values['environment'] = target_environment if full_pattern.include?('{environment}') && target_environment
-
             begin
-              expanded_pattern = Entities::PatternMatcher.expand(full_pattern, values)
+              expanded_pattern = expand_directory_pattern(full_pattern, service_name, target_environment)
             rescue Entities::UnresolvedPlaceholderError
+              # Convention requires {environment} but target_environment is nil
+              # for this call. Skip this convention and let another match.
               next
             end
+            next unless expanded_pattern
 
             if working_dir == expanded_pattern
-              values_for_root = { 'service' => service_name }
-              values_for_root['environment'] = target_environment if (root_pattern || '').include?('{environment}') && target_environment
-
-              begin
-                return Entities::PatternMatcher.expand(root_pattern || '', values_for_root)
-              rescue Entities::UnresolvedPlaceholderError
-                next
-              end
+              # full_pattern matched, so root_pattern (its prefix) is guaranteed
+              # to expand with the same values. expand_directory_pattern never
+              # returns nil for a non-nil pattern.
+              return expand_directory_pattern(root_pattern || '', service_name, target_environment)
             end
           end
         end
