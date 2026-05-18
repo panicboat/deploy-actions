@@ -136,9 +136,13 @@ module UseCases
                               "#{root_pattern}/#{stack_directory}"
                             end
 
-              expanded_pattern = full_pattern.gsub('{service}', service_name)
-              if full_pattern.include?('{environment}')
-                expanded_pattern = expanded_pattern.gsub('{environment}', env)
+              values = { 'service' => service_name }
+              values['environment'] = env if full_pattern.include?('{environment}')
+
+              begin
+                expanded_pattern = Entities::PatternMatcher.expand(full_pattern, values)
+              rescue Entities::UnresolvedPlaceholderError
+                next false
               end
 
               File.directory?(File.join(repo_root, expanded_pattern))
@@ -279,29 +283,22 @@ module UseCases
         )
       end
 
-      # Expand directory pattern with placeholders
+      # Expand directory pattern with placeholders. Delegates to PatternMatcher
+      # so all placeholder rules live in one place. Builds the values map
+      # conditionally because {environment} is optional for env-agnostic stacks.
       def expand_directory_pattern(pattern, service_name, target_environment)
         return nil unless pattern
 
-        # Expand service placeholder
-        expanded = pattern.gsub('{service}', service_name)
-        # Only expand {environment} placeholder if present (supports environment-agnostic stacks)
+        values = { 'service' => service_name }
         if pattern.include?('{environment}')
-          # target_environment should not be nil if {environment} placeholder exists
           if target_environment.nil?
-            puts "Warning: Environment placeholder found but target_environment is nil: #{pattern}"
-            return nil
+            raise Entities::UnresolvedPlaceholderError,
+                  "{environment} appears in pattern '#{pattern}' but target_environment is nil"
           end
-          expanded = expanded.gsub('{environment}', target_environment)
+          values['environment'] = target_environment
         end
 
-        # Validate that all placeholders were replaced
-        if expanded.include?('{') && expanded.include?('}')
-          puts "Warning: Unresolved placeholders in pattern: #{pattern} -> #{expanded}"
-          return nil
-        end
-
-        expanded
+        Entities::PatternMatcher.expand(pattern, values)
       end
 
       # Extract root directory from working directory based on configuration
@@ -312,29 +309,30 @@ module UseCases
           stacks = convention['stacks'] || []
 
           stacks.each do |stack_config|
-            # Build the full pattern: root + stack directory
             full_pattern = if root_pattern.nil? || root_pattern.empty?
                             stack_config['directory']
                           else
                             "#{root_pattern}/#{stack_config['directory']}"
                           end
 
-            # Expand placeholders
-            expanded_pattern = full_pattern.gsub('{service}', service_name)
-            # Only expand {environment} if target_environment is not nil
-            if target_environment
-              expanded_pattern = expanded_pattern.gsub('{environment}', target_environment)
+            values = { 'service' => service_name }
+            values['environment'] = target_environment if full_pattern.include?('{environment}') && target_environment
+
+            begin
+              expanded_pattern = Entities::PatternMatcher.expand(full_pattern, values)
+            rescue Entities::UnresolvedPlaceholderError
+              next
             end
 
-            # Check if working_dir matches this pattern
             if working_dir == expanded_pattern
-              # Found a match, extract the root part
-              expanded_root = root_pattern.gsub('{service}', service_name)
-              # Only expand {environment} if target_environment is not nil
-              if target_environment
-                expanded_root = expanded_root.gsub('{environment}', target_environment)
+              values_for_root = { 'service' => service_name }
+              values_for_root['environment'] = target_environment if (root_pattern || '').include?('{environment}') && target_environment
+
+              begin
+                return Entities::PatternMatcher.expand(root_pattern || '', values_for_root)
+              rescue Entities::UnresolvedPlaceholderError
+                next
               end
-              return expanded_root
             end
           end
         end

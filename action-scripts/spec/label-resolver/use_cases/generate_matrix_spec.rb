@@ -519,6 +519,16 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     end
   end
 
+  context 'when {environment} appears in a pattern but target_environment is nil' do
+    it 'raises UnresolvedPlaceholderError when expand_directory_pattern is called directly' do
+      config_client = double('ConfigClient')
+      use_case = described_class.new(config_client: config_client)
+      expect {
+        use_case.send(:expand_directory_pattern, 'foo/{environment}/main', 'svc', nil)
+      }.to raise_error(Entities::UnresolvedPlaceholderError)
+    end
+  end
+
   describe 'integration with real configuration' do
     let(:real_config_client) { Infrastructure::ConfigClient.new }
     let(:use_case) { described_class.new(config_client: real_config_client) }
