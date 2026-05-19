@@ -160,7 +160,25 @@ The execution layer (`terragrunt`, `kubernetes`, etc.) is intentionally not part
 | (attributes keys) | Dynamic | Everything under `environments[].stacks[stack].*` |
 | (captures keys) | Dynamic | Values of arbitrary `{placeholder}` segments in the matched pattern, excluding `service` / `environment` |
 
-Example item for a convention `root: "{team}/{service}"` matching `payments/api/terragrunt/develop`:
+Example. Given this `workflow-config.yaml`:
+
+```yaml
+environments:
+  - environment: develop
+    stacks:
+      terragrunt:
+        aws_region: ap-northeast-1
+        iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
+        iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+
+stack_conventions:
+  - root: "{team}/{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+```
+
+a working directory at `payments/api/terragrunt/develop` resolves to:
 
 ```json
 {
@@ -176,7 +194,7 @@ Example item for a convention `root: "{team}/{service}"` matching `payments/api/
 }
 ```
 
-Downstream composite actions can reference any key directly, e.g. `${{ matrix.team }}`. Placeholder names that would collide with a fixed key or with any attribute key are rejected at `config-manager validate` time.
+`aws_region` / `iam_role_plan` / `iam_role_apply` come from `environments[0].stacks.terragrunt` (attributes); `team` comes from the `{team}` placeholder in `root` (captures). Downstream composite actions can reference any key directly, e.g. `${{ matrix.team }}`. Placeholder names that would collide with a fixed key or with any attribute key are rejected at `config-manager validate` time.
 
 ## Development
 

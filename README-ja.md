@@ -160,7 +160,25 @@ jobs:
 | (attributes のキー) | 動的 | `environments[].stacks[stack].*` で定義された値 |
 | (captures のキー) | 動的 | マッチした pattern 中の任意 `{placeholder}` の抽出値（`service` / `environment` を除く） |
 
-`root: "{team}/{service}"` の convention が `payments/api/terragrunt/develop` にマッチした場合の item 例:
+例として、次の `workflow-config.yaml` を考えます。
+
+```yaml
+environments:
+  - environment: develop
+    stacks:
+      terragrunt:
+        aws_region: ap-northeast-1
+        iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
+        iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+
+stack_conventions:
+  - root: "{team}/{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+```
+
+このとき `payments/api/terragrunt/develop` が deploy 対象として解決されると、matrix item は次のようになります。
 
 ```json
 {
@@ -176,7 +194,7 @@ jobs:
 }
 ```
 
-下流の Composite Action では `${{ matrix.team }}` のように任意のキーを直接参照できます。固定キーや attributes キーと衝突する placeholder 名は `config-manager validate` の段階で拒否されます。
+`aws_region` / `iam_role_plan` / `iam_role_apply` は `environments[0].stacks.terragrunt` の attributes が、`team` は `root` の `{team}` プレースホルダ抽出値がそれぞれ展開されたものです。下流の Composite Action では `${{ matrix.team }}` のように任意のキーを直接参照できます。固定キーや attributes キーと衝突する placeholder 名は `config-manager validate` の段階で拒否されます。
 
 ## 開発
 
