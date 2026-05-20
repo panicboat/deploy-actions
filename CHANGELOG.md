@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/panicboat/deploy-actions/compare/v1.1.0...v1.2.0) (2026-05-20)
+
+
+### Features
+
+* uniform placeholder handling via PatternMatcher ([#235](https://github.com/panicboat/deploy-actions/issues/235)) ([abe183d](https://github.com/panicboat/deploy-actions/commit/abe183d4f133bbd651dcbc47e47ed7ad3f1bf7c6))
+
 ## [1.1.0](https://github.com/panicboat/deploy-actions/compare/v1.0.0...v1.1.0) (2026-05-04)
 
 
