@@ -366,6 +366,25 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
         expect(result.deploy_labels.map(&:to_s)).to contain_exactly('deploy:auth', 'deploy:payment')
       end
     end
+
+    context 'with a directory pattern containing an arbitrary placeholder beyond {service} and {environment}' do
+      let(:changed_files) { ['payments/api/terragrunt/develop/main.tf'] }
+
+      before do
+        allow(file_client).to receive(:get_changed_files).with(base_ref: base_ref, head_ref: head_ref).and_return(changed_files)
+        allow(config).to receive(:all_directory_patterns).and_return([
+          '{team}/{service}/terragrunt/{environment}'
+        ])
+        allow(config).to receive(:services).and_return({})
+        allow(config).to receive(:excluded_services).and_return([])
+      end
+
+      it 'still detects the service from the changed file path' do
+        result = use_case.execute(base_ref: base_ref, head_ref: head_ref)
+        expect(result).to be_success
+        expect(result.services_detected).to include('api')
+      end
+    end
   end
 
   describe 'service detection logic' do

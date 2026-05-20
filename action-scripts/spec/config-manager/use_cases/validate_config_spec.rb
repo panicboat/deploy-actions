@@ -257,6 +257,237 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
         expect(result).to be_success
       end
     end
+
+    context 'when a stack_conventions placeholder uses a fixed reserved name' do
+      let(:config) do
+        Entities::WorkflowConfig.new({
+          'environments' => [
+            {
+              'environment' => 'develop',
+              'stacks' => {
+                'terragrunt' => {
+                  'aws_region' => 'ap-northeast-1',
+                  'iam_role_plan' => 'arn:aws:iam::1:role/plan',
+                  'iam_role_apply' => 'arn:aws:iam::1:role/apply'
+                }
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{stack}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            }
+          ],
+          'services' => []
+        })
+      end
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'returns a validation error mentioning the reserved name' do
+        result = use_case.execute
+        expect(result).to be_failure
+        expect(result.validation_errors.join("\n")).to match(/reserved.*stack/i)
+      end
+    end
+
+    context 'when a stack_conventions placeholder uses an attribute key name' do
+      let(:config) do
+        Entities::WorkflowConfig.new({
+          'environments' => [
+            {
+              'environment' => 'develop',
+              'stacks' => {
+                'terragrunt' => {
+                  'aws_region' => 'ap-northeast-1',
+                  'iam_role_plan' => 'arn:aws:iam::1:role/plan',
+                  'iam_role_apply' => 'arn:aws:iam::1:role/apply'
+                }
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{service}/{aws_region}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            }
+          ],
+          'services' => []
+        })
+      end
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'returns a validation error mentioning the attribute key collision' do
+        result = use_case.execute
+        expect(result).to be_failure
+        expect(result.validation_errors.join("\n")).to match(/attribute.*aws_region/i)
+      end
+    end
+
+    context 'when a stack_conventions pattern contains a syntactically invalid placeholder literal' do
+      let(:config) do
+        Entities::WorkflowConfig.new({
+          'environments' => [
+            {
+              'environment' => 'develop',
+              'stacks' => {
+                'terragrunt' => {
+                  'aws_region' => 'ap-northeast-1',
+                  'iam_role_plan' => 'arn:aws:iam::1:role/plan',
+                  'iam_role_apply' => 'arn:aws:iam::1:role/apply'
+                }
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{service}/{Team}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            }
+          ],
+          'services' => []
+        })
+      end
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'returns a validation error for the invalid literal' do
+        result = use_case.execute
+        expect(result).to be_failure
+        expect(result.validation_errors.join("\n")).to match(/\{Team\}/)
+      end
+    end
+
+    context 'when two conventions share a stack name and same structural shape but different placeholder names' do
+      let(:config) do
+        Entities::WorkflowConfig.new({
+          'environments' => [
+            {
+              'environment' => 'develop',
+              'stacks' => {
+                'terragrunt' => {
+                  'aws_region' => 'ap-northeast-1',
+                  'iam_role_plan' => 'arn:aws:iam::1:role/plan',
+                  'iam_role_apply' => 'arn:aws:iam::1:role/apply'
+                }
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{team}/{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            },
+            {
+              'root' => '{team99}/{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            }
+          ],
+          'services' => []
+        })
+      end
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'returns a validation error mentioning the conflicting placeholder names' do
+        result = use_case.execute
+        expect(result).to be_failure
+        joined = result.validation_errors.join("\n")
+        expect(joined).to match(/team/)
+        expect(joined).to match(/team99/)
+      end
+    end
+
+    context 'when two conventions share the same root but different stack names' do
+      let(:config) do
+        Entities::WorkflowConfig.new({
+          'environments' => [
+            {
+              'environment' => 'develop',
+              'stacks' => {
+                'terragrunt' => {
+                  'aws_region' => 'ap-northeast-1',
+                  'iam_role_plan' => 'arn:aws:iam::1:role/plan',
+                  'iam_role_apply' => 'arn:aws:iam::1:role/apply'
+                },
+                'kubernetes' => {}
+              }
+            }
+          ],
+          'stack_conventions' => [
+            {
+              'root' => '{team}/{service}',
+              'stacks' => [
+                {
+                  'name' => 'terragrunt',
+                  'directory' => 'terragrunt/{environment}',
+                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
+                }
+              ]
+            },
+            {
+              'root' => '{team}/{service}',
+              'stacks' => [
+                {
+                  'name' => 'kubernetes',
+                  'directory' => 'kubernetes/overlays/{environment}'
+                }
+              ]
+            }
+          ],
+          'services' => []
+        })
+      end
+
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+      end
+
+      it 'passes validation (different stack names are not compared)' do
+        result = use_case.execute
+        expect(result).to be_success
+      end
+    end
   end
 
   describe 'integration with real config client' do

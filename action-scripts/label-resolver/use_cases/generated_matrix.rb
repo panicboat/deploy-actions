@@ -92,8 +92,7 @@ module UseCases
               # Validate that the target environment exists
               env_config = config.environment_config(env)
               unless env_config
-                puts "Warning: Environment configuration not found for: #{env}"
-                next
+                raise "environment configuration not found for: #{env} (should have been caught by validate_config)"
               end
 
               # Check if stack directory exists for this service/environment combination
@@ -136,12 +135,14 @@ module UseCases
                               "#{root_pattern}/#{stack_directory}"
                             end
 
-              expanded_pattern = full_pattern.gsub('{service}', service_name)
-              if full_pattern.include?('{environment}')
-                expanded_pattern = expanded_pattern.gsub('{environment}', env)
+              begin
+                expanded = expand_directory_pattern(full_pattern, service_name, env)
+              rescue Entities::UnresolvedPlaceholderError
+                next false
               end
+              next false unless expanded
 
-              File.directory?(File.join(repo_root, expanded_pattern))
+              File.directory?(File.join(repo_root, expanded))
             end
           end
         end
@@ -241,67 +242,122 @@ module UseCases
 
       # Generate a deployment target from deploy label, environment, and stack
       def generate_deployment_target(deploy_label, target_environment, stack, config)
-        # Get all possible directory patterns and find the first existing one
         dir_patterns = config.stack_conventions_for(deploy_label.service, stack)
         return nil if dir_patterns.empty?
 
         working_dir = nil
+        matched_dir_pattern = nil
         repo_root = find_repository_root
 
-        # Try each pattern until we find an existing directory
         dir_patterns.each do |dir_pattern|
-          # Expand placeholders (target_environment can be nil for environment-agnostic stacks)
           candidate_dir = expand_directory_pattern(dir_pattern, deploy_label.service, target_environment)
           next unless candidate_dir
 
-          # Check if directory exists
           full_path = File.join(repo_root, candidate_dir)
           if File.directory?(full_path)
             working_dir = candidate_dir
+            matched_dir_pattern = dir_pattern
             break
           end
         end
 
         return nil unless working_dir
 
-        create_deployment_target(deploy_label, target_environment, stack, working_dir, config)
+        full_match_pattern = full_pattern_for(deploy_label.service, matched_dir_pattern, config)
+        captures = extract_captures(full_match_pattern, working_dir)
+
+        create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures)
+      end
+
+      # Find the full (root + "/" + directory) pattern that produced this
+      # matched dir_pattern. Used to recover captures from working_dir.
+      def full_pattern_for(service_name, dir_pattern, config)
+        config.stack_conventions_config.each do |convention|
+          (convention['stacks'] || []).each do |stack_config|
+            next unless stack_config['directory'] == dir_pattern
+
+            root_pattern = convention['root']
+            return root_pattern.nil? || root_pattern.empty? ? dir_pattern : "#{root_pattern}/#{dir_pattern}"
+          end
+        end
+
+        # Service-specific stack_conventions fallback (services[].stack_conventions)
+        service_config = config.services[service_name]
+        if service_config && service_config['stack_conventions']
+          service_config['stack_conventions'].each_value do |pattern|
+            return pattern if pattern == dir_pattern
+          end
+        end
+
+        dir_pattern
+      end
+
+      # Build the captures map for one target. Drops {service} and
+      # {environment} since they map to dedicated DeploymentTarget fields.
+      # Raises if the working_dir doesn't match the pattern (invariant
+      # violation: the pattern was used to build the path moments ago).
+      def extract_captures(full_match_pattern, working_dir)
+        return {} unless full_match_pattern
+
+        raw = Entities::PatternMatcher.extract(full_match_pattern, working_dir)
+        if raw.nil?
+          raise "PatternMatcher.extract returned nil for pattern '#{full_match_pattern}' and working_dir '#{working_dir}'"
+        end
+
+        raw.reject { |k, _| k == 'service' || k == 'environment' }
       end
 
       # Create deployment target (unified across stacks)
-      def create_deployment_target(deploy_label, target_environment, stack, working_dir, config)
+      def create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures = {})
         Entities::DeploymentTarget.new(
           service: deploy_label.service,
           environment: target_environment,
           stack: stack,
           working_directory: working_dir,
           stack_convention_root: extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config),
-          attributes: target_environment ? config.stack_attributes_for(target_environment, stack) : {}
+          attributes: target_environment ? config.stack_attributes_for(target_environment, stack) : {},
+          captures: captures
         )
       end
 
-      # Expand directory pattern with placeholders
+      # Expand directory pattern with placeholders. Delegates to PatternMatcher
+      # so all placeholder rules live in one place. Builds the values map
+      # conditionally because {environment} is optional for env-agnostic stacks.
+      # For patterns with arbitrary placeholders (e.g. {team}), replaces unknown
+      # segments with "*" and uses Dir.glob to find the matching directory on disk.
       def expand_directory_pattern(pattern, service_name, target_environment)
         return nil unless pattern
 
-        # Expand service placeholder
-        expanded = pattern.gsub('{service}', service_name)
-        # Only expand {environment} placeholder if present (supports environment-agnostic stacks)
+        values = { 'service' => service_name }
         if pattern.include?('{environment}')
-          # target_environment should not be nil if {environment} placeholder exists
           if target_environment.nil?
-            puts "Warning: Environment placeholder found but target_environment is nil: #{pattern}"
-            return nil
+            raise Entities::UnresolvedPlaceholderError,
+                  "{environment} appears in pattern '#{pattern}' but target_environment is nil"
           end
-          expanded = expanded.gsub('{environment}', target_environment)
+          values['environment'] = target_environment
         end
 
-        # Validate that all placeholders were replaced
-        if expanded.include?('{') && expanded.include?('}')
-          puts "Warning: Unresolved placeholders in pattern: #{pattern} -> #{expanded}"
-          return nil
-        end
+        begin
+          Entities::PatternMatcher.expand(pattern, values)
+        rescue Entities::UnresolvedPlaceholderError
+          # Pattern contains arbitrary placeholders beyond {service}/{environment}.
+          # Replace unknown placeholders with "*" and resolve via Dir.glob.
+          glob_pattern = pattern.gsub(Entities::PatternMatcher::PLACEHOLDER_REGEX) do
+            name = Regexp.last_match(1)
+            values.key?(name) ? values[name] : '*'
+          end
+          repo_root = find_repository_root
+          matches = Dir.glob(glob_pattern, base: repo_root).select do |rel|
+            File.directory?(File.join(repo_root, rel))
+          end
+          return nil if matches.empty?
+          if matches.length > 1
+            raise "Pattern '#{pattern}' matches multiple directories (glob '#{glob_pattern}'): #{matches.inspect}. " \
+                  "Refine stack_conventions or rename services to make the resolution deterministic."
+          end
 
-        expanded
+          matches.first
+        end
       end
 
       # Extract root directory from working directory based on configuration
@@ -312,29 +368,26 @@ module UseCases
           stacks = convention['stacks'] || []
 
           stacks.each do |stack_config|
-            # Build the full pattern: root + stack directory
             full_pattern = if root_pattern.nil? || root_pattern.empty?
                             stack_config['directory']
                           else
                             "#{root_pattern}/#{stack_config['directory']}"
                           end
 
-            # Expand placeholders
-            expanded_pattern = full_pattern.gsub('{service}', service_name)
-            # Only expand {environment} if target_environment is not nil
-            if target_environment
-              expanded_pattern = expanded_pattern.gsub('{environment}', target_environment)
+            begin
+              expanded_pattern = expand_directory_pattern(full_pattern, service_name, target_environment)
+            rescue Entities::UnresolvedPlaceholderError
+              # Convention requires {environment} but target_environment is nil
+              # for this call. Skip this convention and let another match.
+              next
             end
+            next unless expanded_pattern
 
-            # Check if working_dir matches this pattern
             if working_dir == expanded_pattern
-              # Found a match, extract the root part
-              expanded_root = root_pattern.gsub('{service}', service_name)
-              # Only expand {environment} if target_environment is not nil
-              if target_environment
-                expanded_root = expanded_root.gsub('{environment}', target_environment)
-              end
-              return expanded_root
+              # full_pattern matched, so root_pattern (its prefix) is guaranteed
+              # to expand with the same values. expand_directory_pattern never
+              # returns nil for a non-nil pattern.
+              return expand_directory_pattern(root_pattern || '', service_name, target_environment)
             end
           end
         end

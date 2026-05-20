@@ -80,7 +80,9 @@ environments:
         iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
 
 stack_conventions:
-  - root: "{service}"
+  - root: "{service}"          # {service}/{environment} 以外の任意 placeholder
+                               # も使用可能。抽出された値は matrix item の
+                               # トップレベル（例: {team}）に展開される。
     stacks:
       - name: terragrunt
         directory: "terragrunt/{environment}"
@@ -143,6 +145,56 @@ jobs:
 ```
 
 実行レイヤ（`terragrunt`, `kubernetes` など）は意図的に本リポジトリから除外しています。メンテナーの個人用 wrapper は [`panicboat/panicboat-actions`](https://github.com/panicboat/panicboat-actions) にあります。
+
+## Matrix Output
+
+`label-resolver` は `outputs.targets`（および環境変数 `DEPLOYMENT_TARGETS`）として JSON 配列を出力します。各 matrix item はフラット構造です。
+
+| Key | 由来 | 補足 |
+|---|---|---|
+| `service` | 固定 | `deploy:<service>` ラベルの service 名 |
+| `environment` | 固定 | environment-agnostic stack では `null` |
+| `stack` | 固定 | 例: `terragrunt`, `kubernetes` |
+| `working_directory` | 固定 | 実在する deploy 対象ディレクトリ |
+| `stack_convention_root` | 固定 | マッチした root pattern の展開後の値 |
+| (attributes のキー) | 動的 | `environments[].stacks[stack].*` で定義された値 |
+| (captures のキー) | 動的 | マッチした pattern 中の任意 `{placeholder}` の抽出値（`service` / `environment` を除く） |
+
+例として、次の `workflow-config.yaml` を考えます。
+
+```yaml
+environments:
+  - environment: develop
+    stacks:
+      terragrunt:
+        aws_region: ap-northeast-1
+        iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
+        iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
+
+stack_conventions:
+  - root: "{team}/{service}"
+    stacks:
+      - name: terragrunt
+        directory: "terragrunt/{environment}"
+```
+
+このとき `payments/api/terragrunt/develop` が deploy 対象として解決されると、matrix item は次のようになります。
+
+```json
+{
+  "service": "api",
+  "environment": "develop",
+  "stack": "terragrunt",
+  "working_directory": "payments/api/terragrunt/develop",
+  "stack_convention_root": "payments/api",
+  "aws_region": "ap-northeast-1",
+  "iam_role_plan": "arn:aws:iam::ACCOUNT:role/plan-role",
+  "iam_role_apply": "arn:aws:iam::ACCOUNT:role/apply-role",
+  "team": "payments"
+}
+```
+
+`aws_region` / `iam_role_plan` / `iam_role_apply` は `environments[0].stacks.terragrunt` の attributes が、`team` は `root` の `{team}` プレースホルダ抽出値がそれぞれ展開されたものです。下流の Composite Action では `${{ matrix.team }}` のように任意のキーを直接参照できます。固定キーや attributes キーと衝突する placeholder 名は `config-manager validate` の段階で拒否されます。
 
 ## 開発
 

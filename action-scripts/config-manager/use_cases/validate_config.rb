@@ -126,6 +126,8 @@ module UseCases
           return errors
         end
 
+        dynamic_reserved = collect_attribute_keys(config)
+
         # Validate each directory convention
         conventions.each_with_index do |convention, conv_index|
           unless convention.is_a?(Hash)
@@ -165,17 +167,126 @@ module UseCases
               errors << "Stack at index #{index} in convention #{conv_index} missing required 'directory' field"
             end
 
-            # {environment} placeholder is now optional to support environment-agnostic stacks
-            # (e.g., Docker builds that are environment-independent)
-            # if stack['directory'] && !stack['directory'].include?('{environment}')
-            #   errors << "Stack '#{stack['name']}' in convention #{conv_index} directory must include {environment} placeholder"
-            # end
+            errors.concat(validate_placeholder_names(convention, stack, conv_index, dynamic_reserved))
+          end
+        end
+
+        errors.concat(validate_structural_equivalence(conventions))
+
+        errors
+      end
+
+
+      # Placeholder names matching DeploymentTarget fixed field names would shadow
+      # those fields in the matrix output Hash, so reject them at validate time.
+      # {service} and {environment} are intentionally excluded: they are required /
+      # allowed parts of the pattern grammar and map to dedicated keyword args on
+      # DeploymentTarget rather than into the captures Hash.
+      FIXED_RESERVED_PLACEHOLDERS = %w[stack working_directory stack_convention_root].freeze
+
+      # Matches any literal that looks like a placeholder slot: '{...}' where
+      # ... is one or more characters that are not braces. Combined with
+      # PatternMatcher.placeholders this lets us find {...} forms that don't
+      # match the placeholder grammar (e.g. {Team}, {my-var}, {a b}).
+      INVALID_PLACEHOLDER_LITERAL = /\{[^{}]*\}/
+      def validate_placeholder_names(convention, stack, conv_index, dynamic_reserved)
+        errors = []
+        root_pattern = convention['root'] || ''
+        dir_pattern = stack['directory'] || ''
+
+        placeholders = Entities::PatternMatcher.placeholders(root_pattern) +
+                       Entities::PatternMatcher.placeholders(dir_pattern)
+
+        placeholders.uniq.each do |name|
+          if FIXED_RESERVED_PLACEHOLDERS.include?(name)
+            errors << "Convention #{conv_index} stack '#{stack['name']}' uses reserved placeholder name '{#{name}}'"
+          end
+          if dynamic_reserved.include?(name)
+            errors << "Convention #{conv_index} stack '#{stack['name']}' placeholder '{#{name}}' collides with environments attribute key '#{name}'"
+          end
+        end
+
+        all_braced = [root_pattern, dir_pattern].flat_map { |p| p.to_s.scan(INVALID_PLACEHOLDER_LITERAL) }
+        valid_braced = placeholders.map { |n| "{#{n}}" }
+        invalid = all_braced - valid_braced
+        invalid.uniq.each do |literal|
+          errors << "Convention #{conv_index} stack '#{stack['name']}' contains invalid placeholder literal '#{literal}'"
+        end
+
+        errors
+      end
+
+      # Collect every key used under environments[].stacks[<stack>] across all
+      # environments. These keys end up as top-level keys in matrix output via
+      # DeploymentTarget#to_matrix_item.
+      def collect_attribute_keys(config)
+        keys = []
+        config.environments.each_value do |env_config|
+          stacks = env_config['stacks']
+          next unless stacks.is_a?(Hash)
+          stacks.each_value do |attrs|
+            next unless attrs.is_a?(Hash)
+            keys.concat(attrs.keys.map(&:to_s))
+          end
+        end
+        keys.uniq
+      end
+
+      # Detect conventions that share a stack name and have the same placeholder
+      # *positions* but use different placeholder *names*. If consumers point
+      # both at the same on-disk path, the matrix output's captures key name
+      # becomes YAML-order dependent — reject this at validate time.
+      def validate_structural_equivalence(conventions)
+        errors = []
+
+        full_patterns = []
+        conventions.each_with_index do |convention, conv_index|
+          (convention['stacks'] || []).each do |stack|
+            name = stack['name']
+            next if name.nil?
+            root = convention['root'] || ''
+            dir = stack['directory'] || ''
+            joined = root.empty? ? dir : "#{root}/#{dir}"
+            full_patterns << {
+              stack: name,
+              pattern: joined,
+              conv_index: conv_index
+            }
+          end
+        end
+
+        full_patterns.group_by { |p| p[:stack] }.each_value do |group|
+          next if group.length < 2
+
+          by_signature = group.group_by { |p| structural_signature(p[:pattern]) }
+          by_signature.each_value do |patterns|
+            next if patterns.length < 2
+
+            name_lists = patterns.map { |p| Entities::PatternMatcher.placeholders(p[:pattern]) }
+            next if name_lists.uniq.length == 1
+
+            entries = patterns.zip(name_lists).map do |p, names|
+              "convention #{p[:conv_index]}=#{names.inspect}"
+            end
+            errors << "Stack '#{patterns.first[:stack]}' has conventions sharing the same placeholder structure but using different names: #{entries.join(', ')}"
           end
         end
 
         errors
       end
 
+      # Return a structural signature for a pattern by replacing each placeholder
+      # with a positional marker {X0}, {X1}, ... in occurrence order. Two
+      # patterns share a signature iff they have the same literal text and the
+      # same placeholder positions, regardless of placeholder names.
+      def structural_signature(pattern)
+        index = 0
+        pattern.gsub(Entities::PatternMatcher::PLACEHOLDER_REGEX) do
+          token = "{X#{index}}"
+          index += 1
+          token
+        end
+      end
 
       # Validate service exclusion configuration
       def validate_service_exclusions(config)

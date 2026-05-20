@@ -150,4 +150,52 @@ RSpec.describe Entities::DeploymentTarget do
       expect(a).not_to eq(b)
     end
   end
+
+  describe 'captures' do
+    let(:base_args) do
+      {
+        service: 'api',
+        stack: 'terragrunt',
+        working_directory: 'payments/api/terragrunt/develop',
+        environment: 'develop',
+        stack_convention_root: 'payments/api',
+        attributes: { 'aws_region' => 'ap-northeast-1' }
+      }
+    end
+
+    it 'defaults captures to an empty hash when omitted' do
+      target = described_class.new(**base_args)
+      expect(target.captures).to eq({})
+    end
+
+    it 'stores captures and exposes them via #captures' do
+      target = described_class.new(**base_args, captures: { 'team' => 'payments' })
+      expect(target.captures).to eq('team' => 'payments')
+    end
+
+    it 'flattens captures into to_matrix_item with symbol keys' do
+      target = described_class.new(**base_args, captures: { 'team' => 'payments' })
+      expect(target.to_matrix_item).to include(
+        service: 'api',
+        environment: 'develop',
+        stack: 'terragrunt',
+        working_directory: 'payments/api/terragrunt/develop',
+        stack_convention_root: 'payments/api',
+        aws_region: 'ap-northeast-1',
+        team: 'payments'
+      )
+    end
+
+    it 'raises ArgumentError when a captures key collides with a fixed field' do
+      expect {
+        described_class.new(**base_args, captures: { 'stack' => 'oops' })
+      }.to raise_error(ArgumentError, /reserved/i)
+    end
+
+    it 'raises ArgumentError when a captures key collides with an attributes key' do
+      expect {
+        described_class.new(**base_args, captures: { 'aws_region' => 'us-east-1' })
+      }.to raise_error(ArgumentError, /attributes/i)
+    end
+  end
 end

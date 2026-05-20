@@ -145,6 +145,34 @@ The Config Manager enforces comprehensive validation:
 - Service-specific directory conventions must include `{service}` placeholder
 - Excluded services must have `exclusion_config` with reason
 
+## Placeholder Rules
+
+Patterns in `stack_conventions[].root` and `stack_conventions[].stacks[].directory` accept `{name}` placeholders. The grammar:
+
+- `name` must match `[a-z_][a-z0-9_]*` (lowercase letter or underscore followed by lowercase letters, digits, or underscores).
+- Strings like `{Team}`, `{my-var}`, or `{a b}` are not recognized as placeholders; the entire literal is rejected by `validate`.
+- The same placeholder name may appear multiple times in one pattern. Expansion uses the same value at every occurrence; extraction requires the same value at every occurrence.
+
+### Built-in placeholders
+
+- `{service}` is required in `root` (unless `root` is the empty string).
+- `{environment}` is optional in `stacks[].directory` — omitting it makes the stack environment-agnostic.
+
+### Custom placeholders
+
+Any additional placeholder name acts as a capture. After resolving a deploy target, its value is emitted as a top-level key on the matrix item (see repository-root `README.md` `## Matrix Output`). Custom placeholder names are rejected at validate time if they would collide with:
+
+- A reserved DeploymentTarget field: `stack`, `working_directory`, `stack_convention_root`.
+- Any attribute key used under `environments[].stacks[].*` (e.g. `aws_region`).
+
+### Structural equivalence
+
+If two conventions share a stack name and have placeholders at the same positions but with different names (e.g. `{team}/{service}` and `{team99}/{service}` both for stack `terragrunt`), `validate` rejects the configuration: the captured key name would otherwise depend on YAML order.
+
+### Implementation
+
+Placeholder parsing, expansion, and extraction are centralized in `Entities::PatternMatcher` (`shared/entities/pattern_matcher.rb`). All three components (`config-manager`, `label-dispatcher`, `label-resolver`) call into it, so the grammar above is authoritative.
+
 ## Template Generation
 
 Generate configuration templates optimized:
