@@ -33,7 +33,7 @@ module Entities
     end
 
     # Get directory conventions for a service and stack with hierarchical structure
-    def stack_conventions_for(service_name, stack = 'terragrunt')
+    def stack_conventions_for(service_name, stack)
       service_config = services[service_name]
       if service_config && service_config['stack_conventions']
         # If service has stack_conventions, only return service-specific pattern if it exists
@@ -63,7 +63,7 @@ module Entities
     end
 
     # Get directory convention for a service and stack (returns first match)
-    def stack_convention_for(service_name, stack = 'terragrunt')
+    def stack_convention_for(service_name, stack)
       conventions = stack_conventions_for(service_name, stack)
       conventions.first
     end

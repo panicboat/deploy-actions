@@ -159,8 +159,50 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
           environment: environment,
           stack_attributes: hash_including('terragrunt' => hash_including('aws_region' => 'ap-northeast-1')),
           service_config: hash_including('name' => service_name),
-          terragrunt_directory: 'services/test-service/terragrunt/envs/develop',
-          kubernetes_directory: 'services/test-service/kubernetes/overlays/develop'
+          stack_directories: {
+            'terragrunt' => 'services/test-service/terragrunt/envs/develop',
+            'kubernetes' => 'services/test-service/kubernetes/overlays/develop'
+          }
+        )
+      end
+    end
+
+    context 'with stack names other than terragrunt/kubernetes' do
+      before do
+        allow(config_client).to receive(:load_workflow_config).and_return(config)
+        allow(config).to receive_message_chain(:services, :key?).with(service_name).and_return(true)
+        allow(config).to receive_message_chain(:environments, :key?).with(environment).and_return(true)
+        allow(config).to receive_message_chain(:services, :[]).with(service_name).and_return({
+          'name' => service_name
+        })
+        allow(config).to receive(:stack_convention_for).with(service_name, 'aws').and_return('services/{service}/terragrunt/envs/{environment}')
+        allow(config).to receive(:stack_convention_for).with(service_name, 'docker').and_return('services/{service}/workspace')
+        allow(config).to receive(:stack_conventions_config).and_return([
+          {
+            'root' => 'services/{service}',
+            'stacks' => [
+              { 'name' => 'aws', 'directory' => 'terragrunt/envs/{environment}' },
+              { 'name' => 'docker', 'directory' => 'workspace' }
+            ]
+          }
+        ])
+        allow(config).to receive(:stack_attributes_for).with(environment, 'aws').and_return({
+          'aws_region' => 'ap-northeast-1'
+        })
+        allow(config).to receive(:stack_attributes_for).with(environment, 'docker').and_return({})
+        allow(presenter).to receive(:present_service_test_result)
+      end
+
+      it 'presents directories keyed by stack name from stack_conventions' do
+        controller.test_service_configuration(service_name: service_name, environment: environment)
+
+        expect(presenter).to have_received(:present_service_test_result).with(
+          hash_including(
+            stack_directories: {
+              'aws' => 'services/test-service/terragrunt/envs/develop',
+              'docker' => 'services/test-service/workspace'
+            }
+          )
         )
       end
     end

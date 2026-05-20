@@ -126,15 +126,14 @@ module Interfaces
       end
 
       # Present service test results
-      def present_service_test_result(service_name:, environment:, stack_attributes:, service_config:, terragrunt_directory:, kubernetes_directory:)
+      def present_service_test_result(service_name:, environment:, stack_attributes:, service_config:, stack_directories:)
         puts "🔧 Service Configuration Test"
         puts "Service: #{service_name}"
         puts "Environment: #{environment}"
-        puts "Terragrunt Directory: #{terragrunt_directory}"
-        puts "Kubernetes Directory: #{kubernetes_directory}"
-        stack_attributes.each do |stack_name, attrs|
+        stack_directories.each do |stack_name, directory|
           puts "Stack '#{stack_name}':"
-          attrs.each { |key, value| puts "  #{key}: #{value}" }
+          puts "  directory: #{directory}"
+          (stack_attributes[stack_name] || {}).each { |key, value| puts "  #{key}: #{value}" }
         end
       end
 

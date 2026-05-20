@@ -66,20 +66,15 @@ module Interfaces
           # Get service configurations
           service_config = config.services[service_name]
 
-          # Test directory conventions
-          terragrunt_dir = config.stack_convention_for(service_name, 'terragrunt')
-            &.gsub('{service}', service_name)
-            &.gsub('{environment}', environment)
-
-          kubernetes_dir = config.stack_convention_for(service_name, 'kubernetes')
-            &.gsub('{service}', service_name)
-            &.gsub('{environment}', environment)
-
-          # Collect stack attributes for all stacks declared in stack_conventions
+          # Collect directories and attributes per stack declared in stack_conventions
+          stack_directories = {}
           stack_attributes = {}
           config.stack_conventions_config.each do |convention|
             (convention['stacks'] || []).each do |stack_def|
               stack_name = stack_def['name']
+              stack_directories[stack_name] = config.stack_convention_for(service_name, stack_name)
+                &.gsub('{service}', service_name)
+                &.gsub('{environment}', environment)
               stack_attributes[stack_name] = config.stack_attributes_for(environment, stack_name)
             end
           end
@@ -89,8 +84,7 @@ module Interfaces
             environment: environment,
             stack_attributes: stack_attributes,
             service_config: service_config,
-            terragrunt_directory: terragrunt_dir,
-            kubernetes_directory: kubernetes_dir
+            stack_directories: stack_directories
           )
         rescue => error
           @presenter.present_error(
