@@ -314,5 +314,19 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         expect(template).to include('services:')
       end
     end
+
+    it 'uses aws as the stack name in the template' do
+      allow(presenter).to receive(:present_config_template)
+
+      controller.generate_config_template
+
+      expect(presenter).to have_received(:present_config_template) do |args|
+        template = args[:template]
+        expect(template).to include('aws:')
+        expect(template).to include('name: aws')
+        expect(template).not_to match(/^\s+terragrunt:/)
+        expect(template).not_to include('name: terragrunt')
+      end
+    end
   end
 end
