@@ -108,8 +108,8 @@ The dispatcher uses `workflow-config.yaml` for configuration:
 stack_conventions:
   - root: "{service}"
     stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
+      - name: aws
+        directory: "aws/{environment}"
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
 
@@ -163,8 +163,8 @@ The dispatcher uses the following logic to detect services:
 
 ### Example Detection
 
-For a file change in `services/auth/terragrunt/envs/develop/main.tf`:
-- Matches pattern: `services/{service}/terragrunt/envs/{environment}`
+For a file change in `services/auth/aws/envs/develop/main.tf`:
+- Matches pattern: `services/{service}/aws/envs/{environment}`
 - Extracts service: `auth`
 - Applies configuration for `auth` service
 - Adds label: `deploy:auth`
