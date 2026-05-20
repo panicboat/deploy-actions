@@ -140,8 +140,8 @@ environments:
 stack_conventions:
   - root: "{service}"
     stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
+      - name: aws
+        directory: "aws/{environment}"
         targets: ["develop", "staging", "production"]
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
@@ -178,7 +178,7 @@ The resolver automatically detects available stacks by checking directory existe
 
 ```
 {service}/
-├── terragrunt/{environment}/     # Terragrunt stack
+├── aws/{environment}/                  # IaC stack
 └── kubernetes/overlays/{environment}/  # Kubernetes stack
 ```
 

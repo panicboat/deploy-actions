@@ -1,31 +1,45 @@
 environments:
   - environment: develop
     stacks:
-      terragrunt:
+      aws:
         aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::123456789012:role/terragrunt-plan-develop-role
-        iam_role_apply: arn:aws:iam::123456789012:role/terragrunt-apply-develop-role
+        iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
+        iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
+      docker:
+        repository: 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/REPOSITORY_NAME
+      kubernetes:
+        namespace: default
 
   - environment: staging
     stacks:
-      terragrunt:
+      aws:
         aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::123456789012:role/terragrunt-plan-staging-role
-        iam_role_apply: arn:aws:iam::123456789012:role/terragrunt-apply-staging-role
+        iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-staging-role
+        iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-staging-role
+      docker:
+        repository: 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/REPOSITORY_NAME
+      kubernetes:
+        namespace: default
 
   - environment: production
     stacks:
-      terragrunt:
+      aws:
         aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::123456789012:role/terragrunt-plan-production-role
-        iam_role_apply: arn:aws:iam::123456789012:role/terragrunt-apply-production-role
+        iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-production-role
+        iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-production-role
+      docker:
+        repository: 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/REPOSITORY_NAME
+      kubernetes:
+        namespace: default
 
 stack_conventions:
   - root: "{service}"
     stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
+      - name: aws
+        directory: "aws/{environment}"
         required_attributes: [aws_region, iam_role_plan, iam_role_apply]
+      - name: docker
+        directory: ""
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
 

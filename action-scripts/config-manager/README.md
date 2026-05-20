@@ -99,8 +99,8 @@ Hierarchical directory structure for service discovery:
 stack_conventions:
   - root: "{service}"
     stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
+      - name: aws
+        directory: "aws/{environment}"
         targets: ["develop", "staging", "production"]
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
@@ -121,7 +121,7 @@ services:
 
   - name: special-service
     stack_conventions:
-      terragrunt: "custom/{service}/infra/{environment}"
+      aws: "custom/{service}/infra/{environment}"
 ```
 
 ## Validation Rules
@@ -137,7 +137,7 @@ The Config Manager enforces comprehensive validation:
 ### Directory Convention Validation
 - Root patterns must include `{service}` placeholder (unless empty)
 - Stack directories must include `{environment}` placeholder
-- Required stacks: `terragrunt` (minimum)
+- Required stacks: `aws` (minimum)
 - Directory conventions must be an array
 
 ### Service Validation
@@ -167,7 +167,7 @@ Any additional placeholder name acts as a capture. After resolving a deploy targ
 
 ### Structural equivalence
 
-If two conventions share a stack name and have placeholders at the same positions but with different names (e.g. `{team}/{service}` and `{team99}/{service}` both for stack `terragrunt`), `validate` rejects the configuration: the captured key name would otherwise depend on YAML order.
+If two conventions share a stack name and have placeholders at the same positions but with different names (e.g. `{team}/{service}` and `{team99}/{service}` both for stack `aws`), `validate` rejects the configuration: the captured key name would otherwise depend on YAML order.
 
 ### Implementation
 

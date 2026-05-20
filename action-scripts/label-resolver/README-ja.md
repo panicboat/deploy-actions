@@ -140,8 +140,8 @@ environments:
 stack_conventions:
   - root: "{service}"
     stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
+      - name: aws
+        directory: "aws/{environment}"
         targets: ["develop", "staging", "production"]
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
@@ -179,7 +179,7 @@ services:
 
 ```
 {service}/
-├── terragrunt/{environment}/     # Terragrunt スタック
+├── aws/{environment}/                  # IaC スタック
 └── kubernetes/overlays/{environment}/  # Kubernetes スタック
 ```
 

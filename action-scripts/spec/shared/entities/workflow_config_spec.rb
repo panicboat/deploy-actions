@@ -231,6 +231,12 @@ RSpec.describe Entities::WorkflowConfig do
         expect(conventions).to be_empty
       end
     end
+
+    context 'when stack argument is omitted' do
+      it 'raises ArgumentError' do
+        expect { workflow_config.stack_conventions_for('test-service') }.to raise_error(ArgumentError)
+      end
+    end
   end
 
   describe '#stack_convention_for' do
@@ -252,6 +258,12 @@ RSpec.describe Entities::WorkflowConfig do
       it 'returns nil' do
         convention = workflow_config.stack_convention_for('test-service', 'non-existing')
         expect(convention).to be_nil
+      end
+    end
+
+    context 'when stack argument is omitted' do
+      it 'raises ArgumentError' do
+        expect { workflow_config.stack_convention_for('test-service') }.to raise_error(ArgumentError)
       end
     end
   end

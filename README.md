@@ -74,7 +74,7 @@ The toolkit reads `workflow-config.yaml`:
 environments:
   - environment: develop
     stacks:
-      terragrunt:
+      aws:
         aws_region: ap-northeast-1
         iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
         iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
@@ -84,8 +84,8 @@ stack_conventions:
                                # are also allowed; their values are emitted as
                                # top-level keys in matrix output (e.g. {team}).
     stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
+      - name: aws
+        directory: "aws/{environment}"
         required_attributes: [aws_region, iam_role_plan, iam_role_apply]
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
@@ -144,7 +144,7 @@ jobs:
       # Then run your own deploy step using ${{ steps.resolve.outputs.targets }}
 ```
 
-The execution layer (`terragrunt`, `kubernetes`, etc.) is intentionally not part of this repository — the maintainer's personal wrappers live at [`panicboat/panicboat-actions`](https://github.com/panicboat/panicboat-actions).
+The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of this repository — the maintainer's personal wrappers live at [`panicboat/panicboat-actions`](https://github.com/panicboat/panicboat-actions).
 
 ## Matrix Output
 
@@ -154,7 +154,7 @@ The execution layer (`terragrunt`, `kubernetes`, etc.) is intentionally not part
 |---|---|---|
 | `service` | Fixed | `deploy:<service>` label |
 | `environment` | Fixed | `null` for environment-agnostic stacks |
-| `stack` | Fixed | e.g. `terragrunt`, `kubernetes` |
+| `stack` | Fixed | e.g. `aws`, `kubernetes` |
 | `working_directory` | Fixed | Resolved deploy directory |
 | `stack_convention_root` | Fixed | `root` portion of the matched pattern, expanded |
 | (attributes keys) | Dynamic | Everything under `environments[].stacks[stack].*` |
@@ -166,7 +166,7 @@ Example. Given this `workflow-config.yaml`:
 environments:
   - environment: develop
     stacks:
-      terragrunt:
+      aws:
         aws_region: ap-northeast-1
         iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
         iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
@@ -174,18 +174,18 @@ environments:
 stack_conventions:
   - root: "{team}/{service}"
     stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
+      - name: aws
+        directory: "aws/{environment}"
 ```
 
-a working directory at `payments/api/terragrunt/develop` resolves to:
+a working directory at `payments/api/aws/develop` resolves to:
 
 ```json
 {
   "service": "api",
   "environment": "develop",
-  "stack": "terragrunt",
-  "working_directory": "payments/api/terragrunt/develop",
+  "stack": "aws",
+  "working_directory": "payments/api/aws/develop",
   "stack_convention_root": "payments/api",
   "aws_region": "ap-northeast-1",
   "iam_role_plan": "arn:aws:iam::ACCOUNT:role/plan-role",
@@ -194,7 +194,7 @@ a working directory at `payments/api/terragrunt/develop` resolves to:
 }
 ```
 
-`aws_region` / `iam_role_plan` / `iam_role_apply` come from `environments[0].stacks.terragrunt` (attributes); `team` comes from the `{team}` placeholder in `root` (captures). Downstream composite actions can reference any key directly, e.g. `${{ matrix.team }}`. Placeholder names that would collide with a fixed key or with any attribute key are rejected at `config-manager validate` time.
+`aws_region` / `iam_role_plan` / `iam_role_apply` come from `environments[0].stacks.aws` (attributes); `team` comes from the `{team}` placeholder in `root` (captures). Downstream composite actions can reference any key directly, e.g. `${{ matrix.team }}`. Placeholder names that would collide with a fixed key or with any attribute key are rejected at `config-manager validate` time.
 
 ## Development
 

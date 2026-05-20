@@ -99,8 +99,8 @@ environments:
 stack_conventions:
   - root: "{service}"
     stacks:
-      - name: terragrunt
-        directory: "terragrunt/{environment}"
+      - name: aws
+        directory: "aws/{environment}"
         targets: ["develop", "staging", "production"]
       - name: kubernetes
         directory: "kubernetes/overlays/{environment}"
@@ -121,7 +121,7 @@ services:
 
   - name: special-service
     stack_conventions:
-      terragrunt: "custom/{service}/infra/{environment}"
+      aws: "custom/{service}/infra/{environment}"
 ```
 
 ## 検証ルール
@@ -137,7 +137,7 @@ Config Manager は包括的な検証を実施します：
 ### ディレクトリ規約検証
 - ルートパターンには `{service}` プレースホルダーが必要（空の場合を除く）
 - スタックディレクトリには `{environment}` プレースホルダーが必要
-- 必須スタック：`terragrunt`（最低限）
+- 必須スタック：`aws`（最低限）
 - ディレクトリ規約は配列である必要
 
 ### サービス検証
