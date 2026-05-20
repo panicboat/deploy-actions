@@ -169,47 +169,47 @@ module Interfaces
           environments:
             - environment: develop
               stacks:
-                docker:
-                  repository: AWS_ACCOUNT_ID.dkr.ecr.AWS_REGION.amazonaws.com/REPOSITORY_NAME
-                kubernetes:
-                  namespace: default
                 aws:
                   aws_region: ap-northeast-1
                   iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-plan-role
                   iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-apply-role
-
-            - environment: staging
-              stacks:
                 docker:
                   repository: AWS_ACCOUNT_ID.dkr.ecr.AWS_REGION.amazonaws.com/REPOSITORY_NAME
                 kubernetes:
                   namespace: default
+
+            - environment: staging
+              stacks:
                 aws:
                   aws_region: ap-northeast-1
                   iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-plan-role
                   iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-apply-role
-
-            - environment: production
-              stacks:
                 docker:
                   repository: AWS_ACCOUNT_ID.dkr.ecr.AWS_REGION.amazonaws.com/REPOSITORY_NAME
                 kubernetes:
                   namespace: default
+
+            - environment: production
+              stacks:
                 aws:
                   aws_region: ap-northeast-1
                   iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-plan-role
                   iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-apply-role
+                docker:
+                  repository: AWS_ACCOUNT_ID.dkr.ecr.AWS_REGION.amazonaws.com/REPOSITORY_NAME
+                kubernetes:
+                  namespace: default
 
           stack_conventions:
             - root: "{service}"
               stacks:
+                - name: aws
+                  directory: "aws/{environment}"
+                  required_attributes: [aws_region, iam_role_plan, iam_role_apply]
                 - name: docker
                   directory: ""
                 - name: kubernetes
                   directory: "kubernetes/overlays/{environment}"
-                - name: aws
-                  directory: "aws/{environment}"
-                  required_attributes: [aws_region, iam_role_plan, iam_role_apply]
 
           services:
             - name: excluded-service
