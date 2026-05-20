@@ -179,7 +179,7 @@ services:
 
 ```
 {service}/
-├── aws/{environment}/     # Terragrunt スタック
+├── aws/{environment}/                  # IaC スタック
 └── kubernetes/overlays/{environment}/  # Kubernetes スタック
 ```
 

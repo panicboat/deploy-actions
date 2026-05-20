@@ -178,7 +178,7 @@ The resolver automatically detects available stacks by checking directory existe
 
 ```
 {service}/
-├── aws/{environment}/     # Terragrunt stack
+├── aws/{environment}/                  # IaC stack
 └── kubernetes/overlays/{environment}/  # Kubernetes stack
 ```
 
