@@ -214,7 +214,7 @@ DEPENDENCIES
   pry (~> 0.16)
   rspec (~> 3.13, >= 3.13.2)
   rubocop (~> 1.87)
-  rubocop-rspec (~> 3.10, >= 3.10.1)
+  rubocop-rspec (~> 3.10, >= 3.10.2)
   thor (~> 1.5)
   vcr (~> 6.4)
   webmock (~> 3.26, >= 3.26.2)
