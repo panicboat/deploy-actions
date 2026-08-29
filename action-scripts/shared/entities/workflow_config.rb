@@ -16,16 +16,20 @@ module Entities
     end
 
     # Get stack-specific attribute hash for an environment+stack pair
-    def stack_attributes_for(env_name, stack_name)
+    def stack_attributes_for(env_name, stack_key)
       env = environments[env_name]
       return {} unless env
-      env.dig('stacks', stack_name) || {}
+      by_id = env.dig('stacks', stack_key)
+      return by_id if by_id
+      name = stack_name_for(stack_key)
+      return {} unless name
+      env.dig('stacks', name) || {}
     end
 
     # Get required attribute keys declared for a stack in stack_conventions
-    def required_attributes_for(stack_name)
+    def required_attributes_for(stack_key)
       stack_conventions_config.each do |convention|
-        stack = (convention['stacks'] || []).find { |s| s['name'] == stack_name }
+        stack = (convention['stacks'] || []).find { |s| (s['id'] || s['name']) == stack_key }
         next unless stack
         return stack['required_attributes'] || []
       end
@@ -49,7 +53,7 @@ module Entities
       patterns = []
       stack_conventions_config.each do |convention|
         root_pattern = convention['root']
-        stack_config = convention['stacks']&.find { |s| s['name'] == stack }
+        stack_config = convention['stacks']&.find { |s| (s['id'] || s['name']) == stack }
         next unless stack_config
 
         # Handle empty root pattern
@@ -137,11 +141,29 @@ module Entities
             unless conv['stacks']
               errors << "stack_conventions[#{index}] missing required field: stacks"
             end
+            seen = {}
+            (conv['stacks'] || []).each do |stack|
+              identity = stack['id'] || stack['name']
+              if identity && seen.key?(identity)
+                errors << "stack_conventions[#{index}].stacks has duplicate identity '#{identity}' (entries with the same 'name' need distinct 'id' values)"
+                break
+              end
+              seen[identity] = true if identity
+            end
           end
         end
       end
 
       raise StandardError, "Configuration validation failed: #{errors.join(', ')}" unless errors.empty?
+    end
+
+    def stack_name_for(stack_key)
+      stack_conventions_config.each do |convention|
+        (convention['stacks'] || []).each do |stack|
+          return stack['name'] if (stack['id'] || stack['name']) == stack_key
+        end
+      end
+      nil
     end
 
     # Get directory conventions configuration
