@@ -21,6 +21,7 @@ FactoryBot.define do
     service { "test-service" }
     environment { "develop" }
     stack { "terragrunt" }
+    stack_id { stack }
     working_directory { "test-service/terragrunt/develop" }
     stack_convention_root { "test-service" }
     attributes do
@@ -36,6 +37,7 @@ FactoryBot.define do
         service: service,
         environment: environment,
         stack: stack,
+        stack_id: stack_id,
         working_directory: working_directory,
         stack_convention_root: stack_convention_root,
         attributes: attributes
@@ -44,8 +46,14 @@ FactoryBot.define do
 
     trait :kubernetes do
       stack { "kubernetes" }
+      stack_id { "kubernetes" }
       working_directory { "test-service/kubernetes/overlays/develop" }
       attributes { {} }
+    end
+
+    trait :with_stripe_id do
+      stack_id { "stripe" }
+      working_directory { "test-service/infrastructure/stripe/develop" }
     end
 
     trait :staging do
