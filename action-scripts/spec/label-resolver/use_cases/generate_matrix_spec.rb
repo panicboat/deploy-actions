@@ -602,8 +602,17 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   end
   context 'when a convention has two stacks sharing name but distinct id' do
     let(:target_environments) { ['production'] }
+    let(:env_config) { {'environment'=>'production','stacks'=>{'terragrunt'=>{'aws_region'=>'ap-northeast-1'}}} }
+    before do
+      allow(config).to receive(:environment_config).with('production').and_return(env_config)
+      allow(config).to receive(:stack_attributes_for).and_return(env_config['stacks']['terragrunt'])
+      allow(config).to receive(:services).and_return({'monolith'=>{}})
+      allow(config).to receive(:stack_conventions_config).and_return([{'root'=>'dystopia/{service}','stacks'=>[
+        {'name'=>'terragrunt','id'=>'aws','directory'=>'infrastructure/aws/{environment}'},
+        {'name'=>'terragrunt','id'=>'stripe','directory'=>'infrastructure/stripe/{environment}'}]}])
+      allow(File).to receive(:directory?).and_return(true)
+    end
     it 'generates one target per stack instance' do
-      pending 'requires the dual-id fixture from the task brief'
       labels=[Entities::DeployLabel.from_service(service:'monolith')]
       result=use_case.execute(deploy_labels: labels, target_environments: target_environments)
       expect(result.deployment_targets.map(&:stack_id).sort).to eq(%w[aws stripe])

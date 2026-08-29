@@ -472,6 +472,8 @@ RSpec.describe Entities::WorkflowConfig do
     let(:environments) { [{ 'environment' => 'production', 'stacks' => {} }] }
     it('accepts distinct ids') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t','id'=>'a'},{'name'=>'t','id'=>'b'}]}]) }.not_to raise_error }
     it('rejects duplicate names') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t'},{'name'=>'t'}]}]) }.to raise_error(/duplicate identity 't'/) }
+    it('accepts same id in different conventions') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'a','stacks'=>[{'name'=>'t','id'=>'x'}]},{'root'=>'b','stacks'=>[{'name'=>'t','id'=>'x'}]}]) }.not_to raise_error }
+    it('rejects id colliding with another name') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'k'},{'name'=>'t','id'=>'k'}]}]) }.to raise_error(/duplicate identity 'k'/) }
   end
   describe '#stack_attributes_for with id fallback' do
     it 'resolves id and falls back to name' do
