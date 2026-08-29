@@ -51,11 +51,6 @@ FactoryBot.define do
       attributes { {} }
     end
 
-    trait :with_stripe_id do
-      stack_id { "stripe" }
-      working_directory { "test-service/infrastructure/stripe/develop" }
-    end
-
     trait :staging do
       environment { "staging" }
       working_directory { "test-service/terragrunt/staging" }

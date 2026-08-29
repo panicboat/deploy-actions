@@ -97,31 +97,17 @@ module UseCases
               end
 
               # Check if stack directory exists for this service/environment combination
-              if stack_config['id']
-                exists = stack_config_directory_exists?(deploy_label.service, env, stack_config, config)
-                target = generate_deployment_target_for_instance(deploy_label, env, stack_config, config) if exists
-              else
-                exists = stack_directory_exists?(deploy_label.service, env, stack_name, config)
-                target = generate_deployment_target(deploy_label, env, stack_name, config, stack_id) if exists
-              end
-              if exists
-                targets << target if target
-              end
+              exists = stack_config_directory_exists?(deploy_label.service, env, stack_config, config)
+              target = generate_deployment_target_for_instance(deploy_label, env, stack_config, config) if exists
+              targets << target if target
             end
           else
             # Environment-agnostic stack - generate only one target with nil environment
             # Check if stack directory exists (use first environment for validation)
             first_env = @target_environments.first
-            if stack_config['id']
-              exists = stack_config_directory_exists?(deploy_label.service, first_env, stack_config, config)
-              target = generate_deployment_target_for_instance(deploy_label, nil, stack_config, config) if exists
-            else
-              exists = stack_directory_exists?(deploy_label.service, first_env, stack_name, config)
-              target = generate_deployment_target(deploy_label, nil, stack_name, config, stack_id) if exists
-            end
-            if exists
-              targets << target if target
-            end
+            exists = stack_config_directory_exists?(deploy_label.service, first_env, stack_config, config)
+            target = generate_deployment_target_for_instance(deploy_label, nil, stack_config, config) if exists
+            targets << target if target
           end
         end
 
@@ -158,22 +144,6 @@ module UseCases
               File.directory?(File.join(repo_root, expanded))
             end
           end
-        end
-      end
-
-      # Check if stack directory exists for service/environment combination
-      def stack_directory_exists?(service_name, environment, stack, config)
-        dir_patterns = config.stack_conventions_for(service_name, stack)
-        return false if dir_patterns.empty?
-
-        repo_root = find_repository_root
-
-        dir_patterns.any? do |dir_pattern|
-          dir_path = expand_directory_pattern(dir_pattern, service_name, environment)
-          next false unless dir_path
-
-          full_path = File.join(repo_root, dir_path)
-          File.directory?(full_path)
         end
       end
 
@@ -253,46 +223,25 @@ module UseCases
         available_stacks
       end
 
-      # Generate a deployment target from deploy label, environment, and stack
-      def generate_deployment_target(deploy_label, target_environment, stack, config, stack_id = stack)
-        dir_patterns = config.stack_conventions_for(deploy_label.service, stack)
-        return nil if dir_patterns.empty?
-
-        working_dir = nil
-        matched_dir_pattern = nil
-        repo_root = find_repository_root
-
-        dir_patterns.each do |dir_pattern|
-          candidate_dir = expand_directory_pattern(dir_pattern, deploy_label.service, target_environment)
-          next unless candidate_dir
-
-          full_path = File.join(repo_root, candidate_dir)
-          if File.directory?(full_path)
-            working_dir = candidate_dir
-            matched_dir_pattern = dir_pattern
-            break
-          end
-        end
-
-        return nil unless working_dir
-
-        full_match_pattern = full_pattern_for(deploy_label.service, matched_dir_pattern, config)
-        captures = extract_captures(full_match_pattern, working_dir)
-
-        create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures, stack_id)
-      end
-
       def stack_config_directory_exists?(service_name, environment, stack_config, config)
         pattern = full_pattern_for_stack_config(stack_config, config)
         return false unless pattern
-        expanded = expand_directory_pattern(pattern, service_name, environment)
+        begin
+          expanded = expand_directory_pattern(pattern, service_name, environment)
+        rescue Entities::UnresolvedPlaceholderError
+          return false
+        end
         expanded && File.directory?(File.join(find_repository_root, expanded))
       end
 
       def generate_deployment_target_for_instance(deploy_label, target_environment, stack_config, config)
         pattern = full_pattern_for_stack_config(stack_config, config)
         return nil unless pattern
-        candidate = expand_directory_pattern(pattern, deploy_label.service, target_environment)
+        begin
+          candidate = expand_directory_pattern(pattern, deploy_label.service, target_environment)
+        rescue Entities::UnresolvedPlaceholderError
+          return nil
+        end
         return nil unless candidate && File.directory?(File.join(find_repository_root, candidate))
         Entities::DeploymentTarget.new(service: deploy_label.service, environment: target_environment,
           stack: stack_config['name'], stack_id: stack_config['id'] || stack_config['name'],
@@ -304,32 +253,10 @@ module UseCases
       def full_pattern_for_stack_config(stack_config, config)
         config.stack_conventions_config.each do |convention|
           next unless (convention['stacks'] || []).any? { |candidate| (candidate['id'] || candidate['name']) == (stack_config['id'] || stack_config['name']) && candidate['directory'] == stack_config['directory'] }
-          root = convention['root']; return root.nil? || root.empty? ? stack_config['directory'] : "#{root}/#{stack_config['directory']}"
+          root = convention['root']
+          return root.nil? || root.empty? ? stack_config['directory'] : "#{root}/#{stack_config['directory']}"
         end
         nil
-      end
-
-      # Find the full (root + "/" + directory) pattern that produced this
-      # matched dir_pattern. Used to recover captures from working_dir.
-      def full_pattern_for(service_name, dir_pattern, config)
-        config.stack_conventions_config.each do |convention|
-          (convention['stacks'] || []).each do |stack_config|
-            next unless stack_config['directory'] == dir_pattern
-
-            root_pattern = convention['root']
-            return root_pattern.nil? || root_pattern.empty? ? dir_pattern : "#{root_pattern}/#{dir_pattern}"
-          end
-        end
-
-        # Service-specific stack_conventions fallback (services[].stack_conventions)
-        service_config = config.services[service_name]
-        if service_config && service_config['stack_conventions']
-          service_config['stack_conventions'].each_value do |pattern|
-            return pattern if pattern == dir_pattern
-          end
-        end
-
-        dir_pattern
       end
 
       # Build the captures map for one target. Drops {service} and
@@ -345,20 +272,6 @@ module UseCases
         end
 
         raw.reject { |k, _| k == 'service' || k == 'environment' }
-      end
-
-      # Create deployment target (unified across stacks)
-      def create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures = {}, stack_id = stack)
-        Entities::DeploymentTarget.new(
-          service: deploy_label.service,
-          environment: target_environment,
-          stack: stack,
-          working_directory: working_dir,
-          stack_convention_root: extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config),
-          stack_id: stack_id,
-          attributes: target_environment ? config.stack_attributes_for(target_environment, stack_id) : {},
-          captures: captures
-        )
       end
 
       # Expand directory pattern with placeholders. Delegates to PatternMatcher

@@ -565,7 +565,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         allow(File).to receive(:directory?).and_return(true)
       end
 
-      it 'dedupes by stack name and generates a single terragrunt target' do
+      it 'dedupes by identity (id || name) and generates a single terragrunt target' do
         result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
 
         expect(result).to be_success
@@ -613,9 +613,22 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       allow(File).to receive(:directory?).and_return(true)
     end
     it 'generates one target per stack instance' do
-      labels=[Entities::DeployLabel.from_service(service:'monolith')]
-      result=use_case.execute(deploy_labels: labels, target_environments: target_environments)
-      expect(result.deployment_targets.map(&:stack_id).sort).to eq(%w[aws stripe])
+      labels = [Entities::DeployLabel.from_service(service: 'monolith')]
+      result = use_case.execute(deploy_labels: labels, target_environments: target_environments)
+
+      expect(result).to be_success
+      expect(result.deployment_targets.length).to eq(2)
+
+      dirs = result.deployment_targets.map(&:working_directory).sort
+      expect(dirs).to eq([
+        'dystopia/monolith/infrastructure/aws/production',
+        'dystopia/monolith/infrastructure/stripe/production'
+      ])
+
+      ids = result.deployment_targets.map(&:stack_id).sort
+      expect(ids).to eq(%w[aws stripe])
+
+      expect(result.deployment_targets.map(&:stack).uniq).to eq(['terragrunt'])
     end
   end
 end

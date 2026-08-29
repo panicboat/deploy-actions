@@ -510,12 +510,53 @@ RSpec.describe Entities::WorkflowConfig do
     end
   end
   describe '#required_attributes_for with id fallback' do
-    it 'resolves by identity' do
-      data={'environments'=>[{'environment'=>'production','stacks'=>{}}], 'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t','id'=>'aws','required_attributes'=>['x']}]}]}
-      expect(described_class.new(data).required_attributes_for('aws')).to eq(['x'])
+    let(:two_id_config) do
+      {
+        'environments' => [{ 'environment' => 'production', 'stacks' => {} }],
+        'stack_conventions' => [
+          { 'root' => 'dystopia/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'id' => 'aws', 'directory' => 'infrastructure/aws/{environment}',
+                'required_attributes' => %w[aws_region] },
+              { 'name' => 'terragrunt', 'id' => 'stripe', 'directory' => 'infrastructure/stripe/{environment}',
+                'required_attributes' => %w[stripe_secret_ref] }
+            ] }
+        ]
+      }
     end
-    it 'falls back to name match when id is not found' do
-      expect(described_class.new({ 'environments'=>[{ 'environment'=>'production','stacks'=>{} }], 'stack_conventions'=>[{ 'root'=>'x','stacks'=>[{ 'name'=>'terragrunt','required_attributes'=>%w[aws_region] }] }] }).required_attributes_for('terragrunt')).to eq(%w[aws_region])
+
+    it 'returns the required attributes of the entry matched by id' do
+      expect(described_class.new(two_id_config).required_attributes_for('stripe')).to eq(%w[stripe_secret_ref])
+    end
+
+    # A bare name that every co-named entry has replaced with an id is no longer
+    # an identity, so it resolves to nothing — the same answer stack_conventions_for
+    # and stack_attributes_for give for that input.
+    it 'returns [] for a bare name that ids have fully consumed' do
+      expect(described_class.new(two_id_config).required_attributes_for('terragrunt')).to eq([])
     end
   end
+  describe '#stack_attributes_for with id fallback' do
+    it 'resolves the bare-name entry when only some co-named siblings carry an id' do
+      data = {
+        'environments' => [
+          { 'environment' => 'production',
+            'stacks' => { 'aws' => { 'aws_region' => 'ap-northeast-1' },
+                          'terragrunt' => { 'plain_attr' => 'PLAIN' } } }
+        ],
+        'stack_conventions' => [
+          { 'root' => 'r/{service}',
+            'stacks' => [
+              { 'name' => 'terragrunt', 'id' => 'aws', 'directory' => 'a/{environment}' },
+              { 'name' => 'terragrunt', 'id' => 'stripe', 'directory' => 's/{environment}' },
+              { 'name' => 'terragrunt', 'directory' => 't/{environment}' }
+            ] }
+        ]
+      }
+      config = described_class.new(data)
+      expect(config.stack_attributes_for('production', 'terragrunt')).to eq('plain_attr' => 'PLAIN')
+      expect(config.stack_attributes_for('production', 'aws')).to eq('aws_region' => 'ap-northeast-1')
+    end
+  end
+
 end

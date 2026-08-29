@@ -15,16 +15,19 @@ module Entities
       environments[env_name]
     end
 
-    # Get stack-specific attribute hash for an environment+stack pair
+    # Get stack-specific attribute hash for an environment+stack pair.
+    # Resolves by identity (id || name), falling back to the stack's name so
+    # configs written before ids existed keep working. Returns {} rather than
+    # nil for an unresolvable key: DeploymentTarget.new(attributes:) cannot
+    # take nil.
     def stack_attributes_for(env_name, stack_key)
       env = environments[env_name]
       return {} unless env
-      return {} if stack_conventions_config.any? { |convention| (convention['stacks'] || []).any? { |stack| stack['name'] == stack_key && stack['id'] } }
+      return {} unless stack_conventions_config.any? { |c| (c['stacks'] || []).any? { |s| (s['id'] || s['name']) == stack_key } }
       by_id = env.dig('stacks', stack_key)
       return by_id if by_id
       name = stack_name_for(stack_key)
       return {} unless name
-      return {} if stack_key == name && stack_conventions_config.any? { |convention| (convention['stacks'] || []).any? { |stack| stack['name'] == name && stack['id'] } }
       env.dig('stacks', name) || {}
     end
 
