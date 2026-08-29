@@ -476,15 +476,46 @@ RSpec.describe Entities::WorkflowConfig do
     it('rejects id colliding with another name') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'k'},{'name'=>'t','id'=>'k'}]}]) }.to raise_error(/duplicate identity 'k'/) }
   end
   describe '#stack_attributes_for with id fallback' do
-    it 'resolves id and falls back to name' do
-      data={'environments'=>[{'environment'=>'production','stacks'=>{'terragrunt'=>{'x'=>1}}}], 'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'terragrunt','id'=>'aws','directory'=>'d'}]}]}
-      config=described_class.new(data); expect(config.stack_attributes_for('production','aws')).to eq('x'=>1); expect(config.stack_attributes_for('production','missing')).to eq({})
+    let(:env_hash) do
+      { 'environments'=>[{ 'environment'=>'production', 'stacks'=>{ 'terragrunt'=>{ 'iam_role_plan'=>'arn:plan' } } }],
+        'stack_conventions'=>[{ 'root'=>'dystopia/{service}', 'stacks'=>[{ 'name'=>'terragrunt','id'=>'aws','directory'=>'infrastructure/aws/{environment}' }, { 'name'=>'terragrunt','id'=>'stripe','directory'=>'infrastructure/stripe/{environment}' }] }] }
+    end
+    it 'returns attributes keyed on id when present' do
+      env_hash['environments'][0]['stacks']['aws'] = { 'aws_region'=>'us-east-1' }
+      expect(described_class.new(env_hash).stack_attributes_for('production','aws')).to include('aws_region'=>'us-east-1')
+    end
+    it 'falls back to attributes keyed on name when id key is absent' do
+      expect(described_class.new(env_hash).stack_attributes_for('production','aws')).to include('iam_role_plan'=>'arn:plan')
+    end
+    it 'returns {} when neither id nor name resolves' do
+      expect(described_class.new(env_hash).stack_attributes_for('production','nonexistent')).to eq({})
+    end
+    it 'returns {} (not nil) when the bare name no longer resolves because every entry sharing it has an id' do
+      result=described_class.new(env_hash).stack_attributes_for('production','terragrunt')
+      expect(result).to eq({})
+      expect { Entities::DeploymentTarget.new(service:'x', stack:'terragrunt', working_directory:'y', attributes:result) }.not_to raise_error
+    end
+  end
+
+  describe '#stack_conventions_for with id' do
+    let(:data) { { 'environments'=>[{ 'environment'=>'production','stacks'=>{} }], 'stack_conventions'=>[{ 'root'=>'dystopia/{service}', 'stacks'=>[{ 'name'=>'terragrunt','id'=>'aws','directory'=>'infrastructure/aws/{environment}' }, { 'name'=>'terragrunt','id'=>'stripe','directory'=>'infrastructure/stripe/{environment}' }] }] } }
+    it 'resolves each id to its own directory pattern independently' do
+      config=described_class.new(data); expect(config.stack_conventions_for('monolith','aws')).to eq(['dystopia/{service}/infrastructure/aws/{environment}']); expect(config.stack_conventions_for('monolith','stripe')).to eq(['dystopia/{service}/infrastructure/stripe/{environment}'])
+    end
+    it 'no longer resolves the bare name once every entry sharing it has an id' do
+      expect(described_class.new(data).stack_conventions_for('monolith','terragrunt')).to eq([])
+    end
+    it 'still resolves by name when no entry declares an id (backward compatible)' do
+      expect(described_class.new('environments'=>data['environments'],'stack_conventions'=>[{ 'root'=>'aws/{service}','stacks'=>[{ 'name'=>'terragrunt','directory'=>'envs/{environment}' }] }]).stack_conventions_for('eks','terragrunt')).to eq(['aws/{service}/envs/{environment}'])
     end
   end
   describe '#required_attributes_for with id fallback' do
     it 'resolves by identity' do
       data={'environments'=>[{'environment'=>'production','stacks'=>{}}], 'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t','id'=>'aws','required_attributes'=>['x']}]}]}
       expect(described_class.new(data).required_attributes_for('aws')).to eq(['x'])
+    end
+    it 'falls back to name match when id is not found' do
+      expect(described_class.new({ 'environments'=>[{ 'environment'=>'production','stacks'=>{} }], 'stack_conventions'=>[{ 'root'=>'x','stacks'=>[{ 'name'=>'terragrunt','required_attributes'=>%w[aws_region] }] }] }).required_attributes_for('terragrunt')).to eq(%w[aws_region])
     end
   end
 end

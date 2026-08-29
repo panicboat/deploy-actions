@@ -19,10 +19,12 @@ module Entities
     def stack_attributes_for(env_name, stack_key)
       env = environments[env_name]
       return {} unless env
+      return {} if stack_conventions_config.any? { |convention| (convention['stacks'] || []).any? { |stack| stack['name'] == stack_key && stack['id'] } }
       by_id = env.dig('stacks', stack_key)
       return by_id if by_id
       name = stack_name_for(stack_key)
       return {} unless name
+      return {} if stack_key == name && stack_conventions_config.any? { |convention| (convention['stacks'] || []).any? { |stack| stack['name'] == name && stack['id'] } }
       env.dig('stacks', name) || {}
     end
 
