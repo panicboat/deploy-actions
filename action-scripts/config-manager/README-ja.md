@@ -107,6 +107,10 @@ stack_conventions:
         targets: ["develop", "staging", "production"]
 ```
 
+各 stack エントリには、インスタンスを識別するオプションの `id` を指定できます。
+識別子は `id || name` で決まり、1つの convention 内で一意でなければなりません。
+識別子が重複している場合、設定の読み込み時に拒否されます。
+
 ### サービス
 
 サービス固有の設定と除外：

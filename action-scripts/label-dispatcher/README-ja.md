@@ -163,8 +163,8 @@ Label Dispatcherはクリーンアーキテクチャパターンに従います�
 
 ### 検出例
 
-`services/auth/aws/envs/develop/main.tf`でのファイル変更の場合：
-- パターンマッチ: `services/{service}/aws/envs/{environment}`
+`services/auth/aws/develop/main.tf`でのファイル変更の場合：
+- パターンマッチ: `services/{service}/aws/{environment}`
 - サービス抽出: `auth`
 - `auth`サービスの設定を適用
 - ラベル追加: `deploy:auth`

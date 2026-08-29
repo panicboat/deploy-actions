@@ -141,6 +141,7 @@ stack_conventions:
   - root: "{service}"
     stacks:
       - name: aws
+        id: primary
         directory: "aws/{environment}"
         targets: ["develop", "staging", "production"]
       - name: kubernetes
@@ -183,6 +184,10 @@ The resolver automatically detects available stacks by checking directory existe
 ```
 
 Only directories that actually exist will be included in the deployment matrix.
+
+The optional `id` identifies a stack instance; identity is `id || name` and
+must be unique within a convention. Two entries with the same `name` but
+different `id` values produce two separate targets.
 
 ## Error Handling
 

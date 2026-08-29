@@ -100,6 +100,27 @@ services:
 
 実行可能なサンプルは `action-scripts/workflow-config.yaml` を参照してください。
 
+### 同じ stack name の複数インスタンス
+
+1つのサービスで同じ stack を2つ使う場合（AWS リソース用と Stripe 用の
+Terragrunt stack など）は、各エントリに異なる `id` を指定します。
+
+```yaml
+# `id` はオプションです。省略時は `name` にフォールバックします。
+# 1つの convention 内では、`id || name` が一意でなければなりません。
+stack_conventions:
+  - root: "dystopia/{service}"
+    stacks:
+      - name: terragrunt
+        id: aws
+        directory: infrastructure/aws/{environment}
+        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
+      - name: terragrunt
+        id: stripe
+        directory: infrastructure/stripe/{environment}
+        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
+```
+
 ## ワークフロー統合
 
 ### 1. 変更検出
@@ -155,6 +176,7 @@ jobs:
 | `service` | 固定 | `deploy:<service>` ラベルの service 名 |
 | `environment` | 固定 | environment-agnostic stack では `null` |
 | `stack` | 固定 | 例: `aws`, `kubernetes` |
+| `stack_id` | 固定 | インスタンス識別子（`id \|\| name`）。`id` 未指定時は `stack` と同じ |
 | `working_directory` | 固定 | 実在する deploy 対象ディレクトリ |
 | `stack_convention_root` | 固定 | マッチした root pattern の展開後の値 |
 | (attributes のキー) | 動的 | `environments[].stacks[stack].*` で定義された値 |
@@ -185,6 +207,7 @@ stack_conventions:
   "service": "api",
   "environment": "develop",
   "stack": "aws",
+  "stack_id": "aws",
   "working_directory": "payments/api/aws/develop",
   "stack_convention_root": "payments/api",
   "aws_region": "ap-northeast-1",

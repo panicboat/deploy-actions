@@ -141,6 +141,7 @@ stack_conventions:
   - root: "{service}"
     stacks:
       - name: aws
+        id: primary
         directory: "aws/{environment}"
         targets: ["develop", "staging", "production"]
       - name: kubernetes
@@ -184,6 +185,10 @@ services:
 ```
 
 実際に存在するディレクトリのみがデプロイメントマトリクスに含まれます。
+
+オプションの `id` は stack インスタンスを識別します。識別子は `id || name` で決まり、
+1つの convention 内で一意でなければなりません。同じ `name` でも異なる `id` を持つ
+2つのエントリは、別々のターゲットとして生成されます。
 
 ## エラーハンドリング
 

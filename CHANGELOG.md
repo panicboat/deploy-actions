@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.3.0
+
+### Added
+- `stack_conventions[].stacks[].id` (optional): identifier for a stack
+  instance within a convention. Enables a single service to carry multiple
+  stack entries that share the same reusable-workflow `name` (e.g. two
+  terragrunt stacks: one for AWS, one for Stripe).
+- Matrix output now includes `stack_id` (defaults to `stack` when `id` is
+  not set).
+- `WorkflowConfig#stack_attributes_for` and `#required_attributes_for` now
+  accept the identity (`id || name`) and fall back to the stack's `name`
+  so existing configs migrate incrementally.
+
+### Changed
+- **Breaking**: entries within a single convention that share the same
+  `name` and have no `id` now raise a validation error instead of being
+  silently deduplicated. Add distinct `id` values to keep both entries.
+
 ## [1.2.0](https://github.com/panicboat/deploy-actions/compare/v1.1.0...v1.2.0) (2026-05-20)
 
 
