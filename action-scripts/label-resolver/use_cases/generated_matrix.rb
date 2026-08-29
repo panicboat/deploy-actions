@@ -223,40 +223,51 @@ module UseCases
         available_stacks
       end
 
-      def stack_config_directory_exists?(service_name, environment, stack_config, config)
-        pattern = full_pattern_for_stack_config(stack_config, config)
-        return false unless pattern
-        begin
-          expanded = expand_directory_pattern(pattern, service_name, environment)
-        rescue Entities::UnresolvedPlaceholderError
-          return false
+      # Resolve the directory patterns for one stack instance. Delegates to
+      # stack_conventions_for so per-service overrides (services[].stack_conventions)
+      # keep taking precedence over the global conventions; matching there is by
+      # identity (id || name), so two entries sharing a name resolve separately.
+      def candidate_patterns_for(service_name, stack_config, config)
+        config.stack_conventions_for(service_name, stack_config['id'] || stack_config['name'])
+      end
+
+      # First candidate pattern whose expanded directory exists on disk, paired
+      # with the pattern that produced it. Cross-convention ties stay first-wins.
+      def resolve_instance_directory(service_name, environment, stack_config, config)
+        repo_root = find_repository_root
+        candidate_patterns_for(service_name, stack_config, config).each do |pattern|
+          begin
+            expanded = expand_directory_pattern(pattern, service_name, environment)
+          rescue Entities::UnresolvedPlaceholderError
+            next
+          end
+          next unless expanded
+          return [expanded, pattern] if File.directory?(File.join(repo_root, expanded))
         end
-        expanded && File.directory?(File.join(find_repository_root, expanded))
+        nil
+      end
+
+      def stack_config_directory_exists?(service_name, environment, stack_config, config)
+        !resolve_instance_directory(service_name, environment, stack_config, config).nil?
       end
 
       def generate_deployment_target_for_instance(deploy_label, target_environment, stack_config, config)
-        pattern = full_pattern_for_stack_config(stack_config, config)
-        return nil unless pattern
-        begin
-          candidate = expand_directory_pattern(pattern, deploy_label.service, target_environment)
-        rescue Entities::UnresolvedPlaceholderError
-          return nil
-        end
-        return nil unless candidate && File.directory?(File.join(find_repository_root, candidate))
-        Entities::DeploymentTarget.new(service: deploy_label.service, environment: target_environment,
-          stack: stack_config['name'], stack_id: stack_config['id'] || stack_config['name'],
-          working_directory: candidate, stack_convention_root: extract_root_from_working_dir(candidate, deploy_label.service, target_environment, config),
-          attributes: target_environment ? config.stack_attributes_for(target_environment, stack_config['id'] || stack_config['name']) : {},
-          captures: extract_captures(pattern, candidate))
-      end
+        resolved = resolve_instance_directory(deploy_label.service, target_environment, stack_config, config)
+        return nil unless resolved
 
-      def full_pattern_for_stack_config(stack_config, config)
-        config.stack_conventions_config.each do |convention|
-          next unless (convention['stacks'] || []).any? { |candidate| (candidate['id'] || candidate['name']) == (stack_config['id'] || stack_config['name']) && candidate['directory'] == stack_config['directory'] }
-          root = convention['root']
-          return root.nil? || root.empty? ? stack_config['directory'] : "#{root}/#{stack_config['directory']}"
-        end
-        nil
+        working_dir, pattern = resolved
+        stack_id = stack_config['id'] || stack_config['name']
+
+        Entities::DeploymentTarget.new(
+          service: deploy_label.service,
+          environment: target_environment,
+          stack: stack_config['name'],
+          stack_id: stack_id,
+          working_directory: working_dir,
+          stack_convention_root: extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config),
+          attributes: target_environment ? config.stack_attributes_for(target_environment, stack_id) : {},
+          captures: extract_captures(pattern, working_dir)
+        )
       end
 
       # Build the captures map for one target. Drops {service} and
