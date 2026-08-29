@@ -468,4 +468,21 @@ RSpec.describe Entities::WorkflowConfig do
       end
     end
   end
+  describe 'identity uniqueness (id || name) within a convention' do
+    let(:environments) { [{ 'environment' => 'production', 'stacks' => {} }] }
+    it('accepts distinct ids') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t','id'=>'a'},{'name'=>'t','id'=>'b'}]}]) }.not_to raise_error }
+    it('rejects duplicate names') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t'},{'name'=>'t'}]}]) }.to raise_error(/duplicate identity 't'/) }
+  end
+  describe '#stack_attributes_for with id fallback' do
+    it 'resolves id and falls back to name' do
+      data={'environments'=>[{'environment'=>'production','stacks'=>{'terragrunt'=>{'x'=>1}}}], 'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'terragrunt','id'=>'aws','directory'=>'d'}]}]}
+      config=described_class.new(data); expect(config.stack_attributes_for('production','aws')).to eq('x'=>1); expect(config.stack_attributes_for('production','missing')).to eq({})
+    end
+  end
+  describe '#required_attributes_for with id fallback' do
+    it 'resolves by identity' do
+      data={'environments'=>[{'environment'=>'production','stacks'=>{}}], 'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t','id'=>'aws','required_attributes'=>['x']}]}]}
+      expect(described_class.new(data).required_attributes_for('aws')).to eq(['x'])
+    end
+  end
 end

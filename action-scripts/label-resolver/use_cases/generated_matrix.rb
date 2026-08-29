@@ -97,8 +97,14 @@ module UseCases
               end
 
               # Check if stack directory exists for this service/environment combination
-              if stack_directory_exists?(deploy_label.service, env, stack_name, config)
-                target = generate_deployment_target(deploy_label, env, stack_name, config, stack_id)
+              if stack_config['id']
+                exists = stack_config_directory_exists?(deploy_label.service, env, stack_config, config)
+                target = generate_deployment_target_for_instance(deploy_label, env, stack_config, config) if exists
+              else
+                exists = stack_directory_exists?(deploy_label.service, env, stack_name, config)
+                target = generate_deployment_target(deploy_label, env, stack_name, config, stack_id) if exists
+              end
+              if exists
                 targets << target if target
               end
             end
@@ -106,8 +112,14 @@ module UseCases
             # Environment-agnostic stack - generate only one target with nil environment
             # Check if stack directory exists (use first environment for validation)
             first_env = @target_environments.first
-            if stack_directory_exists?(deploy_label.service, first_env, stack_name, config)
-              target = generate_deployment_target(deploy_label, nil, stack_name, config, stack_id)
+            if stack_config['id']
+              exists = stack_config_directory_exists?(deploy_label.service, first_env, stack_config, config)
+              target = generate_deployment_target_for_instance(deploy_label, nil, stack_config, config) if exists
+            else
+              exists = stack_directory_exists?(deploy_label.service, first_env, stack_name, config)
+              target = generate_deployment_target(deploy_label, nil, stack_name, config, stack_id) if exists
+            end
+            if exists
               targets << target if target
             end
           end
@@ -268,6 +280,33 @@ module UseCases
         captures = extract_captures(full_match_pattern, working_dir)
 
         create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures, stack_id)
+      end
+
+      def stack_config_directory_exists?(service_name, environment, stack_config, config)
+        pattern = full_pattern_for_stack_config(stack_config, config)
+        return false unless pattern
+        expanded = expand_directory_pattern(pattern, service_name, environment)
+        expanded && File.directory?(File.join(find_repository_root, expanded))
+      end
+
+      def generate_deployment_target_for_instance(deploy_label, target_environment, stack_config, config)
+        pattern = full_pattern_for_stack_config(stack_config, config)
+        return nil unless pattern
+        candidate = expand_directory_pattern(pattern, deploy_label.service, target_environment)
+        return nil unless candidate && File.directory?(File.join(find_repository_root, candidate))
+        Entities::DeploymentTarget.new(service: deploy_label.service, environment: target_environment,
+          stack: stack_config['name'], stack_id: stack_config['id'] || stack_config['name'],
+          working_directory: candidate, stack_convention_root: extract_root_from_working_dir(candidate, deploy_label.service, target_environment, config),
+          attributes: target_environment ? config.stack_attributes_for(target_environment, stack_config['id'] || stack_config['name']) : {},
+          captures: extract_captures(pattern, candidate))
+      end
+
+      def full_pattern_for_stack_config(stack_config, config)
+        config.stack_conventions_config.each do |convention|
+          next unless (convention['stacks'] || []).any? { |candidate| (candidate['id'] || candidate['name']) == (stack_config['id'] || stack_config['name']) && candidate['directory'] == stack_config['directory'] }
+          root = convention['root']; return root.nil? || root.empty? ? stack_config['directory'] : "#{root}/#{stack_config['directory']}"
+        end
+        nil
       end
 
       # Find the full (root + "/" + directory) pattern that produced this

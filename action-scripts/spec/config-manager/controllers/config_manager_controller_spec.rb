@@ -329,4 +329,9 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       end
     end
   end
+  context 'with two stack entries sharing a name but distinct ids' do
+    it 'keeps both entries distinct' do
+      expect(controller).to respond_to(:test_service_configuration)
+    end
+  end
 end

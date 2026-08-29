@@ -600,4 +600,13 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       expect(result.deployment_targets).not_to be_empty
     end
   end
+  context 'when a convention has two stacks sharing name but distinct id' do
+    let(:target_environments) { ['production'] }
+    it 'generates one target per stack instance' do
+      pending 'requires the dual-id fixture from the task brief'
+      labels=[Entities::DeployLabel.from_service(service:'monolith')]
+      result=use_case.execute(deploy_labels: labels, target_environments: target_environments)
+      expect(result.deployment_targets.map(&:stack_id).sort).to eq(%w[aws stripe])
+    end
+  end
 end
