@@ -71,16 +71,17 @@ module UseCases
 
         # A service can legitimately span multiple conventions (e.g. aws/{service} for
         # terragrunt + kubernetes/components/{service} for kubernetes manifests).
-        # Collect stacks from every matching convention; dedup by stack name (first wins)
+        # Collect stacks from every matching convention; dedup by identity (first wins)
         # so duplicate stack names across conventions don't multiply targets — downstream
         # lookup is keyed on stack name and converges to the same working directory.
         matching_conventions = find_matching_conventions(deploy_label.service, config)
         return targets if matching_conventions.empty?
 
-        stacks = matching_conventions.flat_map { |c| c['stacks'] || [] }.uniq { |s| s['name'] }
+        stacks = matching_conventions.flat_map { |c| c['stacks'] || [] }.uniq { |s| s['id'] || s['name'] }
 
         stacks.each do |stack_config|
           stack_name = stack_config['name']
+          stack_id = stack_config['id'] || stack_name
           stack_directory = stack_config['directory']
 
           # Check if stack is environment-specific (contains {environment} placeholder)
@@ -97,7 +98,7 @@ module UseCases
 
               # Check if stack directory exists for this service/environment combination
               if stack_directory_exists?(deploy_label.service, env, stack_name, config)
-                target = generate_deployment_target(deploy_label, env, stack_name, config)
+                target = generate_deployment_target(deploy_label, env, stack_name, config, stack_id)
                 targets << target if target
               end
             end
@@ -106,7 +107,7 @@ module UseCases
             # Check if stack directory exists (use first environment for validation)
             first_env = @target_environments.first
             if stack_directory_exists?(deploy_label.service, first_env, stack_name, config)
-              target = generate_deployment_target(deploy_label, nil, stack_name, config)
+              target = generate_deployment_target(deploy_label, nil, stack_name, config, stack_id)
               targets << target if target
             end
           end
@@ -241,7 +242,7 @@ module UseCases
       end
 
       # Generate a deployment target from deploy label, environment, and stack
-      def generate_deployment_target(deploy_label, target_environment, stack, config)
+      def generate_deployment_target(deploy_label, target_environment, stack, config, stack_id = stack)
         dir_patterns = config.stack_conventions_for(deploy_label.service, stack)
         return nil if dir_patterns.empty?
 
@@ -266,7 +267,7 @@ module UseCases
         full_match_pattern = full_pattern_for(deploy_label.service, matched_dir_pattern, config)
         captures = extract_captures(full_match_pattern, working_dir)
 
-        create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures)
+        create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures, stack_id)
       end
 
       # Find the full (root + "/" + directory) pattern that produced this
@@ -308,14 +309,15 @@ module UseCases
       end
 
       # Create deployment target (unified across stacks)
-      def create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures = {})
+      def create_deployment_target(deploy_label, target_environment, stack, working_dir, config, captures = {}, stack_id = stack)
         Entities::DeploymentTarget.new(
           service: deploy_label.service,
           environment: target_environment,
           stack: stack,
           working_directory: working_dir,
           stack_convention_root: extract_root_from_working_dir(working_dir, deploy_label.service, target_environment, config),
-          attributes: target_environment ? config.stack_attributes_for(target_environment, stack) : {},
+          stack_id: stack_id,
+          attributes: target_environment ? config.stack_attributes_for(target_environment, stack_id) : {},
           captures: captures
         )
       end
