@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/panicboat/deploy-actions/compare/v1.2.0...v1.3.0) (2026-08-30)
+
+
+### Features
+
+* introduce stacks[].id for multi-instance conventions ([#307](https://github.com/panicboat/deploy-actions/issues/307)) ([74da1d6](https://github.com/panicboat/deploy-actions/commit/74da1d66f80b7325e93c576e2b2aa5bfdf6f16a6))
+
 ## v1.3.0
 
 ### Added
