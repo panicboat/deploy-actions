@@ -86,6 +86,7 @@ RSpec.describe Entities::DeploymentTarget do
       target = described_class.new(
         service: 'foo',
         stack: 'terragrunt',
+        stack_id: 'terragrunt',
         working_directory: 'foo/terragrunt/develop',
         environment: 'develop',
         stack_convention_root: 'foo',
@@ -100,6 +101,7 @@ RSpec.describe Entities::DeploymentTarget do
         service: 'foo',
         environment: 'develop',
         stack: 'terragrunt',
+        stack_id: 'terragrunt',
         working_directory: 'foo/terragrunt/develop',
         stack_convention_root: 'foo',
         aws_region: 'ap-northeast-1',
@@ -112,6 +114,7 @@ RSpec.describe Entities::DeploymentTarget do
       target = described_class.new(
         service: 'foo',
         stack: 'kubernetes',
+        stack_id: 'kubernetes',
         working_directory: 'foo/kubernetes/overlays/develop',
         environment: 'develop',
         stack_convention_root: 'foo'
@@ -121,6 +124,7 @@ RSpec.describe Entities::DeploymentTarget do
         service: 'foo',
         environment: 'develop',
         stack: 'kubernetes',
+        stack_id: 'kubernetes',
         working_directory: 'foo/kubernetes/overlays/develop',
         stack_convention_root: 'foo'
       )
@@ -196,6 +200,40 @@ RSpec.describe Entities::DeploymentTarget do
       expect {
         described_class.new(**base_args, captures: { 'aws_region' => 'us-east-1' })
       }.to raise_error(ArgumentError, /attributes/i)
+    end
+  end
+end
+
+RSpec.describe Entities::DeploymentTarget do
+  describe '#stack_id' do
+    it 'defaults to stack when not provided' do
+      target = described_class.new(service: 'monolith', stack: 'terragrunt', working_directory: 'dystopia/monolith/infrastructure/aws/production')
+      expect(target.stack_id).to eq('terragrunt')
+    end
+    it 'accepts an explicit stack_id distinct from stack' do
+      target = described_class.new(service: 'monolith', stack: 'terragrunt', stack_id: 'aws', working_directory: 'dystopia/monolith/infrastructure/aws/production')
+      expect(target.stack_id).to eq('aws')
+    end
+  end
+
+  describe '#to_matrix_item' do
+    it 'exposes stack_id in the matrix output' do
+      target = described_class.new(service: 'monolith', stack: 'terragrunt', stack_id: 'stripe', working_directory: 'dystopia/monolith/infrastructure/stripe/production')
+      expect(target.to_matrix_item[:stack_id]).to eq('stripe')
+    end
+    it 'exposes stack_id equal to stack when not explicitly set' do
+      target = described_class.new(service: 'monolith', stack: 'kubernetes', working_directory: 'dystopia/monolith/kubernetes/overlays/production')
+      expect(target.to_matrix_item[:stack_id]).to eq('kubernetes')
+    end
+  end
+
+  describe 'FIXED_RESERVED_KEYS' do
+    it 'includes stack_id so captures cannot collide with it' do
+      expect(Entities::DeploymentTarget::FIXED_RESERVED_KEYS).to include('stack_id')
+    end
+    it 'raises when captures collide with stack_id' do
+      expect { described_class.new(service: 'foo', stack: 'terragrunt', working_directory: 'foo/bar', captures: { 'stack_id' => 'boom' }) }
+        .to raise_error(ArgumentError, /reserved DeploymentTarget field/)
     end
   end
 end

@@ -3,13 +3,13 @@
 
 module Entities
   class DeploymentTarget
-    FIXED_RESERVED_KEYS = %w[service environment stack working_directory stack_convention_root].freeze
+    FIXED_RESERVED_KEYS = %w[service environment stack stack_id working_directory stack_convention_root].freeze
 
-    attr_reader :service, :environment, :stack,
+    attr_reader :service, :environment, :stack, :stack_id,
                 :working_directory, :stack_convention_root, :attributes, :captures
 
     def initialize(service:, stack:, working_directory:,
-                   environment: nil, stack_convention_root: nil,
+                   environment: nil, stack_convention_root: nil, stack_id: nil,
                    attributes: {}, captures: {})
       raise ArgumentError, "service is required"           if service.nil?           || service.empty?
       raise ArgumentError, "stack is required"             if stack.nil?             || stack.empty?
@@ -29,6 +29,7 @@ module Entities
       @service               = service
       @environment           = environment
       @stack                 = stack
+      @stack_id              = stack_id || stack
       @working_directory     = working_directory
       @stack_convention_root = stack_convention_root
       @attributes            = attributes.freeze
@@ -40,6 +41,7 @@ module Entities
         service: service,
         environment: environment,
         stack: stack,
+        stack_id: stack_id,
         working_directory: working_directory,
         stack_convention_root: stack_convention_root,
       }.merge(attributes.transform_keys(&:to_sym))

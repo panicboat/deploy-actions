@@ -71,11 +71,11 @@ module Interfaces
           stack_attributes = {}
           config.stack_conventions_config.each do |convention|
             (convention['stacks'] || []).each do |stack_def|
-              stack_name = stack_def['name']
-              stack_directories[stack_name] = config.stack_convention_for(service_name, stack_name)
+              stack_key = stack_def['id'] || stack_def['name']
+              stack_directories[stack_key] = config.stack_convention_for(service_name, stack_key)
                 &.gsub('{service}', service_name)
                 &.gsub('{environment}', environment)
-              stack_attributes[stack_name] = config.stack_attributes_for(environment, stack_name)
+              stack_attributes[stack_key] = config.stack_attributes_for(environment, stack_key)
             end
           end
 

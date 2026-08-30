@@ -329,4 +329,29 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       end
     end
   end
+  context 'with two stack entries sharing a name but distinct ids' do
+    let(:config) { double('WorkflowConfig') }
+    let(:service_name) { 'monolith' }
+    let(:environment) { 'production' }
+    before do
+      allow(config_client).to receive(:load_workflow_config).and_return(config)
+      allow(config).to receive_message_chain(:services, :key?).with(service_name).and_return(true)
+      allow(config).to receive_message_chain(:environments, :key?).with(environment).and_return(true)
+      allow(config).to receive_message_chain(:services, :[]).with(service_name).and_return({ 'name' => service_name })
+      allow(config).to receive(:stack_convention_for).with(service_name, 'aws').and_return('dystopia/{service}/infrastructure/aws/{environment}')
+      allow(config).to receive(:stack_convention_for).with(service_name, 'stripe').and_return('dystopia/{service}/infrastructure/stripe/{environment}')
+      allow(config).to receive(:stack_conventions_config).and_return([{ 'root'=>'dystopia/{service}', 'stacks'=>[
+        { 'name'=>'terragrunt', 'id'=>'aws', 'directory'=>'infrastructure/aws/{environment}' },
+        { 'name'=>'terragrunt', 'id'=>'stripe', 'directory'=>'infrastructure/stripe/{environment}' }] }])
+      allow(config).to receive(:stack_attributes_for).with(environment, 'aws').and_return({ 'aws_region'=>'ap-northeast-1' })
+      allow(config).to receive(:stack_attributes_for).with(environment, 'stripe').and_return({ 'stripe_secret_ref'=>'/panicboat/stripe/api-key' })
+      allow(presenter).to receive(:present_service_test_result)
+    end
+    it 'keeps both entries distinct instead of the second overwriting the first' do
+      controller.test_service_configuration(service_name: service_name, environment: environment)
+      expect(presenter).to have_received(:present_service_test_result).with(hash_including(
+        stack_directories: { 'aws'=>"dystopia/#{service_name}/infrastructure/aws/#{environment}", 'stripe'=>"dystopia/#{service_name}/infrastructure/stripe/#{environment}" },
+        stack_attributes: { 'aws'=>{ 'aws_region'=>'ap-northeast-1' }, 'stripe'=>{ 'stripe_secret_ref'=>'/panicboat/stripe/api-key' } }))
+    end
+  end
 end

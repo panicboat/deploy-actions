@@ -565,7 +565,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
         allow(File).to receive(:directory?).and_return(true)
       end
 
-      it 'dedupes by stack name and generates a single terragrunt target' do
+      it 'dedupes by identity (id || name) and generates a single terragrunt target' do
         result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
 
         expect(result).to be_success
@@ -598,6 +598,37 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
       expect(result).to be_success
       expect(result.deployment_targets).not_to be_empty
+    end
+  end
+  context 'when a convention has two stacks sharing name but distinct id' do
+    let(:target_environments) { ['production'] }
+    let(:env_config) { {'environment'=>'production','stacks'=>{'terragrunt'=>{'aws_region'=>'ap-northeast-1'}}} }
+    before do
+      allow(config).to receive(:environment_config).with('production').and_return(env_config)
+      allow(config).to receive(:stack_attributes_for).and_return(env_config['stacks']['terragrunt'])
+      allow(config).to receive(:services).and_return({'monolith'=>{}})
+      allow(config).to receive(:stack_conventions_config).and_return([{'root'=>'dystopia/{service}','stacks'=>[
+        {'name'=>'terragrunt','id'=>'aws','directory'=>'infrastructure/aws/{environment}'},
+        {'name'=>'terragrunt','id'=>'stripe','directory'=>'infrastructure/stripe/{environment}'}]}])
+      allow(File).to receive(:directory?).and_return(true)
+    end
+    it 'generates one target per stack instance' do
+      labels = [Entities::DeployLabel.from_service(service: 'monolith')]
+      result = use_case.execute(deploy_labels: labels, target_environments: target_environments)
+
+      expect(result).to be_success
+      expect(result.deployment_targets.length).to eq(2)
+
+      dirs = result.deployment_targets.map(&:working_directory).sort
+      expect(dirs).to eq([
+        'dystopia/monolith/infrastructure/aws/production',
+        'dystopia/monolith/infrastructure/stripe/production'
+      ])
+
+      ids = result.deployment_targets.map(&:stack_id).sort
+      expect(ids).to eq(%w[aws stripe])
+
+      expect(result.deployment_targets.map(&:stack).uniq).to eq(['terragrunt'])
     end
   end
 end

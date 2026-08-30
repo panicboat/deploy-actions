@@ -107,6 +107,10 @@ stack_conventions:
         targets: ["develop", "staging", "production"]
 ```
 
+Each stack entry may define an optional `id` to identify an instance. The
+identity is `id || name`, and identities must be unique within a convention;
+duplicate identities are rejected when the configuration is loaded.
+
 ### Services
 
 Service-specific configurations and exclusions:

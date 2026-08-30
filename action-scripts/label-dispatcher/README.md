@@ -163,8 +163,8 @@ The dispatcher uses the following logic to detect services:
 
 ### Example Detection
 
-For a file change in `services/auth/aws/envs/develop/main.tf`:
-- Matches pattern: `services/{service}/aws/envs/{environment}`
+For a file change in `services/auth/aws/develop/main.tf`:
+- Matches pattern: `services/{service}/aws/{environment}`
 - Extracts service: `auth`
 - Applies configuration for `auth` service
 - Adds label: `deploy:auth`

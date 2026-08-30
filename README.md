@@ -100,6 +100,27 @@ services:
 
 See `action-scripts/workflow-config.yaml` for a runnable sample.
 
+### Multiple instances of the same stack name
+
+When a service needs two instances of the same stack (e.g. one Terragrunt
+stack for AWS resources and one for Stripe), give each entry a distinct `id`.
+
+```yaml
+# `id` is optional; when omitted it falls back to `name`. Within a single
+# convention, `id || name` must be unique.
+stack_conventions:
+  - root: "dystopia/{service}"
+    stacks:
+      - name: terragrunt
+        id: aws
+        directory: infrastructure/aws/{environment}
+        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
+      - name: terragrunt
+        id: stripe
+        directory: infrastructure/stripe/{environment}
+        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
+```
+
 ## Workflow integration
 
 ### 1. Change-detection workflow
@@ -155,6 +176,7 @@ The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of thi
 | `service` | Fixed | `deploy:<service>` label |
 | `environment` | Fixed | `null` for environment-agnostic stacks |
 | `stack` | Fixed | e.g. `aws`, `kubernetes` |
+| `stack_id` | Fixed | Instance identity (`id \|\| name`). Equals `stack` when `id` is not set. |
 | `working_directory` | Fixed | Resolved deploy directory |
 | `stack_convention_root` | Fixed | `root` portion of the matched pattern, expanded |
 | (attributes keys) | Dynamic | Everything under `environments[].stacks[stack].*` |
@@ -185,6 +207,7 @@ a working directory at `payments/api/aws/develop` resolves to:
   "service": "api",
   "environment": "develop",
   "stack": "aws",
+  "stack_id": "aws",
   "working_directory": "payments/api/aws/develop",
   "stack_convention_root": "payments/api",
   "aws_region": "ap-northeast-1",
