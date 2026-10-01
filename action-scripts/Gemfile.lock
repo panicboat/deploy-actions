@@ -210,7 +210,7 @@ DEPENDENCIES
   factory_bot (~> 6.6)
   faraday-retry (~> 2.4)
   guard-rspec (~> 4.7, >= 4.7.3)
-  json (~> 2.19, >= 2.19.5)
+  json (~> 2.21, >= 2.21.2)
   octokit (~> 10.0)
   pry (~> 0.16)
   rspec (~> 3.13, >= 3.13.2)
