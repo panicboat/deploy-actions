@@ -271,7 +271,7 @@ Run: `git commit -s -m 'feat: resolve stack paths from repository directories'`
 - Produces: `DeploymentTarget#to_matrix_item` → Symbol キーの固定5フィールドと、属性・任意の抽出値を展開したマップ。`#==`・`#eql?`・`#hash` の識別要素は service・stack_id・environment・working_directory。
 - Produces: `LabelResolverCLI#parse_environments(env_string)` → 入力省略・空白だけなら `[]`、それ以外は comma 分割して strip した文字列配列。環境名の検証は use case に任せる。
 
-- [ ] **Step 1: Write environment, target, and matrix behavior tests**
+- [x] **Step 1: Write environment, target, and matrix behavior tests**
 
 環境選択は入力 nil・空配列・重複・未知名・環境共通だけの設定をテストする。`['production', 'production']` の結果が `['production']`、未知名 `preview` が failure、共通だけの構成の既定値が `[]` になることを確認する。
 
@@ -293,13 +293,13 @@ matrix の spec は一時リポジトリと実モデルを使う。生成対象�
 
 `DeploymentTarget` の spec は固定5キー、属性値の型、capture の衝突、stack_id が異なる対象の不一致、同一対象の `hash` 一致を assertion にする。CLI の spec は bin を require してもコマンドが起動しないこと、nil・空白・`' develop,production '` の解析をテストする。controller の spec は検証済み環境配列を生成と表示へ渡すことを確認する。
 
-- [ ] **Step 2: Confirm the resolver tests fail**
+- [x] **Step 2: Confirm the resolver tests fail**
 
 Run: `bundle exec rspec spec/shared/entities/deployment_target_spec.rb spec/label-resolver`
 
 Expected: 新しい constructor、環境選択、複数パス、除外、固定5キーの assertion が FAIL。
 
-- [ ] **Step 3: Implement target generation from stack definitions**
+- [x] **Step 3: Implement target generation from stack definitions**
 
 `application.rb` から `FileSystemClient` を注入する。`DetermineTargetEnvironment` は `environment_names` を使い、`GenerateMatrix` も直接呼び出された場合に環境名を検証する。matrix の入力 nil・空配列も全環境として扱い、既定値・重複除去・未知名の判定は両 use case で同じ値になるようテストする。
 
@@ -309,11 +309,11 @@ matrix は stack ごとに選択環境と定義環境の共通部分、または
 
 旧 convention の探索、属性の名前への fallback、最初のパスへの収束、サービス登録、root の推測、旧ディレクトリ解決の補助メソッドを削除する。`DeploymentTarget` と factory の `stack_convention_root` を削除し、同一性を stack_id に揃える。bin の実行末尾を `$PROGRAM_NAME == __FILE__` で guard し、環境一覧の既定値を補う `all_environments` を削除する。
 
-- [ ] **Step 4: Confirm the resolver tests pass**
+- [x] **Step 4: Confirm the resolver tests pass**
 
 Step 2 と同じコマンドを実行する。Expected: exit 0、`0 failures`。行数・属性・capture を実在ディレクトリで確認し、旧メソッドの mock が残っていない時点で完了とする。
 
-- [ ] **Step 5: Commit environment selection and matrix generation**
+- [x] **Step 5: Commit environment selection and matrix generation**
 
 Files の変更を stage して `git diff --cached --check` を実行する。
 

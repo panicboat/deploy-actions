@@ -1,634 +1,175 @@
-# spec/label-resolver/use_cases/generate_matrix_spec.rb
-
 require 'spec_helper'
+require 'tmpdir'
+require 'fileutils'
 
 RSpec.describe UseCases::LabelResolver::GenerateMatrix do
-  let(:config_client) { double('ConfigClient') }
-  let(:config) { build(:workflow_config) }
+  let(:config_hash) { attributes_for(:workflow_config).fetch(:config_hash) }
+  let(:config) { Entities::WorkflowConfig.new(config_hash) }
+  let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
+  let(:file_client) { Infrastructure::FileSystemClient.new }
+  subject(:use_case) { described_class.new(config_client: config_client, file_client: file_client) }
 
-  subject(:use_case) { described_class.new(config_client: config_client) }
-
-  before do
-    allow(config_client).to receive(:load_workflow_config).and_return(config)
+  around do |example|
+    original = ENV['SOURCE_REPO_PATH']
+    Dir.mktmpdir do |root|
+      @root = root
+      FileUtils.mkdir_p(File.join(root, '.git'))
+      ENV['SOURCE_REPO_PATH'] = root
+      example.run
+    end
+  ensure
+    ENV['SOURCE_REPO_PATH'] = original
   end
 
-  describe '#execute' do
-    let(:target_environments) { ['develop'] }
-    let(:deploy_labels) { [build(:deploy_label, :valid_service)] }
-
-    context 'with valid service labels' do
-      let(:env_config) do
-        {
-          'environment' => 'develop',
-          'stacks' => {
-            'terragrunt' => {
-              'aws_region' => 'ap-northeast-1',
-              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-            },
-            'kubernetes' => {}
-          }
-        }
-      end
-
-      before do
-        allow(config).to receive(:environment_config).with('develop').and_return(env_config)
-        allow(config).to receive(:stack_convention_for).with('test-service', 'terragrunt').and_return('test-service/terragrunt/{environment}')
-        allow(config).to receive(:stack_convention_for).with('test-service', 'kubernetes').and_return('test-service/kubernetes/overlays/{environment}')
-        allow(config).to receive(:stack_convention_root).and_return('{service}')
-        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return(env_config['stacks']['terragrunt'])
-        allow(config).to receive(:stack_attributes_for).with('develop', 'kubernetes').and_return({})
-
-        # Mock new directory structure
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-          { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
-        ])
-
-        # Mock service existence check and services hash access
-        services_mock = { 'test-service' => {} }
-        allow(config).to receive(:services).and_return(services_mock)
-
-        # Mock directory existence checks
-        allow(File).to receive(:directory?).and_return(true)
-      end
-
-      it 'generates deployment targets for both stacks' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets.length).to eq(2)
-
-        terragrunt_target = result.deployment_targets.find { |t| t.stack == 'terragrunt' }
-        kubernetes_target = result.deployment_targets.find { |t| t.stack == 'kubernetes' }
-
-        expect(terragrunt_target).not_to be_nil
-        expect(terragrunt_target.service).to eq('test-service')
-        expect(terragrunt_target.environment).to eq('develop')
-        expect(terragrunt_target.working_directory).to eq('test-service/terragrunt/develop')
-        expect(terragrunt_target.stack_convention_root).to eq('test-service')
-
-        expect(kubernetes_target).not_to be_nil
-        expect(kubernetes_target.service).to eq('test-service')
-        expect(kubernetes_target.environment).to eq('develop')
-        expect(kubernetes_target.working_directory).to eq('test-service/kubernetes/overlays/develop')
-        expect(kubernetes_target.stack_convention_root).to eq('test-service')
-      end
-    end
-
-    context 'with deploy:all label' do
-      let(:deploy_labels) { [build(:deploy_label, :valid_all)] }
-
-      before do
-        # Mock directory stacks
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-          { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
-        ])
-
-        # Mock all services
-        services_mock = {
-          'service1' => {},
-          'service2' => {},
-          'excluded-service' => { 'exclude_from_automation' => true }
-        }
-        allow(config).to receive(:services).and_return(services_mock)
-        allow(config).to receive(:excluded_services).and_return(['excluded-service'])
-        allow(config).to receive(:environment_config).with('develop').and_return({
-          'environment' => 'develop',
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-        })
-        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return({
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-        })
-        allow(config).to receive(:stack_attributes_for).with('develop', 'kubernetes').and_return({})
-        allow(config).to receive(:stack_convention_root).and_return('{service}')
-
-        # Mock directory conventions for both services
-        ['service1', 'service2'].each do |service|
-          allow(config).to receive(:stack_convention_for).with(service, 'terragrunt').and_return("#{service}/terragrunt/{environment}")
-          allow(config).to receive(:stack_convention_for).with(service, 'kubernetes').and_return("#{service}/kubernetes/overlays/{environment}")
-        end
-
-        # Mock directory existence checks
-        allow(File).to receive(:directory?).and_return(true)
-      end
-
-      it 'generates targets for all non-excluded services' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets.length).to eq(4) # 2 services × 2 stacks
-
-        service_names = result.deployment_targets.map(&:service).uniq
-        expect(service_names).to contain_exactly('service1', 'service2')
-        expect(service_names).not_to include('excluded-service')
-      end
-    end
-
-    context 'with non-existent environment' do
-      before do
-        allow(config).to receive(:environment_config).with('develop').and_return(nil)
-      end
-
-      it 'returns failure result' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_failure
-        expect(result.error_message).to include('Environment configuration not found')
-        expect(result.error_message).to include('develop')
-      end
-    end
-
-    context 'with non-existent service' do
-      before do
-        allow(config).to receive(:environment_config).with('develop').and_return({
-          'environment' => 'develop'
-        })
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-          { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
-        ])
-        allow(config).to receive(:services).and_return({})
-        # Mock stack_conventions_for to return empty for non-existent service
-        allow(config).to receive(:stack_conventions_for).and_return([])
-      end
-
-      it 'skips non-existent services' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets).to be_empty
-      end
-    end
-
-    context 'with empty deploy labels' do
-      let(:deploy_labels) { [] }
-
-      it 'returns empty deployment targets' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets).to be_empty
-      end
-    end
-
-    context 'with missing directory conventions' do
-      before do
-        allow(config).to receive(:environment_config).with('develop').and_return({
-          'environment' => 'develop'
-        })
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-          { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
-        ])
-        allow(config).to receive(:services).and_return({ 'test-service' => {} })
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'terragrunt').and_return([])
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'kubernetes').and_return([])
-      end
-
-      it 'skips services without directory conventions' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets).to be_empty
-      end
-    end
-
-    context 'with service-specific directory conventions' do
-      let(:env_config) do
-        {
-          'environment' => 'develop',
-          'stacks' => {
-            'terragrunt' => {
-              'aws_region' => 'ap-northeast-1',
-              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-            }
-          }
-        }
-      end
-
-      before do
-        allow(config).to receive(:environment_config).with('develop').and_return(env_config)
-        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return(env_config['stacks']['terragrunt'])
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-          { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
-        ])
-        allow(config).to receive(:services).and_return({ 'test-service' => {} })
-        allow(config).to receive(:excluded_services).and_return([])
-        allow(config).to receive(:stack_convention_for).with('test-service', 'terragrunt').and_return('custom/{service}/terraform/environments/{environment}')
-        allow(config).to receive(:stack_convention_for).with('test-service', 'kubernetes').and_return(nil) # Only terragrunt
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'terragrunt').and_return(['custom/{service}/terraform/environments/{environment}'])
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'kubernetes').and_return([]) # Only terragrunt
-
-        # Mock directory existence checks
-        allow(File).to receive(:directory?).and_return(true)
-      end
-
-      it 'uses service-specific conventions and creates only matching targets' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets.length).to eq(1)
-
-        target = result.deployment_targets.first
-        expect(target.stack).to eq('terragrunt')
-        expect(target.working_directory).to eq('custom/test-service/terraform/environments/develop')
-        expect(target.stack_convention_root).to eq('test-service')
-      end
-    end
-
-    context 'when config loading fails' do
-      let(:error) { StandardError.new('Config file not found') }
-
-      before do
-        allow(config_client).to receive(:load_workflow_config).and_raise(error)
-      end
-
-      it 'handles error and returns failure result' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_failure
-        expect(result.error_message).to include('Matrix generation failed')
-        expect(result.error_message).to include('Config file not found')
-      end
-    end
-
-    context 'with mixed valid and invalid labels' do
-      let(:deploy_labels) do
-        [
-          build(:deploy_label, :valid_service),
-          build(:deploy_label, :invalid)
-        ]
-      end
-
-      before do
-        allow(config).to receive(:environment_config).with('develop').and_return({
-          'environment' => 'develop',
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-        })
-        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return({
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-        })
-        allow(config).to receive(:stack_attributes_for).with('develop', 'kubernetes').and_return({})
-        allow(config).to receive(:stack_convention_root).and_return('{service}')
-        allow(config).to receive(:send).with(:directory_stacks).and_return([
-          { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-          { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
-        ])
-        allow(config).to receive(:services).and_return({ 'test-service' => {} })
-        allow(config).to receive(:stack_convention_for).with('test-service', 'terragrunt').and_return('test-service/terragrunt/{environment}')
-        allow(config).to receive(:stack_convention_for).with('test-service', 'kubernetes').and_return('test-service/kubernetes/overlays/{environment}')
-
-        # Mock directory existence checks
-        allow(File).to receive(:directory?).and_return(true)
-      end
-
-      it 'processes only valid deploy labels' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets.length).to eq(2) # Only test-service targets
-        expect(result.deployment_targets.map(&:service).uniq).to eq(['test-service'])
-      end
-    end
-
-    context 'with environment-agnostic stack (docker)' do
-      let(:target_environments) { ['develop', 'staging', 'production'] }
-      let(:env_config_develop) do
-        {
-          'environment' => 'develop',
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-        }
-      end
-      let(:env_config_staging) do
-        {
-          'environment' => 'staging',
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply-role'
-        }
-      end
-      let(:env_config_production) do
-        {
-          'environment' => 'production',
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/prod-plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/prod-apply-role'
-        }
-      end
-
-      before do
-        allow(config).to receive(:environment_config).with('develop').and_return(env_config_develop)
-        allow(config).to receive(:environment_config).with('staging').and_return(env_config_staging)
-        allow(config).to receive(:environment_config).with('production').and_return(env_config_production)
-        allow(config).to receive(:stack_attributes_for).with('develop', 'terragrunt').and_return({
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-        })
-        allow(config).to receive(:stack_attributes_for).with('staging', 'terragrunt').and_return({
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply-role'
-        })
-        allow(config).to receive(:stack_attributes_for).with('production', 'terragrunt').and_return({
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123456789012:role/prod-plan-role',
-          'iam_role_apply' => 'arn:aws:iam::123456789012:role/prod-apply-role'
-        })
-        allow(config).to receive(:stack_attributes_for).with('develop', 'kubernetes').and_return({})
-        allow(config).to receive(:stack_attributes_for).with('staging', 'kubernetes').and_return({})
-        allow(config).to receive(:stack_attributes_for).with('production', 'kubernetes').and_return({})
-        allow(config).to receive(:stack_attributes_for).with(anything, 'docker').and_return({})
-
-        # Mock stack_conventions_config for find_matching_conventions
-        allow(config).to receive(:stack_conventions_config).and_return([
-          {
-            'root' => '{service}',
-            'stacks' => [
-              { 'name' => 'docker', 'directory' => 'workspace' },
-              { 'name' => 'terragrunt', 'directory' => 'terragrunt/envs/{environment}' },
-              { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
-            ]
-          }
-        ])
-
-        allow(config).to receive(:services).and_return({ 'test-service' => {} })
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'docker').and_return(['{service}/workspace'])
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'terragrunt').and_return(['{service}/terragrunt/envs/{environment}'])
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'kubernetes').and_return(['{service}/kubernetes/overlays/{environment}'])
-        allow(config).to receive(:stack_convention_root).and_return('{service}')
-
-        # Mock directory existence checks
-        allow(File).to receive(:directory?).and_return(true)
-      end
-
-      it 'generates only one docker target with nil environment despite multiple target environments' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-
-        docker_targets = result.deployment_targets.select { |t| t.stack == 'docker' }
-        terragrunt_targets = result.deployment_targets.select { |t| t.stack == 'terragrunt' }
-        kubernetes_targets = result.deployment_targets.select { |t| t.stack == 'kubernetes' }
-
-        # Docker should have only 1 target with nil environment
-        expect(docker_targets.length).to eq(1)
-        expect(docker_targets.first.environment).to be_nil
-        expect(docker_targets.first.working_directory).to eq('test-service/workspace')
-
-        # Terragrunt and Kubernetes should have targets for all environments
-        expect(terragrunt_targets.length).to eq(3)
-        expect(terragrunt_targets.map(&:environment)).to contain_exactly('develop', 'staging', 'production')
-
-        expect(kubernetes_targets.length).to eq(3)
-        expect(kubernetes_targets.map(&:environment)).to contain_exactly('develop', 'staging', 'production')
-
-        # Total: 1 docker + 3 terragrunt + 3 kubernetes = 7 targets
-        expect(result.deployment_targets.length).to eq(7)
-      end
-    end
-
-    context 'with service spanning multiple stack conventions' do
-      let(:target_environments) { ['production'] }
-      let(:env_config) do
-        {
-          'environment' => 'production',
-          'stacks' => {
-            'terragrunt' => {
-              'aws_region' => 'ap-northeast-1',
-              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-            },
-            'kubernetes' => {}
-          }
-        }
-      end
-
-      before do
-        allow(config).to receive(:environment_config).with('production').and_return(env_config)
-        allow(config).to receive(:stack_attributes_for).with('production', 'terragrunt').and_return(env_config['stacks']['terragrunt'])
-        allow(config).to receive(:stack_attributes_for).with('production', 'kubernetes').and_return({})
-        allow(config).to receive(:services).and_return({ 'test-service' => {} })
-
-        # Two separate conventions, each contributing a different stack
-        allow(config).to receive(:stack_conventions_config).and_return([
-          {
-            'root' => 'aws/{service}',
-            'stacks' => [
-              { 'name' => 'terragrunt', 'directory' => 'envs/{environment}' }
-            ]
-          },
-          {
-            'root' => 'kubernetes/components/{service}',
-            'stacks' => [
-              { 'name' => 'kubernetes', 'directory' => '{environment}' }
-            ]
-          }
-        ])
-
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'terragrunt').and_return(['aws/test-service/envs/{environment}'])
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'kubernetes').and_return(['kubernetes/components/test-service/{environment}'])
-
-        allow(File).to receive(:directory?).and_return(true)
-      end
-
-      it 'generates targets from every matching convention, not just the first' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets.length).to eq(2)
-
-        terragrunt_target = result.deployment_targets.find { |t| t.stack == 'terragrunt' }
-        kubernetes_target = result.deployment_targets.find { |t| t.stack == 'kubernetes' }
-
-        expect(terragrunt_target).not_to be_nil
-        expect(terragrunt_target.working_directory).to eq('aws/test-service/envs/production')
-        expect(terragrunt_target.stack_convention_root).to eq('aws/test-service')
-
-        expect(kubernetes_target).not_to be_nil
-        expect(kubernetes_target.working_directory).to eq('kubernetes/components/test-service/production')
-        expect(kubernetes_target.stack_convention_root).to eq('kubernetes/components/test-service')
-      end
-    end
-
-    context 'when stack_conventions root contains an arbitrary placeholder' do
-      let(:config_yaml_hash) do
-        {
-          'environments' => [
-            {
-              'environment' => 'develop',
-              'stacks' => {
-                'terragrunt' => {
-                  'aws_region' => 'ap-northeast-1',
-                  'iam_role_plan' => 'arn:aws:iam::1:role/plan',
-                  'iam_role_apply' => 'arn:aws:iam::1:role/apply'
-                }
-              }
-            }
-          ],
-          'stack_conventions' => [
-            {
-              'root' => '{team}/{service}',
-              'stacks' => [
-                {
-                  'name' => 'terragrunt',
-                  'directory' => 'terragrunt/{environment}',
-                  'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
-                }
-              ]
-            }
-          ],
-          'services' => []
-        }
-      end
-      let(:config) { Entities::WorkflowConfig.new(config_yaml_hash) }
-
-      before do
-        allow(File).to receive(:directory?).and_return(true)
-        allow(Dir).to receive(:glob).and_call_original
-        allow(Dir).to receive(:glob).with(/\*\/api\/terragrunt\/develop/, any_args).and_return(
-          ['payments/api/terragrunt/develop']
-        )
-      end
-
-      it 'flattens the captured value into matrix items' do
-        config_client = double('ConfigClient')
-        allow(config_client).to receive(:load_workflow_config).and_return(config)
-        labels = [Entities::DeployLabel.from_service(service: 'api')]
-        result = described_class.new(config_client: config_client).execute(
-          deploy_labels: labels,
-          target_environments: ['develop']
-        )
-        expect(result).to be_success
-        targets = result.deployment_targets
-        expect(targets).not_to be_empty
-        item = targets.first.to_matrix_item
-        expect(item).to include(service: 'api', team: 'payments')
-      end
-    end
-
-    context 'with same stack name in multiple matching conventions' do
-      let(:target_environments) { ['production'] }
-      let(:env_config) do
-        {
-          'environment' => 'production',
-          'stacks' => {
-            'terragrunt' => {
-              'aws_region' => 'ap-northeast-1',
-              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-            }
-          }
-        }
-      end
-
-      before do
-        allow(config).to receive(:environment_config).with('production').and_return(env_config)
-        allow(config).to receive(:stack_attributes_for).with('production', 'terragrunt').and_return(env_config['stacks']['terragrunt'])
-        allow(config).to receive(:services).and_return({ 'test-service' => {} })
-
-        # Two conventions, both contributing terragrunt — first one wins
-        allow(config).to receive(:stack_conventions_config).and_return([
-          {
-            'root' => 'aws/{service}',
-            'stacks' => [
-              { 'name' => 'terragrunt', 'directory' => 'envs/{environment}' }
-            ]
-          },
-          {
-            'root' => 'github/{service}',
-            'stacks' => [
-              { 'name' => 'terragrunt', 'directory' => 'envs/{environment}' }
-            ]
-          }
-        ])
-
-        allow(config).to receive(:stack_conventions_for).with('test-service', 'terragrunt').and_return([
-          'aws/test-service/envs/{environment}',
-          'github/test-service/envs/{environment}'
-        ])
-
-        allow(File).to receive(:directory?).and_return(true)
-      end
-
-      it 'dedupes by identity (id || name) and generates a single terragrunt target' do
-        result = use_case.execute(deploy_labels: deploy_labels, target_environments: target_environments)
-
-        expect(result).to be_success
-        expect(result.deployment_targets.length).to eq(1)
-        expect(result.deployment_targets.first.stack).to eq('terragrunt')
-      end
+  def directory(path)
+    FileUtils.mkdir_p(File.join(@root, path))
+  end
+
+  def generate(labels: ['deploy:demo'], environments: [])
+    use_case.execute(deploy_labels: labels.map { |label| Entities::DeployLabel.new(label) }, target_environments: environments)
+  end
+
+  def items(**options)
+    result = generate(**options)
+    expect(result).to be_success
+    result.deployment_targets.map(&:to_matrix_item)
+  end
+
+  it 'generates every shared product path with attributes from its own environment' do
+    %w[dystopia/demo/aws/develop dystopia/demo/aws/production system-components/demo/infrastructure/aws/develop system-components/demo/infrastructure/aws/production].each { |path| directory(path) }
+    rows = items
+    expect(rows.length).to eq(6)
+    aws = rows.select { |row| row[:stack_id] == 'aws' }
+    expect(aws.length).to eq(4)
+    expect(aws.map { |row| [row[:environment], row[:aws_region]] }.uniq).to contain_exactly(['develop', 'ap-northeast-1'], ['production', 'us-west-2'])
+    expect(rows.select { |row| row[:stack] == 'container' }).to all(include(environment: nil, repository: 'registry.example.com/app'))
+    expect(rows).to all(satisfy { |row| !row.key?(:stack_convention_root) })
+  end
+
+  it 'keeps independent identities and attributes distinct' do
+    config_hash['stacks'] = [
+      { 'name' => 'terragrunt', 'id' => 'dystopia-aws', 'paths' => ['dystopia/{service}/aws/{environment}'], 'environments' => { 'develop' => { 'region' => 'a' } } },
+      { 'name' => 'terragrunt', 'id' => 'components-aws', 'paths' => ['system-components/{service}/infrastructure/aws/{environment}'], 'environments' => { 'develop' => { 'region' => 'b' } } }
+    ]
+    directory('dystopia/demo/aws/develop'); directory('system-components/demo/infrastructure/aws/develop')
+    expect(items.map { |row| [row[:stack_id], row[:region]] }).to contain_exactly(['dystopia-aws', 'a'], ['components-aws', 'b'])
+  end
+
+  it 'limits each stack to its declared environments' do
+    config_hash['stacks'] = [
+      { 'name' => 'terragrunt', 'paths' => ['dystopia/{service}/aws/{environment}'], 'environments' => { 'develop' => {} } },
+      { 'name' => 'kubernetes', 'paths' => ['dystopia/{service}/k8s/{environment}'], 'environments' => { 'production' => {} } }
+    ]
+    %w[aws/develop aws/production k8s/develop k8s/production].each { |suffix| directory("dystopia/demo/#{suffix}") }
+    expect(items.map { |row| [row[:stack], row[:environment]] }).to contain_exactly(['terragrunt', 'develop'], ['kubernetes', 'production'])
+  end
+
+  it 'reuses an environment-less directory across its declared environments' do
+    config_hash['stacks'].first['paths'] = ['dystopia/{service}/aws']
+    directory('dystopia/demo/aws')
+    rows = items.select { |row| row[:stack_id] == 'aws' }
+    expect(rows.map { |row| [row[:working_directory], row[:environment], row[:aws_region]] }).to contain_exactly(['dystopia/demo/aws', 'develop', 'ap-northeast-1'], ['dystopia/demo/aws', 'production', 'us-west-2'])
+  end
+
+  it 'generates common targets once in a common-only configuration' do
+    config_hash['stacks'] = [config_hash['stacks'].last]
+    directory('dystopia/demo')
+    expect(items(environments: nil)).to eq([{ service: 'demo', environment: nil, stack: 'container', stack_id: 'container', working_directory: 'dystopia/demo', repository: 'registry.example.com/app' }])
+  end
+
+  it 'discovers unregistered services for all labels and deduplicates overlapping labels' do
+    directory('dystopia/demo/aws/develop'); directory('dystopia/api/aws/develop'); directory('dystopia/.hidden/aws/develop')
+    rows = items(labels: ['deploy:all', 'deploy:demo', 'deploy:all'])
+    expect(rows.length).to eq(4)
+    expect(rows.map { |row| row[:service] }.uniq).to contain_exactly('demo', 'api')
+  end
+
+  it 'resolves every arbitrary placeholder value and exposes captures' do
+    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['teams/{team}/{service}'] }]
+    directory('teams/platform/demo'); directory('teams/sandbox/demo')
+    expect(items.map { |row| [row[:team], row[:working_directory]] }).to contain_exactly(['platform', 'teams/platform/demo'], ['sandbox', 'teams/sandbox/demo'])
+  end
+
+  it 'applies service-only exclusions' do
+    config_hash['stacks'].each { |stack| stack['exclude'] = [{ 'service' => 'demo' }] }
+    directory('dystopia/demo/aws/develop')
+    expect(items).to eq([])
+  end
+
+  it 'applies environment-only exclusions to environment-less paths' do
+    config_hash['stacks'] = [config_hash['stacks'].first]
+    config_hash['stacks'].first.merge!('paths' => ['dystopia/{service}/aws'], 'exclude' => [{ 'environment' => 'production' }])
+    directory('dystopia/demo/aws')
+    expect(items.map { |row| row[:environment] }).to eq(['develop'])
+  end
+
+  it 'applies arbitrary conditions with AND within a rule and OR across rules' do
+    config_hash['stacks'] = [{ 'name' => 'terragrunt', 'paths' => ['teams/{team}/{service}/{environment}'], 'environments' => { 'develop' => {}, 'production' => {} }, 'exclude' => [{ 'team' => 'sandbox' }, { 'team' => 'platform', 'environment' => 'production' }] }]
+    %w[platform sandbox].each { |team| %w[develop production].each { |env| directory("teams/#{team}/demo/#{env}") } }
+    expect(items.map { |row| [row[:team], row[:environment]] }).to eq([['platform', 'develop']])
+  end
+
+  it 'does not match missing captures' do
+    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['teams/{team}/{service}', 'dystopia/{service}'], 'exclude' => [{ 'team' => 'sandbox' }] }]
+    directory('teams/sandbox/demo'); directory('dystopia/demo')
+    expect(items.map { |row| row[:working_directory] }).to eq(['dystopia/demo'])
+  end
+
+  it 'applies null environment exclusions to common targets' do
+    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}'], 'exclude' => [{ 'environment' => nil }] }]
+    directory('dystopia/demo')
+    expect(items).to eq([])
+  end
+
+  it 'deduplicates identical paths and repeated labels' do
+    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}', 'dystopia/{service}'] }]
+    directory('dystopia/demo')
+    expect(items(labels: ['deploy:demo', 'deploy:demo']).length).to eq(1)
+  end
+
+  [false, true].each do |reverse|
+    it "rejects conflicting captures before exclusions with reversed paths #{reverse}" do
+      paths = ['teams/{team}/{service}/aws', 'teams/{product}/{service}/aws']
+      paths.reverse! if reverse
+      config_hash['stacks'] = [{ 'name' => 'terragrunt', 'paths' => paths, 'exclude' => [{ 'team' => 'platform' }] }]
+      directory('teams/platform/demo/aws')
+      result = generate
+      expect(result).to be_failure
+      expect(result.error_message).to include('Conflicting captures', 'teams/platform/demo/aws')
+      expect(result.data).not_to have_key(:deployment_targets)
     end
   end
 
-  context 'when {environment} appears in a pattern but target_environment is nil' do
-    it 'raises UnresolvedPlaceholderError when expand_directory_pattern is called directly' do
-      config_client = double('ConfigClient')
-      use_case = described_class.new(config_client: config_client)
-      expect {
-        use_case.send(:expand_directory_pattern, 'foo/{environment}/main', 'svc', nil)
-      }.to raise_error(Entities::UnresolvedPlaceholderError)
-    end
+  it 'returns failures without partial targets for enumeration errors' do
+    directory('dystopia/demo/aws/develop')
+    allow(file_client).to receive(:resolve_directories).and_call_original
+    allow(file_client).to receive(:resolve_directories).with(pattern: 'system-components/{service}/infrastructure/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }).and_raise(Errno::EACCES)
+    result = generate
+    expect(result).to be_failure
+    expect(result.error_message).to include('Permission denied')
+    expect(result.data).not_to have_key(:deployment_targets)
   end
 
-  describe 'integration with real configuration' do
-    let(:real_config_client) { Infrastructure::ConfigClient.new }
-    let(:use_case) { described_class.new(config_client: real_config_client) }
-    let(:temp_config) { create_test_config(default_test_config) }
-    let(:deploy_labels) { [build(:deploy_label, :valid_service)] }
-
-    after { temp_config.unlink }
-
-    it 'works with real configuration' do
-      result = use_case.execute(deploy_labels: deploy_labels, target_environments: ['develop'])
-
-      expect(result).to be_success
-      expect(result.deployment_targets).not_to be_empty
-    end
+  it 'returns failures for unknown environments even when no directory exists' do
+    result = generate(environments: ['preview'])
+    expect(result).to be_failure
+    expect(result.error_message).to include('preview')
+    expect(result.data).not_to have_key(:deployment_targets)
   end
-  context 'when a convention has two stacks sharing name but distinct id' do
-    let(:target_environments) { ['production'] }
-    let(:env_config) { {'environment'=>'production','stacks'=>{'terragrunt'=>{'aws_region'=>'ap-northeast-1'}}} }
-    before do
-      allow(config).to receive(:environment_config).with('production').and_return(env_config)
-      allow(config).to receive(:stack_attributes_for).and_return(env_config['stacks']['terragrunt'])
-      allow(config).to receive(:services).and_return({'monolith'=>{}})
-      allow(config).to receive(:stack_conventions_config).and_return([{'root'=>'dystopia/{service}','stacks'=>[
-        {'name'=>'terragrunt','id'=>'aws','directory'=>'infrastructure/aws/{environment}'},
-        {'name'=>'terragrunt','id'=>'stripe','directory'=>'infrastructure/stripe/{environment}'}]}])
-      allow(File).to receive(:directory?).and_return(true)
-    end
-    it 'generates one target per stack instance' do
-      labels = [Entities::DeployLabel.from_service(service: 'monolith')]
-      result = use_case.execute(deploy_labels: labels, target_environments: target_environments)
 
-      expect(result).to be_success
-      expect(result.deployment_targets.length).to eq(2)
+  it 'deduplicates requested environments' do
+    directory('dystopia/demo/aws/production')
+    expect(items(environments: %w[production production]).count { |row| row[:stack_id] == 'aws' }).to eq(1)
+  end
 
-      dirs = result.deployment_targets.map(&:working_directory).sort
-      expect(dirs).to eq([
-        'dystopia/monolith/infrastructure/aws/production',
-        'dystopia/monolith/infrastructure/stripe/production'
-      ])
+  it 'returns successful empty targets when directories are absent' do
+    result = generate
+    expect(result.data).to eq(deployment_targets: [], has_deployments: false, total_targets: 0)
+  end
 
-      ids = result.deployment_targets.map(&:stack_id).sort
-      expect(ids).to eq(%w[aws stripe])
-
-      expect(result.deployment_targets.map(&:stack).uniq).to eq(['terragrunt'])
-    end
+  it 'returns no targets for empty or invalid labels' do
+    directory('dystopia/demo/aws/develop')
+    expect(items(labels: [])).to eq([])
+    expect(items(labels: ['other', 'deploy:demo:invalid'])).to eq([])
   end
 end

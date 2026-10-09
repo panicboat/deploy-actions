@@ -173,6 +173,19 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
     end
   end
 
+  it 'passes the validated environment selection to matrix generation and presentation' do
+    labels = [build(:deploy_label, :valid_service)]
+    allow(get_labels_use_case).to receive(:execute).and_return(Entities::Result.success(deploy_labels: labels))
+    allow(determine_target_environment_use_case).to receive(:execute).with(target_environments: []).and_return(Entities::Result.success(target_environments: %w[develop production]))
+    allow(validate_deployment_safety_use_case).to receive(:execute).and_return(Entities::Result.success(safety_status: 'passed'))
+    allow(generate_matrix_use_case).to receive(:execute).and_return(Entities::Result.success(deployment_targets: []))
+
+    controller.resolve_from_labels(pr_number: 123, target_environments: [])
+
+    expect(generate_matrix_use_case).to have_received(:execute).with(deploy_labels: labels, target_environments: %w[develop production])
+    expect(presenter).to have_received(:present_deployment_matrix).with(deployment_targets: [], deploy_labels: labels, pr_number: 123, target_environments: %w[develop production], safety_status: 'passed')
+  end
+
   describe '#test_deployment_workflow' do
     it 'calls resolve_from_labels with test parameters' do
       allow(controller).to receive(:resolve_from_labels)

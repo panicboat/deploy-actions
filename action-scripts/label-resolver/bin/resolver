@@ -64,19 +64,9 @@ class LabelResolverCLI < Thor
   private
 
   def parse_environments(env_string)
-    return all_environments if env_string.nil? || env_string.empty?
-    
+    return [] if env_string.nil? || env_string.strip.empty?
     env_string.split(',').map(&:strip)
-  end
-
-  def all_environments
-    config_client = LabelResolverContainer.resolve(:config_client)
-    config = config_client.load_workflow_config
-    config.environments.keys
-  rescue => e
-    puts "Warning: Could not load workflow config, using default environments: #{e.message}"
-    ['develop', 'staging', 'production']
   end
 end
 
-LabelResolverCLI.start(ARGV)
+LabelResolverCLI.start(ARGV) if $PROGRAM_NAME == __FILE__

@@ -1,5 +1,3 @@
-# Use case for determining target environment
-
 module UseCases
   module LabelResolver
     class DetermineTargetEnvironment
@@ -7,28 +5,13 @@ module UseCases
         @config_client = config_client
       end
 
-      # Execute target environments determination
       def execute(target_environments:)
         config = @config_client.load_workflow_config
+        environments = target_environments.nil? || target_environments.empty? ? config.environment_names : target_environments.uniq
+        unknown = environments - config.environment_names
+        return Entities::Result.failure(error_message: "Target environments not found in configuration: #{unknown.join(', ')}") unless unknown.empty?
 
-        # Validate all environments exist in configuration
-        validated_environments = []
-        environment_configs = {}
-
-        target_environments.each do |env|
-          unless config.environments.key?(env)
-            return Entities::Result.failure(
-              error_message: "Target environment '#{env}' not found in configuration"
-            )
-          end
-          validated_environments << env
-          environment_configs[env] = config.environment_config(env)
-        end
-
-        Entities::Result.success(
-          target_environments: validated_environments,
-          environment_configs: environment_configs
-        )
+        Entities::Result.success(target_environments: environments)
       rescue => error
         Entities::Result.failure(error_message: "Failed to determine target environments: #{error.message}")
       end

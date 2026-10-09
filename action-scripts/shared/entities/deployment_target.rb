@@ -1,61 +1,41 @@
-# Deployment target entity representing a specific deployment configuration
-# Contains all necessary information for a deployment matrix item
-
 module Entities
   class DeploymentTarget
-    FIXED_RESERVED_KEYS = %w[service environment stack stack_id working_directory stack_convention_root].freeze
+    FIXED_RESERVED_KEYS = %w[service environment stack stack_id working_directory].freeze
 
-    attr_reader :service, :environment, :stack, :stack_id,
-                :working_directory, :stack_convention_root, :attributes, :captures
+    attr_reader :service, :environment, :stack, :stack_id, :working_directory, :attributes, :captures
 
-    def initialize(service:, stack:, working_directory:,
-                   environment: nil, stack_convention_root: nil, stack_id: nil,
-                   attributes: {}, captures: {})
-      raise ArgumentError, "service is required"           if service.nil?           || service.empty?
-      raise ArgumentError, "stack is required"             if stack.nil?             || stack.empty?
-      raise ArgumentError, "working_directory is required" if working_directory.nil? || working_directory.empty?
-
-      attr_keys = attributes.keys.map(&:to_s)
+    def initialize(service:, stack:, stack_id:, working_directory:, environment: nil, attributes: {}, captures: {})
+      { service: service, stack: stack, stack_id: stack_id, working_directory: working_directory }.each do |key, value|
+        raise ArgumentError, "#{key} is required" unless value.is_a?(String) && !value.empty?
+      end
+      attribute_keys = attributes.keys.map(&:to_s)
       captures.each_key do |raw_key|
         key = raw_key.to_s
-        if FIXED_RESERVED_KEYS.include?(key)
-          raise ArgumentError, "captures key '#{key}' collides with a reserved DeploymentTarget field"
-        end
-        if attr_keys.include?(key)
-          raise ArgumentError, "captures key '#{key}' collides with an attributes key"
-        end
+        raise ArgumentError, "captures key '#{key}' collides with a reserved DeploymentTarget field" if FIXED_RESERVED_KEYS.include?(key)
+        raise ArgumentError, "captures key '#{key}' collides with an attributes key" if attribute_keys.include?(key)
       end
 
-      @service               = service
-      @environment           = environment
-      @stack                 = stack
-      @stack_id              = stack_id || stack
-      @working_directory     = working_directory
-      @stack_convention_root = stack_convention_root
-      @attributes            = attributes.freeze
-      @captures              = captures.freeze
+      @service = service
+      @environment = environment
+      @stack = stack
+      @stack_id = stack_id
+      @working_directory = working_directory
+      @attributes = attributes.dup.freeze
+      @captures = captures.dup.freeze
     end
 
     def to_matrix_item
-      {
-        service: service,
-        environment: environment,
-        stack: stack,
-        stack_id: stack_id,
-        working_directory: working_directory,
-        stack_convention_root: stack_convention_root,
-      }.merge(attributes.transform_keys(&:to_sym))
-       .merge(captures.transform_keys(&:to_sym))
+      { service: service, environment: environment, stack: stack, stack_id: stack_id, working_directory: working_directory }
+        .merge(attributes.transform_keys(&:to_sym)).merge(captures.transform_keys(&:to_sym))
     end
 
     def ==(other)
-      return false unless other.is_a?(DeploymentTarget)
-      [service, environment, stack, working_directory] ==
-        [other.service, other.environment, other.stack, other.working_directory]
+      other.is_a?(DeploymentTarget) &&
+        [service, stack_id, environment, working_directory] == [other.service, other.stack_id, other.environment, other.working_directory]
     end
 
     def hash
-      [service, environment, stack, working_directory].hash
+      [service, stack_id, environment, working_directory].hash
     end
 
     alias eql? ==

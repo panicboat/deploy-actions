@@ -31,6 +31,7 @@ class LabelResolverContainer
 
     # Infrastructure clients
     container[:config_client] = Infrastructure::ConfigClient.new
+    container[:file_client] = Infrastructure::FileSystemClient.new
 
     # GitHub client (only in GitHub Actions or with credentials)
     if ENV['GITHUB_ACTIONS'] || (ENV['GITHUB_TOKEN'] && ENV['GITHUB_REPOSITORY'])
@@ -56,7 +57,8 @@ class LabelResolverContainer
     )
 
     container[:generate_matrix] = UseCases::LabelResolver::GenerateMatrix.new(
-      config_client: container[:config_client]
+      config_client: container[:config_client],
+      file_client: container[:file_client]
     )
 
     # Presenters

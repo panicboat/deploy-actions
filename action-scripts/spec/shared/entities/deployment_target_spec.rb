@@ -1,239 +1,37 @@
-# spec/shared/entities/deployment_target_spec.rb
-
 require 'spec_helper'
 
 RSpec.describe Entities::DeploymentTarget do
-  describe '#initialize' do
-    context 'with all required core fields' do
-      it 'creates a target' do
-        target = described_class.new(
-          service: 'foo',
-          stack: 'terragrunt',
-          working_directory: 'foo/terragrunt/develop',
-          environment: 'develop',
-          stack_convention_root: 'foo',
-          attributes: { 'aws_region' => 'ap-northeast-1' }
-        )
-        expect(target.service).to eq('foo')
-        expect(target.stack).to eq('terragrunt')
-        expect(target.working_directory).to eq('foo/terragrunt/develop')
-        expect(target.environment).to eq('develop')
-        expect(target.stack_convention_root).to eq('foo')
-        expect(target.attributes).to eq('aws_region' => 'ap-northeast-1')
-      end
-    end
+  let(:params) { { service: 'demo', stack: 'terragrunt', stack_id: 'aws', working_directory: 'dystopia/demo/aws' } }
 
-    context 'with environment-agnostic stack' do
-      it 'allows nil environment' do
-        target = described_class.new(
-          service: 'foo',
-          stack: 'docker',
-          working_directory: 'foo/workspace',
-          attributes: {}
-        )
-        expect(target.environment).to be_nil
-        expect(target.attributes).to eq({})
-      end
-    end
+  it 'exports five fixed fields with typed attributes and arbitrary captures' do
+    target = described_class.new(**params, attributes: { 'token' => nil, 'enabled' => true, 'count' => 2 }, captures: { 'team' => 'platform' })
+    expect(target.to_matrix_item).to eq(params.merge(environment: nil, token: nil, enabled: true, count: 2, team: 'platform'))
+  end
 
-    context 'with empty attributes' do
-      it 'defaults attributes to empty hash' do
-        target = described_class.new(
-          service: 'foo',
-          stack: 'kubernetes',
-          working_directory: 'foo/kubernetes/overlays/develop',
-          environment: 'develop'
-        )
-        expect(target.attributes).to eq({})
-      end
-    end
+  it 'requires an explicit stack identity' do
+    expect { described_class.new(**params.reject { |key, _| key == :stack_id }) }.to raise_error(ArgumentError, /stack_id/)
+    expect { described_class.new(**params.merge(stack_id: '')) }.to raise_error(ArgumentError, /stack_id/)
+  end
 
-    context 'when service is missing' do
-      it 'raises ArgumentError' do
-        expect {
-          described_class.new(service: nil, stack: 'terragrunt', working_directory: 'foo')
-        }.to raise_error(ArgumentError, /service/)
-      end
-    end
-
-    context 'when stack is missing' do
-      it 'raises ArgumentError' do
-        expect {
-          described_class.new(service: 'foo', stack: nil, working_directory: 'foo/dir')
-        }.to raise_error(ArgumentError, /stack/)
-      end
-    end
-
-    context 'when working_directory is missing' do
-      it 'raises ArgumentError' do
-        expect {
-          described_class.new(service: 'foo', stack: 'terragrunt', working_directory: nil)
-        }.to raise_error(ArgumentError, /working_directory/)
-      end
-    end
-
-    context 'when service is empty string' do
-      it 'raises ArgumentError' do
-        expect {
-          described_class.new(service: '', stack: 'terragrunt', working_directory: 'foo/dir')
-        }.to raise_error(ArgumentError, /service/)
-      end
+  %w[service environment stack stack_id working_directory].each do |key|
+    it "rejects captures colliding with #{key}" do
+      expect { described_class.new(**params, captures: { key => 'value' }) }.to raise_error(ArgumentError, /collides/)
     end
   end
 
-  describe '#to_matrix_item' do
-    it 'returns flat hash merging core attrs and attributes with symbol keys' do
-      target = described_class.new(
-        service: 'foo',
-        stack: 'terragrunt',
-        stack_id: 'terragrunt',
-        working_directory: 'foo/terragrunt/develop',
-        environment: 'develop',
-        stack_convention_root: 'foo',
-        attributes: {
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123:role/plan',
-          'iam_role_apply' => 'arn:aws:iam::123:role/apply'
-        }
-      )
-
-      expect(target.to_matrix_item).to eq(
-        service: 'foo',
-        environment: 'develop',
-        stack: 'terragrunt',
-        stack_id: 'terragrunt',
-        working_directory: 'foo/terragrunt/develop',
-        stack_convention_root: 'foo',
-        aws_region: 'ap-northeast-1',
-        iam_role_plan: 'arn:aws:iam::123:role/plan',
-        iam_role_apply: 'arn:aws:iam::123:role/apply'
-      )
-    end
-
-    it 'omits attribute keys when attributes is empty' do
-      target = described_class.new(
-        service: 'foo',
-        stack: 'kubernetes',
-        stack_id: 'kubernetes',
-        working_directory: 'foo/kubernetes/overlays/develop',
-        environment: 'develop',
-        stack_convention_root: 'foo'
-      )
-
-      expect(target.to_matrix_item).to eq(
-        service: 'foo',
-        environment: 'develop',
-        stack: 'kubernetes',
-        stack_id: 'kubernetes',
-        working_directory: 'foo/kubernetes/overlays/develop',
-        stack_convention_root: 'foo'
-      )
-    end
+  it 'rejects captures colliding with attributes' do
+    expect { described_class.new(**params, attributes: { 'team' => 'a' }, captures: { 'team' => 'b' }) }.to raise_error(ArgumentError, /attributes/)
   end
 
-  describe '#==' do
-    let(:base_args) do
-      {
-        service: 'foo',
-        stack: 'terragrunt',
-        working_directory: 'foo/terragrunt/develop',
-        environment: 'develop'
-      }
+  it 'uses service identity environment and directory for equality and hashing' do
+    first = described_class.new(**params)
+    second = described_class.new(**params, attributes: { 'region' => 'other' })
+    expect(first).to eq(second)
+    expect(first.hash).to eq(second.hash)
+    expect([first, second].uniq.length).to eq(1)
+    [{ stack_id: 'other' }, { service: 'api' }, { environment: 'develop' }, { working_directory: 'other/demo' }].each do |changes|
+      expect(first).not_to eq(described_class.new(**params.merge(changes)))
     end
-
-    it 'is equal when service / environment / stack / working_directory match' do
-      a = described_class.new(**base_args, attributes: { 'k' => 'v1' })
-      b = described_class.new(**base_args, attributes: { 'k' => 'v2' })
-      expect(a).to eq(b)
-      expect(a.hash).to eq(b.hash)
-    end
-
-    it 'is not equal when working_directory differs' do
-      a = described_class.new(**base_args)
-      b = described_class.new(**base_args.merge(working_directory: 'foo/other'))
-      expect(a).not_to eq(b)
-    end
-  end
-
-  describe 'captures' do
-    let(:base_args) do
-      {
-        service: 'api',
-        stack: 'terragrunt',
-        working_directory: 'payments/api/terragrunt/develop',
-        environment: 'develop',
-        stack_convention_root: 'payments/api',
-        attributes: { 'aws_region' => 'ap-northeast-1' }
-      }
-    end
-
-    it 'defaults captures to an empty hash when omitted' do
-      target = described_class.new(**base_args)
-      expect(target.captures).to eq({})
-    end
-
-    it 'stores captures and exposes them via #captures' do
-      target = described_class.new(**base_args, captures: { 'team' => 'payments' })
-      expect(target.captures).to eq('team' => 'payments')
-    end
-
-    it 'flattens captures into to_matrix_item with symbol keys' do
-      target = described_class.new(**base_args, captures: { 'team' => 'payments' })
-      expect(target.to_matrix_item).to include(
-        service: 'api',
-        environment: 'develop',
-        stack: 'terragrunt',
-        working_directory: 'payments/api/terragrunt/develop',
-        stack_convention_root: 'payments/api',
-        aws_region: 'ap-northeast-1',
-        team: 'payments'
-      )
-    end
-
-    it 'raises ArgumentError when a captures key collides with a fixed field' do
-      expect {
-        described_class.new(**base_args, captures: { 'stack' => 'oops' })
-      }.to raise_error(ArgumentError, /reserved/i)
-    end
-
-    it 'raises ArgumentError when a captures key collides with an attributes key' do
-      expect {
-        described_class.new(**base_args, captures: { 'aws_region' => 'us-east-1' })
-      }.to raise_error(ArgumentError, /attributes/i)
-    end
-  end
-end
-
-RSpec.describe Entities::DeploymentTarget do
-  describe '#stack_id' do
-    it 'defaults to stack when not provided' do
-      target = described_class.new(service: 'monolith', stack: 'terragrunt', working_directory: 'dystopia/monolith/infrastructure/aws/production')
-      expect(target.stack_id).to eq('terragrunt')
-    end
-    it 'accepts an explicit stack_id distinct from stack' do
-      target = described_class.new(service: 'monolith', stack: 'terragrunt', stack_id: 'aws', working_directory: 'dystopia/monolith/infrastructure/aws/production')
-      expect(target.stack_id).to eq('aws')
-    end
-  end
-
-  describe '#to_matrix_item' do
-    it 'exposes stack_id in the matrix output' do
-      target = described_class.new(service: 'monolith', stack: 'terragrunt', stack_id: 'stripe', working_directory: 'dystopia/monolith/infrastructure/stripe/production')
-      expect(target.to_matrix_item[:stack_id]).to eq('stripe')
-    end
-    it 'exposes stack_id equal to stack when not explicitly set' do
-      target = described_class.new(service: 'monolith', stack: 'kubernetes', working_directory: 'dystopia/monolith/kubernetes/overlays/production')
-      expect(target.to_matrix_item[:stack_id]).to eq('kubernetes')
-    end
-  end
-
-  describe 'FIXED_RESERVED_KEYS' do
-    it 'includes stack_id so captures cannot collide with it' do
-      expect(Entities::DeploymentTarget::FIXED_RESERVED_KEYS).to include('stack_id')
-    end
-    it 'raises when captures collide with stack_id' do
-      expect { described_class.new(service: 'foo', stack: 'terragrunt', working_directory: 'foo/bar', captures: { 'stack_id' => 'boom' }) }
-        .to raise_error(ArgumentError, /reserved DeploymentTarget field/)
-    end
+    expect(first).not_to eq(nil)
   end
 end
