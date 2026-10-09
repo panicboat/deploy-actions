@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/panicboat/deploy-actions/compare/v2.0.0...v2.0.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* match changed files only under a stack path directory ([#337](https://github.com/panicboat/deploy-actions/issues/337)) ([0dcbf5a](https://github.com/panicboat/deploy-actions/commit/0dcbf5aeba2a327d2b7e13a382ef3459c9d4311b))
+
 ## [2.0.0](https://github.com/panicboat/deploy-actions/compare/v1.4.2...v2.0.0) (2026-10-09)
 
 
