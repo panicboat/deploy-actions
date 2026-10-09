@@ -1,187 +1,68 @@
-# spec/shared/infrastructure/config_client_spec.rb
-
 require 'spec_helper'
+require 'tempfile'
 
 RSpec.describe Infrastructure::ConfigClient do
-  subject(:config_client) { described_class.new }
+  let(:content) { { 'stacks' => [{ 'name' => 'container', 'paths' => ['apps/{service}'], 'attributes' => { 'repository' => 'registry.example.com/app' } }] }.to_yaml }
+  let(:file) { Tempfile.new(['workflow-config', '.yaml']) }
+  let(:client) { described_class.new(config_path: file.path) }
 
-  describe '#load_workflow_config' do
-    context 'with valid configuration file' do
-      let(:temp_config) { create_test_config(default_test_config) }
+  before do
+    file.write(content)
+    file.flush
+  end
 
-      after { temp_config.unlink }
+  after { file.close! }
 
-      it 'loads and returns WorkflowConfig object' do
-        config = config_client.load_workflow_config
+  it 'loads a configuration from the requested file' do
+    config = client.load_workflow_config
+    expect(config.stacks.first).to include('id' => 'container', 'paths' => ['apps/{service}'])
+    expect(config.environment_names).to eq([])
+  end
 
-        expect(config).to be_a(Entities::WorkflowConfig)
-        expect(config.environments.keys).to include('develop', 'staging', 'production')
-        expect(config.services.keys).to include('demo')
-      end
+  it 'keeps the parsed configuration cached until explicitly cleared' do
+    first = client.load_workflow_config
+    File.write(file.path, content.sub('registry.example.com/app', 'registry.example.com/other'))
+    expect(client.load_workflow_config).to be(first)
+    expect(client.load_workflow_config.stacks.first['attributes']).to eq('repository' => 'registry.example.com/app')
+    client.clear_cache
+    expect(client.load_workflow_config.stacks.first['attributes']).to eq('repository' => 'registry.example.com/other')
+  end
 
-      it 'caches the loaded configuration' do
-        config1 = config_client.load_workflow_config
-        config2 = config_client.load_workflow_config
+  it 'uses the environment-specified path when no path is passed' do
+    ENV['WORKFLOW_CONFIG_PATH'] = file.path
+    expect(described_class.new.load_workflow_config.stacks.first['id']).to eq('container')
+  end
 
-        expect(config1).to be(config2)
-      end
-    end
+  it 'reports the missing file path' do
+    expect { described_class.new(config_path: "#{file.path}.missing").load_workflow_config }.to raise_error(/not found.*\.missing/)
+  end
 
-    context 'with non-existent configuration file' do
-      before { ENV['WORKFLOW_CONFIG_PATH'] = '/non/existent/path.yaml' }
+  it 'reports permission errors with the file path' do
+    allow(File).to receive(:read).with(file.path).and_raise(Errno::EACCES)
+    expect { client.load_workflow_config }.to raise_error(/Permission denied.*#{Regexp.escape(file.path)}/)
+  end
 
-      it 'raises file not found error' do
-        expect { config_client.load_workflow_config }.to raise_error(/not found/)
-      end
-    end
+  context 'with malformed YAML' do
+    let(:content) { "stacks: [\n  {name: container\n" }
 
-    context 'with invalid YAML' do
-      let(:temp_config) { create_test_config("invalid: [\n  - key: value\n  - another: ]\n  missing_close") }
-
-      before { temp_config } # Force temp_config creation before config_client
-      after { temp_config.unlink }
-
-      it 'raises YAML parsing error' do
-        config_client = described_class.new
-        expect { config_client.load_workflow_config }.to raise_error(/YAML/)
-      end
-    end
-
-    context 'with default configuration path' do
-      before do
-        ENV.delete('WORKFLOW_CONFIG_PATH')
-        allow(File).to receive(:exist?).with('workflow-config.yaml').and_return(true)
-        allow(File).to receive(:read).with('workflow-config.yaml').and_return(default_test_config)
-      end
-
-      it 'uses default path when environment variable not set' do
-        config = config_client.load_workflow_config
-
-        expect(config).to be_a(Entities::WorkflowConfig)
-        expect(File).to have_received(:read).with('workflow-config.yaml')
-      end
+    it 'reports the YAML line number' do
+      expect { client.load_workflow_config }.to raise_error(/YAML.*line \d+/)
     end
   end
 
-  describe '#validate_config_file' do
-    context 'with valid configuration file' do
-      let(:temp_config) { create_test_config(default_test_config) }
+  context 'with an invalid configuration' do
+    let(:content) { "stacks:\n  - name: container\n    paths: []\n" }
 
-      after { temp_config.unlink }
-
-      it 'returns success result with validation summary' do
-        result = config_client.validate_config_file
-
-        expect(result).to be_success
-        expect(result.config).to be_a(Entities::WorkflowConfig)
-        expect(result.validation_summary).to include('environments')
-        expect(result.validation_summary).to include('services')
-      end
-    end
-
-    context 'with invalid configuration' do
-      let(:invalid_config) do
-        <<~YAML
-          environments: []
-          # Missing stack_conventions
-        YAML
-      end
-      let(:temp_config) { create_test_config(invalid_config) }
-
-      before { temp_config } # Force temp_config creation before config_client
-      after { temp_config.unlink }
-
-      it 'returns failure result with validation errors' do
-        config_client = described_class.new
-        result = config_client.validate_config_file
-
-        expect(result).to be_failure
-        expect(result.error_message).to include('Missing required configuration sections')
-      end
-    end
-
-    context 'with file not found' do
-      before { ENV['WORKFLOW_CONFIG_PATH'] = '/non/existent/path.yaml' }
-
-      it 'returns failure result with file error' do
-        result = config_client.validate_config_file
-
-        expect(result).to be_failure
-        expect(result.error_message).to include('not found')
-      end
+    it 'preserves the validation position and file path' do
+      expect { client.load_workflow_config }.to raise_error(/#{Regexp.escape(file.path)}.*stacks\[0\].paths/)
     end
   end
 
-  describe '#config_file_path' do
-    context 'with environment variable set' do
-      before { ENV['WORKFLOW_CONFIG_PATH'] = '/custom/path.yaml' }
+  context 'with an empty configuration file' do
+    let(:content) { '' }
 
-      it 'returns custom path' do
-        expect(config_client.send(:config_file_path)).to eq('/custom/path.yaml')
-      end
-    end
-
-    context 'without environment variable' do
-      before { ENV.delete('WORKFLOW_CONFIG_PATH') }
-
-      it 'returns default path' do
-        expect(config_client.send(:config_file_path)).to eq('workflow-config.yaml')
-      end
-    end
-  end
-
-  describe 'caching behavior' do
-    let(:temp_config) { create_test_config(default_test_config) }
-
-    after { temp_config.unlink }
-
-    it 'caches configuration after first load' do
-      allow(File).to receive(:read).and_call_original
-
-      config1 = config_client.load_workflow_config
-      config2 = config_client.load_workflow_config
-
-      expect(File).to have_received(:read).once
-      expect(config1).to be(config2)
-    end
-
-    it 'clears cache when configuration file changes' do
-      original_time = Time.now - 3600
-      new_time = Time.now
-
-      allow(File).to receive(:mtime).and_return(original_time, new_time)
-
-      config1 = config_client.load_workflow_config
-      config_client.clear_cache
-      config2 = config_client.load_workflow_config
-
-      expect(config1).not_to be(config2)
-    end
-  end
-
-  describe 'error handling' do
-    context 'with permission denied' do
-      before do
-        ENV['WORKFLOW_CONFIG_PATH'] = '/root/config.yaml'
-        allow(File).to receive(:exist?).with('/root/config.yaml').and_return(true)
-        allow(File).to receive(:read).with('/root/config.yaml').and_raise(Errno::EACCES)
-      end
-
-      it 'raises permission error with helpful message' do
-        expect { config_client.load_workflow_config }.to raise_error(/permission/i)
-      end
-    end
-
-    context 'with malformed YAML' do
-      let(:temp_config) { create_test_config("invalid: [\n  - unclosed\n  - array: {\n    missing_close_brace") }
-
-      before { temp_config } # Force temp_config creation before config_client
-      after { temp_config.unlink }
-
-      it 'raises YAML error with line information' do
-        config_client = described_class.new
-        expect { config_client.load_workflow_config }.to raise_error(/YAML.*line/i)
-      end
+    it 'reports a configuration error' do
+      expect { client.load_workflow_config }.to raise_error(/configuration/i)
     end
   end
 end

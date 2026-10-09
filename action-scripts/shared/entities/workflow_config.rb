@@ -1,218 +1,148 @@
-# Workflow configuration entity representing the parsed YAML configuration
-# Provides access to environments, services, and directory conventions
-
 module Entities
   class WorkflowConfig
-    attr_reader :raw_config
+    STACK_FIELDS = %w[name id paths environments attributes exclude].freeze
+    MATRIX_KEYS = %w[service environment stack stack_id working_directory].freeze
+
+    attr_reader :stacks, :environment_names
 
     def initialize(config_hash)
-      @raw_config = config_hash
-      validate!
-    end
-
-    # Get environment configuration (no defaults merging)
-    def environment_config(env_name)
-      environments[env_name]
-    end
-
-    # Get stack-specific attribute hash for an environment+stack pair.
-    # Resolves by identity (id || name), falling back to the stack's name so
-    # configs written before ids existed keep working. Returns {} rather than
-    # nil for an unresolvable key: DeploymentTarget.new(attributes:) cannot
-    # take nil.
-    def stack_attributes_for(env_name, stack_key)
-      env = environments[env_name]
-      return {} unless env
-      return {} unless stack_conventions_config.any? { |c| (c['stacks'] || []).any? { |s| (s['id'] || s['name']) == stack_key } }
-      by_id = env.dig('stacks', stack_key)
-      return by_id if by_id
-      name = stack_name_for(stack_key)
-      return {} unless name
-      env.dig('stacks', name) || {}
-    end
-
-    # Get required attribute keys declared for a stack in stack_conventions
-    def required_attributes_for(stack_key)
-      stack_conventions_config.each do |convention|
-        stack = (convention['stacks'] || []).find { |s| (s['id'] || s['name']) == stack_key }
-        next unless stack
-        return stack['required_attributes'] || []
-      end
-      []
-    end
-
-    # Get directory conventions for a service and stack with hierarchical structure
-    def stack_conventions_for(service_name, stack)
-      service_config = services[service_name]
-      if service_config && service_config['stack_conventions']
-        # If service has stack_conventions, only return service-specific pattern if it exists
-        if service_config['stack_conventions'][stack]
-          return [service_config['stack_conventions'][stack]]
+      validate_map!(config_hash, 'configuration', allowed: ['stacks'])
+      validate_array!(config_hash['stacks'], 'stacks')
+      identities = []
+      @stacks = config_hash['stacks'].each_with_index.map do |stack, index|
+        position = "stacks[#{index}]"
+        validate_stack!(stack, position)
+        identity = stack.fetch('id', stack['name'])
+        invalid!("#{position}.id", "duplicate identity '#{identity}'") if identities.include?(identity)
+        identities << identity
+        normalized = stack.merge(
+          'id' => identity,
+          'paths' => stack['paths'].map { |pattern| pattern.split('/').reject { |part| part.empty? || part == '.' }.join('/') },
+          'exclude' => stack.fetch('exclude', []).map(&:dup)
+        )
+        if stack.key?('environments')
+          normalized['environments'] = stack['environments'].transform_values(&:dup)
         else
-          # Service has stack_conventions but not for this stack
-          return []
+          normalized['attributes'] = stack.fetch('attributes', {}).dup
         end
+        normalized
       end
+      @environment_names = stacks.flat_map { |stack| stack.fetch('environments', {}).keys }.uniq
+    end
 
-      # Use hierarchical structure: root + stack directory
-      patterns = []
-      stack_conventions_config.each do |convention|
-        root_pattern = convention['root']
-        stack_config = convention['stacks']&.find { |s| (s['id'] || s['name']) == stack }
-        next unless stack_config
-
-        # Handle empty root pattern
-        if root_pattern.nil? || root_pattern.empty?
-          patterns << stack_config['directory']
-        else
-          patterns << "#{root_pattern}/#{stack_config['directory']}"
-        end
+    def excluded?(stack, values)
+      stack['exclude'].any? do |rule|
+        rule.all? { |key, expected| values.key?(key) && values[key] == expected }
       end
-      patterns
-    end
-
-    # Get directory convention for a service and stack (returns first match)
-    def stack_convention_for(service_name, stack)
-      conventions = stack_conventions_for(service_name, stack)
-      conventions.first
-    end
-
-    # Get all environments as a hash
-    def environments
-      @environments ||= (raw_config['environments'] || []).each_with_object({}) do |env, hash|
-        hash[env['environment']] = env
-      end
-    end
-
-    # Get all services as a hash
-    def services
-      @services ||= (raw_config['services'] || []).each_with_object({}) do |service, hash|
-        hash[service['name']] = service
-      end
-    end
-
-
-    # Check if safety check is enabled
-    def safety_check_enabled?(check_name)
-      false
-    end
-
-    # Get list of services excluded from automation
-    def excluded_services
-      @excluded_services ||= services.select { |_, service|
-        service['exclude_from_automation'] == true
-      }.keys
-    end
-
-
-    # Get directory conventions (for backward compatibility)
-    def stack_conventions
-      stack_conventions_config
-    end
-
-    # Get directory conventions root patterns
-    def stack_convention_roots
-      stack_conventions_config.map { |conv| conv['root'] }.compact
-    end
-
-    # Get directory conventions root pattern (returns first pattern)
-    def stack_convention_root
-      stack_convention_roots.first
-    end
-
-    # Validate configuration structure
-    def validate!
-      errors = []
-
-      errors << "Missing required section: environments" unless raw_config['environments']
-      errors << "Missing required section: stack_conventions" unless raw_config['stack_conventions']
-
-      if raw_config['environments']
-        raw_config['environments'].each_with_index do |env, index|
-          unless env['environment']
-            errors << "Environment at index #{index} missing required field: environment"
-          end
-        end
-      end
-
-      if raw_config['stack_conventions']
-        unless raw_config['stack_conventions'].is_a?(Array)
-          errors << "stack_conventions must be an array"
-        else
-          raw_config['stack_conventions'].each_with_index do |conv, index|
-            unless conv['root']
-              errors << "stack_conventions[#{index}] missing required field: root"
-            end
-            unless conv['stacks']
-              errors << "stack_conventions[#{index}] missing required field: stacks"
-            end
-            seen = {}
-            (conv['stacks'] || []).each do |stack|
-              identity = stack['id'] || stack['name']
-              if identity && seen.key?(identity)
-                errors << "stack_conventions[#{index}].stacks has duplicate identity '#{identity}' (entries with the same 'name' need distinct 'id' values)"
-                break
-              end
-              seen[identity] = true if identity
-            end
-          end
-        end
-      end
-
-      raise StandardError, "Configuration validation failed: #{errors.join(', ')}" unless errors.empty?
-    end
-
-    def stack_name_for(stack_key)
-      stack_conventions_config.each do |convention|
-        (convention['stacks'] || []).each do |stack|
-          return stack['name'] if (stack['id'] || stack['name']) == stack_key
-        end
-      end
-      nil
-    end
-
-    # Get directory conventions configuration
-    def stack_conventions_config
-      @stack_conventions_config ||= raw_config['stack_conventions'] || []
-    end
-
-    # Get all possible directory patterns for service discovery
-    def all_directory_patterns
-      patterns = []
-      
-      stack_conventions_config.each do |convention|
-        root_pattern = convention['root']
-        stacks = convention['stacks'] || []
-        
-        # Add root pattern for detecting any change within service directory
-        if root_pattern && root_pattern.include?('{service}')
-          patterns << root_pattern
-        end
-        
-        stacks.each do |stack_config|
-          stack_directory = stack_config['directory']
-          next unless stack_directory
-          
-          # Build full pattern using root + stack directory
-          full_pattern = if root_pattern.nil? || root_pattern.empty?
-                          stack_directory
-                        else
-                          "#{root_pattern}/#{stack_directory}"
-                        end
-          
-          # Only include patterns that contain {service}
-          patterns << full_pattern if full_pattern.include?('{service}')
-        end
-      end
-      
-      patterns.uniq
     end
 
     private
 
-    # Get directory stacks configuration
-    def directory_stacks
-      @directory_stacks ||= stack_conventions_config.first&.fetch('stacks', []) || []
+    def validate_stack!(stack, position)
+      validate_map!(stack, position, allowed: STACK_FIELDS)
+      validate_string!(stack['name'], "#{position}.name")
+      validate_string!(stack['id'], "#{position}.id") if stack.key?('id')
+      validate_array!(stack['paths'], "#{position}.paths")
+      if stack.key?('environments') && stack.key?('attributes')
+        invalid!(position, 'attributes and environments cannot be combined')
+      end
+
+      attribute_keys = []
+      if stack.key?('environments')
+        environments = stack['environments']
+        validate_map!(environments, "#{position}.environments")
+        invalid!("#{position}.environments", 'must not be empty') if environments.empty?
+        environments.each do |name, attributes|
+          validate_segment!(name, "#{position}.environments.#{name}")
+          validate_attributes!(attributes, "#{position}.environments.#{name}")
+          attribute_keys.concat(attributes.keys)
+        end
+      else
+        attributes = stack.fetch('attributes', {})
+        validate_attributes!(attributes, "#{position}.attributes")
+        attribute_keys.concat(attributes.keys)
+      end
+
+      placeholders = []
+      stack['paths'].each_with_index do |pattern, index|
+        path_position = "#{position}.paths[#{index}]"
+        validate_string!(pattern, path_position)
+        invalid!(path_position, 'must be repository-relative') if pattern.start_with?('/')
+        invalid!(path_position, 'must not contain parent-directory segments') if pattern.split('/').include?('..')
+        names = PatternMatcher.placeholders(pattern)
+        remaining = pattern.gsub(PatternMatcher::PLACEHOLDER_REGEX, '')
+        invalid!(path_position, 'invalid placeholder syntax') if remaining.include?('{') || remaining.include?('}')
+        invalid!(path_position, 'must include {service}') unless names.include?('service')
+        if !stack.key?('environments') && names.include?('environment')
+          invalid!(path_position, '{environment} requires environments')
+        end
+        custom_names = names - %w[service environment]
+        collision = custom_names.find { |name| MATRIX_KEYS.include?(name) || attribute_keys.include?(name) }
+        invalid!(path_position, "placeholder '#{collision}' collides with a matrix or attribute key") if collision
+        placeholders.concat(names)
+      end
+
+      validate_exclusions!(stack, position, placeholders)
+    end
+
+    def validate_exclusions!(stack, position, placeholders)
+      rules = stack.fetch('exclude', [])
+      validate_array!(rules, "#{position}.exclude", allow_empty: true)
+      allowed = (%w[service environment] + placeholders).uniq
+      rules.each_with_index do |rule, index|
+        rule_position = "#{position}.exclude[#{index}]"
+        validate_map!(rule, rule_position, allowed: allowed)
+        invalid!(rule_position, 'must contain at least one condition') if rule.empty?
+        rule.each do |key, value|
+          condition_position = "#{rule_position}.#{key}"
+          if key == 'environment'
+            if stack.key?('environments')
+              validate_segment!(value, condition_position)
+              unless stack['environments'].key?(value)
+                invalid!(condition_position, "environment '#{value}' is not declared in this stack")
+              end
+            elsif !value.nil?
+              invalid!(condition_position, 'common targets require a null environment')
+            end
+          else
+            validate_segment!(value, condition_position)
+            invalid!(condition_position, 'service must not start with a dot') if key == 'service' && value.start_with?('.')
+          end
+        end
+      end
+    end
+
+    def validate_attributes!(attributes, position)
+      validate_map!(attributes, position)
+      attributes.each_key do |key|
+        invalid!("#{position}.#{key}", 'collides with a matrix key') if MATRIX_KEYS.include?(key)
+      end
+    end
+
+    def validate_map!(value, position, allowed: nil)
+      invalid!(position, 'must be a map') unless value.is_a?(Hash)
+      value.each_key do |key|
+        validate_string!(key, "#{position}.keys")
+        invalid!("#{position}.#{key}", 'unknown field') if allowed && !allowed.include?(key)
+      end
+    end
+
+    def validate_array!(value, position, allow_empty: false)
+      invalid!(position, 'must be an array') unless value.is_a?(Array)
+      invalid!(position, 'must not be empty') if !allow_empty && value.empty?
+    end
+
+    def validate_string!(value, position)
+      invalid!(position, 'must be a non-empty string') unless value.is_a?(String) && !value.empty?
+    end
+
+    def validate_segment!(value, position)
+      validate_string!(value, position)
+      invalid!(position, 'must be a single path segment') if value.include?('/') || %w[. ..].include?(value)
+    end
+
+    def invalid!(position, reason)
+      raise ArgumentError, "Configuration validation failed: #{position}: #{reason}"
     end
   end
 end

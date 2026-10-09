@@ -57,15 +57,15 @@
 
 ## Execution Preparation
 
-- [ ] **Step 1: Read the approved documents and repository rules**
+- [x] **Step 1: Read the approved documents and repository rules**
 
 設計書、本計画、AGENTS.md、存在する CLAUDE.md を読む。実行方式の承認と、設計書の15項目が計画のどのタスクに対応するかを確認した時点で完了とする。
 
-- [ ] **Step 2: Prepare the implementation workspace**
+- [x] **Step 2: Prepare the implementation workspace**
 
 `superpowers:using-git-worktrees` の手順で隔離環境を準備する。ブランチ名・作業パス・既存 Draft PR を継続するか新しい Draft PR にするかを記録する。ユーザーの未コミット変更を含めず、実装用ブランチであることを `git status --short --branch` で確認した時点で完了とする。
 
-- [ ] **Step 3: Confirm the runtime and dependency setup**
+- [x] **Step 3: Confirm the runtime and dependency setup**
 
 `action-scripts` を作業ディレクトリとして `ruby --version`、`bundle --version`、`bundle check` を実行し、リポジトリの指定と整合することを確認する。不足がある場合は既存 lockfile に従って環境を用意し、指定ファイルを書き換えない。
 
@@ -121,7 +121,7 @@ stacks:
 - Preserves: `Infrastructure::ConfigClient#load_workflow_config`、`#clear_cache`。
 - Produces: `UseCases::ConfigManagement::ValidateConfig#execute` → 成功時 `Result` の `valid: true`・`config`・`validation_summary`、失敗時 `error_message`・`validation_errors`。
 
-- [ ] **Step 1: Write model, exclusion, and loading tests**
+- [x] **Step 1: Write model, exclusion, and loading tests**
 
 共通 fixture を新形式へ変更するテストと、次の除外テストを追加する。
 
@@ -165,13 +165,13 @@ end
 
 `ConfigClient` は成功時のキャッシュ、ファイル欠落・権限・YAML 行番号のエラー、モデルの検証位置が伝わることをテストする。`ValidateConfig` は成功サマリーが `stacks: 2`・`environments: 2` を含み、読み込み失敗では `validation_errors` に元のエラーを保持することをテストする。
 
-- [ ] **Step 2: Confirm the tests fail for the old model**
+- [x] **Step 2: Confirm the tests fail for the old model**
 
 Run: `bundle exec rspec spec/shared/entities/workflow_config_spec.rb spec/shared/infrastructure/config_client_spec.rb spec/config-manager/use_cases/validate_config_spec.rb`
 
 Expected: 新形式または新アクセサー・除外判定の assertion が FAIL。環境や require の不備は先に解消し、仕様に対する失敗を記録する。
 
-- [ ] **Step 3: Implement the model and remove duplicate validation**
+- [x] **Step 3: Implement the model and remove duplicate validation**
 
 `WorkflowConfig` の constructor で構造・型・整合性を検証し、その後に id と相対パスを正規化する。除外キーの許可範囲は `PatternMatcher.placeholders` から収集する。除外判定は `values.key?(key) && values[key] == expected` を条件内の全キーに要求し、規則の配列のいずれかが一致した場合だけ true にする。
 
@@ -179,11 +179,11 @@ Expected: 新形式または新アクセサー・除外判定の assertion が F
 
 旧 convention・service・属性探索のメソッドと、製品コードに呼び出しのない `raw_config` アクセサー・`safety_check_enabled?` を削除する。旧 `with_excluded_service` trait を `with_target_exclusions` に置き換え、aws stack に service と environment の条件を設定する。旧形式の振る舞いテストは新仕様のテストへ置き換え、旧形式の拒否を検証する入力だけに旧フィールド名を残す。
 
-- [ ] **Step 4: Confirm the model tests pass**
+- [x] **Step 4: Confirm the model tests pass**
 
 Step 2 と同じコマンドを実行する。Expected: exit 0、`0 failures`。完了条件は、旧アクセサーを使わずに3ファイルのテストが通ることである。
 
-- [ ] **Step 5: Commit the configuration model**
+- [x] **Step 5: Commit the configuration model**
 
 Files に列挙した変更を指定して stage し、`git diff --cached --check` が exit 0 であることを確認する。
 

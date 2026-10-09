@@ -115,49 +115,7 @@ module SpecHelpers
 
   # Default test configuration
   def default_test_config
-    <<~YAML
-      environments:
-        - environment: develop
-          stacks:
-            terragrunt:
-              aws_region: ap-northeast-1
-              iam_role_plan: arn:aws:iam::123456789012:role/plan-role
-              iam_role_apply: arn:aws:iam::123456789012:role/apply-role
-            kubernetes: {}
-        - environment: staging
-          stacks:
-            terragrunt:
-              aws_region: ap-northeast-1
-              iam_role_plan: arn:aws:iam::123456789012:role/staging-plan-role
-              iam_role_apply: arn:aws:iam::123456789012:role/staging-apply-role
-            kubernetes: {}
-        - environment: production
-          stacks:
-            terragrunt:
-              aws_region: ap-northeast-1
-              iam_role_plan: arn:aws:iam::123456789012:role/production-plan-role
-              iam_role_apply: arn:aws:iam::123456789012:role/production-apply-role
-            kubernetes: {}
-
-      stack_conventions:
-        - root: "{service}"
-          stacks:
-            - name: terragrunt
-              directory: "terragrunt/{environment}"
-              required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-            - name: kubernetes
-              directory: "kubernetes/overlays/{environment}"
-
-      services:
-        - name: demo
-          stack_conventions:
-            terragrunt: "services/{service}/terragrunt/envs/{environment}"
-        - name: excluded-service
-          exclude_from_automation: true
-          exclusion_config:
-            reason: "Manual deployment required"
-            type: "permanent"
-    YAML
+    attributes_for(:workflow_config).fetch(:config_hash).to_yaml
   end
 
   # Mock GitHub API responses

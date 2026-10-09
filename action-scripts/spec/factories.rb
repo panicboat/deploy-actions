@@ -60,60 +60,24 @@ FactoryBot.define do
   factory :workflow_config, class: 'Entities::WorkflowConfig' do
     config_hash do
       {
-        'environments' => [
+        'stacks' => [
           {
-            'environment' => 'develop',
-            'stacks' => {
-              'terragrunt' => {
-                'aws_region' => 'ap-northeast-1',
-                'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-                'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-              },
-              'kubernetes' => {}
-            }
+            'name' => 'terragrunt',
+            'id' => 'aws',
+            'paths' => [
+              'dystopia/{service}/aws/{environment}',
+              'system-components/{service}/infrastructure/aws/{environment}'
+            ],
+            'environments' => {
+              'develop' => { 'aws_region' => 'ap-northeast-1' },
+              'production' => { 'aws_region' => 'us-west-2' }
+            },
+            'exclude' => []
           },
           {
-            'environment' => 'staging',
-            'stacks' => {
-              'terragrunt' => {
-                'aws_region' => 'ap-northeast-1',
-                'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan-role',
-                'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply-role'
-              },
-              'kubernetes' => {}
-            }
-          },
-          {
-            'environment' => 'production',
-            'stacks' => {
-              'terragrunt' => {
-                'aws_region' => 'ap-northeast-1',
-                'iam_role_plan' => 'arn:aws:iam::123456789012:role/production-plan-role',
-                'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply-role'
-              },
-              'kubernetes' => {}
-            }
-          }
-        ],
-        'stack_conventions' => [
-          {
-            'root' => '{service}',
-            'stacks' => [
-              {
-                'name' => 'terragrunt',
-                'directory' => 'terragrunt/{environment}',
-                'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
-              },
-              {
-                'name' => 'kubernetes',
-                'directory' => 'kubernetes/overlays/{environment}'
-              }
-            ]
-          }
-        ],
-        'services' => [
-          {
-            'name' => 'test-service'
+            'name' => 'container',
+            'paths' => ['dystopia/{service}', 'system-components/{service}'],
+            'attributes' => { 'repository' => 'registry.example.com/app' }
           }
         ]
       }
@@ -121,17 +85,10 @@ FactoryBot.define do
 
     initialize_with { new(config_hash) }
 
-    trait :with_excluded_service do
+    trait :with_target_exclusions do
       config_hash do
         base_config = attributes_for(:workflow_config)[:config_hash]
-        base_config['services'] << {
-          'name' => 'excluded-service',
-          'exclude_from_automation' => true,
-          'exclusion_config' => {
-            'reason' => 'Manual deployment required',
-            'type' => 'permanent'
-          }
-        }
+        base_config['stacks'].first['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
         base_config
       end
     end
