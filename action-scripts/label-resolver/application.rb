@@ -43,7 +43,8 @@ class LabelResolverContainer
 
     # Use cases
     container[:determine_target_environment] = UseCases::LabelResolver::DetermineTargetEnvironment.new(
-      config_client: container[:config_client]
+      config_client: container[:config_client],
+      file_client: container[:file_client]
     )
 
     if container[:github_client]

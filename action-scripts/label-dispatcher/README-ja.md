@@ -86,7 +86,7 @@ bundle exec ruby label-dispatcher/bin/dispatcher help_usage
 
 ## 変更パスの照合
 
-変更ファイルを定義された stack のパスに照合し、サービス・環境・任意 placeholder を抽出します。パスに環境名がない場合は、その stack の定義環境ごとに評価します。環境共通の stack は environment が null の照合として扱います。
+変更ファイルを定義された stack のパスに照合し、サービス・環境・任意 placeholder を抽出します。`environments` を持つ stack は定義環境だけを受け付け、パスに環境名がない場合は定義環境ごとに評価します。両方の属性マップがない stack は変更パスから抽出した環境名を使います。`attributes` を持つ stack は `environment: null` の照合として扱います。
 
 各照合に除外条件を適用し、除外されない照合が一つでもあるサービスを一度だけラベル対象にします。サービス全体のディレクトリを検出対象にする場合は、そのパスも stack に定義します。削除されたファイルも照合するため、ディレクトリの存在は要求しません。
 

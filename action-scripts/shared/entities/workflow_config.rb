@@ -22,8 +22,8 @@ module Entities
         )
         if stack.key?('environments')
           normalized['environments'] = stack['environments'].transform_values(&:dup)
-        else
-          normalized['attributes'] = stack.fetch('attributes', {}).dup
+        elsif stack.key?('attributes')
+          normalized['attributes'] = stack['attributes'].dup
         end
         normalized
       end
@@ -57,8 +57,8 @@ module Entities
           validate_attributes!(attributes, "#{position}.environments.#{name}")
           attribute_keys.concat(attributes.keys)
         end
-      else
-        attributes = stack.fetch('attributes', {})
+      elsif stack.key?('attributes')
+        attributes = stack['attributes']
         validate_attributes!(attributes, "#{position}.attributes")
         attribute_keys.concat(attributes.keys)
       end
@@ -73,12 +73,22 @@ module Entities
         remaining = pattern.gsub(PatternMatcher::PLACEHOLDER_REGEX, '')
         invalid!(path_position, 'invalid placeholder syntax') if remaining.include?('{') || remaining.include?('}')
         invalid!(path_position, 'must include {service}') unless names.include?('service')
-        if !stack.key?('environments') && names.include?('environment')
-          invalid!(path_position, '{environment} requires environments')
+        if stack.key?('attributes') && names.include?('environment')
+          invalid!(path_position, '{environment} cannot be used with common attributes')
+        elsif !stack.key?('attributes') && !stack.key?('environments') && !names.include?('environment')
+          invalid!(path_position, 'environment discovery requires {environment}; common targets require attributes: {}')
         end
         custom_names = names - %w[service environment]
         collision = custom_names.find { |name| MATRIX_KEYS.include?(name) || attribute_keys.include?(name) }
         invalid!(path_position, "placeholder '#{collision}' collides with a matrix or attribute key") if collision
+        available = stack.key?('environments') ? names + ['environment'] : names
+        if stack.key?('environments')
+          stack['environments'].each do |environment, attributes|
+            validate_attribute_templates!(attributes, "#{position}.environments.#{environment}", available, path_position)
+          end
+        elsif stack.key?('attributes')
+          validate_attribute_templates!(stack['attributes'], "#{position}.attributes", available, path_position)
+        end
         placeholders.concat(names)
       end
 
@@ -101,8 +111,10 @@ module Entities
               unless stack['environments'].key?(value)
                 invalid!(condition_position, "environment '#{value}' is not declared in this stack")
               end
-            elsif !value.nil?
-              invalid!(condition_position, 'common targets require a null environment')
+            elsif stack.key?('attributes')
+              invalid!(condition_position, 'common targets require a null environment') unless value.nil?
+            else
+              validate_segment!(value, condition_position)
             end
           else
             validate_segment!(value, condition_position)
@@ -116,6 +128,18 @@ module Entities
       validate_map!(attributes, position)
       attributes.each_key do |key|
         invalid!("#{position}.#{key}", 'collides with a matrix key') if MATRIX_KEYS.include?(key)
+      end
+    end
+
+    def validate_attribute_templates!(value, position, available, path_position)
+      case value
+      when String
+        unknown = PatternMatcher.placeholders(value) - available
+        invalid!(position, "placeholders #{unknown.join(', ')} cannot be resolved by #{path_position}") unless unknown.empty?
+      when Hash
+        value.each { |key, nested| validate_attribute_templates!(nested, "#{position}.#{key}", available, path_position) }
+      when Array
+        value.each_with_index { |nested, index| validate_attribute_templates!(nested, "#{position}[#{index}]", available, path_position) }
       end
     end
 

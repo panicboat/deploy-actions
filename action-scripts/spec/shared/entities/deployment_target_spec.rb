@@ -8,6 +8,25 @@ RSpec.describe Entities::DeploymentTarget do
     expect(target.to_matrix_item).to eq(params.merge(environment: nil, token: nil, enabled: true, count: 2, team: 'platform'))
   end
 
+  it 'expands service and arbitrary placeholders in common attributes' do
+    attributes = { 'repository' => 'ghcr.io/{team}/{service}', 'tag' => '{service}-{service}' }
+    target = described_class.new(**params, attributes: attributes, captures: { 'team' => 'payments' })
+    expect(target.to_matrix_item).to include(repository: 'ghcr.io/payments/demo', tag: 'demo-demo', team: 'payments', environment: nil)
+    expect(attributes).to eq('repository' => 'ghcr.io/{team}/{service}', 'tag' => '{service}-{service}')
+  end
+
+  it 'expands nested environment attributes without changing value types' do
+    attributes = { 'settings' => { 'images' => ['ghcr.io/{team}/{service}:{environment}', 3, nil, false] }, 'enabled' => true }
+    target = described_class.new(**params, environment: 'production', attributes: attributes, captures: { 'team' => 'payments' })
+    expect(target.attributes).to eq('settings' => { 'images' => ['ghcr.io/payments/demo:production', 3, nil, false] }, 'enabled' => true)
+    expect(attributes['settings']['images'].first).to eq('ghcr.io/{team}/{service}:{environment}')
+  end
+
+  it 'rejects unresolved attribute placeholders' do
+    expect { described_class.new(**params, attributes: { 'repository' => 'ghcr.io/{team}/{service}' }) }.to raise_error(Entities::UnresolvedPlaceholderError, /team/)
+    expect { described_class.new(**params, attributes: { 'tag' => '{environment}' }) }.to raise_error(Entities::UnresolvedPlaceholderError, /environment/)
+  end
+
   it 'requires an explicit stack identity' do
     expect { described_class.new(**params.reject { |key, _| key == :stack_id }) }.to raise_error(ArgumentError, /stack_id/)
     expect { described_class.new(**params.merge(stack_id: '')) }.to raise_error(ArgumentError, /stack_id/)

@@ -12,7 +12,7 @@ RSpec.describe Entities::WorkflowConfig do
   subject(:config) { described_class.new(config_hash) }
 
   it 'resolves omitted identities and environment names' do
-    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['dystopia/{service}'] }
+    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => {} }
     expect(config.stacks.map { |entry| entry['id'] }).to eq(%w[terragrunt container])
     expect(config.environment_names).to eq(%w[develop production])
     expect(config.stacks.last['attributes']).to eq({})
@@ -45,6 +45,50 @@ RSpec.describe Entities::WorkflowConfig do
   it 'accepts repeated placeholders' do
     stack['paths'] = ['teams/{team}/{service}/{team}/aws/{environment}']
     expect { config }.not_to raise_error
+  end
+
+  it 'accepts environment discovery without an environment or attribute map' do
+    stack.delete('environments')
+    stack['exclude'] = [{ 'environment' => 'preview' }]
+    expect { config }.not_to raise_error
+    expect(config.stacks.first).not_to have_key('attributes')
+    expect(config.stacks.first).not_to have_key('environments')
+  end
+
+  [nil, '', 1, [], 'a/b', '.', '..'].each do |value|
+    it "rejects invalid inferred environment conditions #{value.inspect}" do
+      stack.delete('environments')
+      stack['exclude'] = [{ 'environment' => value }]
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].exclude\[0\].environment/)
+    end
+  end
+
+  it 'requires environment placeholders when neither attribute map is specified' do
+    stack.delete('environments')
+    stack['paths'] = ['dystopia/{service}/aws']
+    expect { config }.to raise_error(ArgumentError, /requires.*environment/)
+  end
+
+  it 'requires an environment placeholder in every inferred path' do
+    stack.delete('environments')
+    stack['paths'] << 'other/{service}/aws'
+    expect { config }.to raise_error(ArgumentError, /paths\[1\]/)
+  end
+
+  it 'rejects attribute templates that cannot be resolved by every path' do
+    stack['paths'] << 'teams/{team}/{service}/aws/{environment}'
+    stack['environments']['develop']['repository'] = 'ghcr.io/{team}/{service}'
+    expect { config }.to raise_error(ArgumentError, /team/)
+  end
+
+  it 'rejects environment templates for common attributes' do
+    stack.replace('name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => { 'repository' => 'ghcr.io/{service}/{environment}' })
+    expect { config }.to raise_error(ArgumentError, /environment/)
+  end
+
+  it 'validates placeholders inside nested attribute values' do
+    stack['environments']['develop']['settings'] = { 'images' => ['ghcr.io/{unknown}/{service}'] }
+    expect { config }.to raise_error(ArgumentError, /unknown/)
   end
 
   it 'matches all conditions in a rule and any rule in the array' do
@@ -91,7 +135,7 @@ RSpec.describe Entities::WorkflowConfig do
   end
 
   context 'with common targets' do
-    let(:stack) { { 'name' => 'container', 'paths' => ['dystopia/{service}'] } }
+    let(:stack) { { 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => {} } }
 
     it 'derives an empty environment list' do
       expect(config.environment_names).to eq([])
@@ -196,7 +240,7 @@ RSpec.describe Entities::WorkflowConfig do
   end
 
   it 'does not permit placeholders declared in another stack as exclusion keys' do
-    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['teams/{team}/{service}'] }
+    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['teams/{team}/{service}'], 'attributes' => {} }
     stack['exclude'] = [{ 'team' => 'sandbox' }]
     expect { config }.to raise_error(ArgumentError, /stacks\[0\].exclude\[0\].team/)
   end
@@ -208,13 +252,13 @@ RSpec.describe Entities::WorkflowConfig do
 
   it 'rejects identities shared by separate definitions' do
     stack['id'] = 'aws'
-    config_hash['stacks'] << { 'name' => 'aws', 'paths' => ['other/{service}'] }
+    config_hash['stacks'] << { 'name' => 'aws', 'paths' => ['other/{service}'], 'attributes' => {} }
     expect { config }.to raise_error(ArgumentError, /stacks\[1\].id/)
   end
 
   it 'accepts distinct identities for the same stack kind' do
     stack['id'] = 'aws'
-    config_hash['stacks'] << { 'name' => 'terragrunt', 'id' => 'stripe', 'paths' => ['other/{service}'] }
+    config_hash['stacks'] << { 'name' => 'terragrunt', 'id' => 'stripe', 'paths' => ['other/{service}'], 'attributes' => {} }
     expect(config.stacks.map { |entry| entry['id'] }).to eq(%w[aws stripe])
   end
 

@@ -48,13 +48,20 @@ module Interfaces
 
       def test_service_configuration(service_name:, environment: nil)
         config = @config_client.load_workflow_config
-        if environment && !config.environment_names.include?(environment)
+        available = @file_client.environment_names(config: config)
+        if environment && !available.include?(environment)
           return @presenter.present_error(Entities::Result.failure(error_message: "Environment '#{environment}' not found in configuration"))
         end
         candidates = {}
         config.stacks.each do |stack|
-          environments = stack.key?('environments') ? stack['environments'].keys : [nil]
-          environments &= [environment] if environment && stack.key?('environments')
+          environments = if stack.key?('environments')
+            stack['environments'].keys
+          elsif stack.key?('attributes')
+            [nil]
+          else
+            available
+          end
+          environments &= [environment] if environment && !stack.key?('attributes')
           environments.each do |selected|
             values = { 'service' => service_name, 'environment' => selected }
             stack['paths'].each do |pattern|
@@ -76,7 +83,7 @@ module Interfaces
           stack = candidate.fetch(:stack)
           selected = candidate.fetch(:environment)
           captures = candidate.fetch(:captures)
-          attributes = stack.key?('environments') ? stack['environments'].fetch(selected) : stack['attributes']
+          attributes = stack.key?('environments') ? stack['environments'].fetch(selected) : stack.fetch('attributes', {})
           target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack['name'], stack_id: stack['id'], working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
           { target: target, excluded: config.excluded?(stack, captures.merge('service' => service_name, 'environment' => selected)) }
         end
@@ -173,7 +180,7 @@ module Interfaces
                 - "dystopia/{service}"
                 - "system-components/{service}"
               attributes:
-                repository: registry.example.com/app
+                repository: registry.example.com/{service}
         YAML
       end
     end

@@ -80,7 +80,7 @@ Debug production deployment.
 bundle exec ruby label-resolver/bin/resolver debug 789 production
 ```
 
-Resolve deployment targets for all configured environments.
+Resolve deployment targets for all declared and discovered environments.
 
 ```bash
 bundle exec ruby label-resolver/bin/resolver resolve 123
@@ -169,12 +169,12 @@ The system recognizes labels in the format `deploy:service`:
 
 - Environments are specified directly as parameters
 - No dependency on branch names for environment determination
-- Supports any deployment environment defined in configuration
+- Supports environments declared in configuration or discovered from stack paths
 - Supports targeting multiple environments in one invocation
 
 ## Target Resolution
 
-Intersects the requested environments with each stack's configured environments and enumerates existing directories across all paths. Omitting the environment selection or providing only whitespace selects all configured environments. Targets shared across environments are generated once per directory.
+Selects requested environments from each stack's declared or discovered environments and enumerates existing directories across all paths. Omitting the environment selection or providing only whitespace selects the union of declared and discovered names. Targets with `attributes` are shared across environments and generated once per directory.
 
 `deploy:all` discovers all services from the configured paths. Targets matching exclusion conditions are omitted from the matrix. Missing paths produce a valid empty result; unknown environments, enumeration errors, and conflicting captured values cause failures.
 

@@ -39,7 +39,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 **特徴:**
 
 - ラベルからターゲットへの解決
-- 定義された環境からの対象選択
+- 定義環境と探索した環境からの対象選択
 - デプロイメント matrix 生成
 - 安全性検証
 
@@ -57,7 +57,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 
 ### Label Resolver
 
-`environments` は任意の入力で、複数環境はカンマ区切りで指定します。省略すると全定義環境を対象にします。
+`environments` は任意の入力で、複数環境はカンマ区切りで指定します。省略すると定義環境と探索した環境をすべて対象にします。
 
 ```yaml
 - uses: panicboat/deploy-actions/label-resolver@v1
@@ -94,7 +94,11 @@ stacks:
       - "dystopia/{service}"
       - "system-components/{service}"
     attributes:
-      repository: registry.example.com/app
+      repository: registry.example.com/{service}
+  - name: kubernetes
+    paths:
+      - "dystopia/{service}/kubernetes/overlays/{environment}"
+      - "system-components/{service}/kubernetes/overlays/{environment}"
 ```
 
 ### stack の定義
@@ -105,14 +109,22 @@ stacks:
 | `id` | 任意 | インスタンス識別子。省略時は `name`。設定全体で一意 |
 | `paths` | 必須 | 空でない相対パス配列。全パスに `{service}` が必要 |
 | `environments` | 任意 | 環境名をキー、環境属性を値とする空でないマップ |
-| `attributes` | 任意 | 環境共通の属性。`environments` と併用できない |
+| `attributes` | 任意 | 環境共通の対象を明示する。`attributes: {}` も有効。`environments` と併用できない |
 | `exclude` | 任意 | 除外条件の配列。省略時は空配列 |
 
 共有するプロダクトは一つの定義の `paths` に追加します。独立させる場合は、同じ `name` に異なる `id` を付けた別定義にし、それぞれにパスと属性を置きます。
 
-`environments` のキーがその stack の環境名です。環境一覧は全 stack の和集合になり、環境指定を省略すると全定義環境が対象になります。各 stack は自身の定義環境だけを生成し、未知の環境指定はエラーになります。属性の値と型はそのまま出力され、環境間の属性キーを揃える必要はありません。
+`environments` のキーがその stack の環境名です。`environments` と `attributes` の両方を省略した stack は、パスに一致する実在ディレクトリの `{environment}` の位置から環境名を取得します。この場合は全パスに `{environment}` が必要で、含まないパスがあれば設定エラーになります。探索した対象に追加属性はなく、別 stack の環境・属性・除外条件は継承しません。
 
-パスに `{environment}` がなくても、`environments` があれば環境ごとの対象になります。同じディレクトリを異なる環境属性で使えます。`environments` がなければ環境共通で、`environment: null` の対象を各ディレクトリにつき一度だけ生成します。この場合の属性は `attributes` から取得し、パスに `{environment}` は指定できません。
+選択できる環境一覧は、全 stack の定義環境と実行時に探索した環境名の和集合です。除外された環境名も選択できます。環境指定を省略するとこの和集合を対象にします。各 stack は自身の定義環境または探索した環境だけを生成し、和集合にない環境指定はエラーになります。
+
+パスに `{environment}` がなくても、`environments` があれば環境ごとの対象になります。同じディレクトリを異なる環境属性で使えます。`attributes` があれば環境共通で、環境選択数にかかわらず `environment: null` の対象を各ディレクトリにつき一度だけ生成します。この場合はパスに `{environment}` を指定できません。属性が不要な環境共通の対象には `attributes: {}` を明示します。
+
+### Attribute Values
+
+`attributes` と環境属性マップの文字列値では、`{service}` とパスから抽出した `{team}` などの任意 placeholder を使えます。環境属性では、パスに含まれない場合も `{environment}` を使えます。マップや配列に入れ子になった文字列にも同じ規則を適用します。マップのキーはリテラルのままで、文字列以外の値は型を保持します。環境間で属性キーを揃える必要はありません。
+
+属性が参照する placeholder は、その stack のすべてのパスで取得できる必要があり、解決できない参照は設定エラーになります。環境共通の属性では `{environment}` を参照できません。例えば `paths: ["teams/{team}/{service}"]` と `attributes: {repository: "ghcr.io/{team}/{service}"}` の組み合わせは、`teams/payments/api` に対して `ghcr.io/payments/api` を出力します。
 
 ### パスの照合
 
@@ -126,7 +138,7 @@ stacks:
 
 一つのマップ内は AND、配列内は OR で完全一致を判定します。省略したキーは制約になりません。service のみ、environment のみ、任意 placeholder のみでも指定できます。照合したパスにない抽出値を要求する条件は一致しません。
 
-条件値は空でない文字列で、`/`、`.`、`..` は使えません。service はドットで始められません。環境条件は自身の定義環境だけを指定できます。環境共通 stack では environment の省略または `null` を受け付け、environment 以外の条件値に `null` は使えません。
+条件値は空でない文字列で、`/`、`.`、`..` は使えません。service はドットで始められません。`environments` を指定した stack の環境条件は自身の定義環境だけを指定できます。環境を探索する stack では、まだ存在しないディレクトリの環境値も条件にできます。環境共通 stack では environment の省略または `null` を受け付け、environment 以外の条件値に `null` は使えません。条件値はリテラルで、placeholder は展開しません。
 
 実行可能な設定例は [workflow-config.yaml](action-scripts/workflow-config.yaml) を参照してください。
 
@@ -183,7 +195,7 @@ jobs:
 | キー | 出力元 |
 |---|---|
 | `service` | ラベルまたは `deploy:all` で探索したサービス名 |
-| `environment` | 定義した環境名。環境共通なら `null` |
+| `environment` | 定義または探索した環境名。環境共通なら `null` |
 | `stack` | stack の `name` |
 | `stack_id` | 確定した `id` |
 | `working_directory` | 実在する対象ディレクトリの相対パス |

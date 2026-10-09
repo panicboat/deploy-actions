@@ -20,7 +20,9 @@ module Entities
       @stack = stack
       @stack_id = stack_id
       @working_directory = working_directory
-      @attributes = attributes.dup.freeze
+      values = captures.transform_keys(&:to_s).merge('service' => service)
+      values['environment'] = environment unless environment.nil?
+      @attributes = expand_attributes(attributes, values).freeze
       @captures = captures.dup.freeze
     end
 
@@ -39,5 +41,20 @@ module Entities
     end
 
     alias eql? ==
+
+    private
+
+    def expand_attributes(value, values)
+      case value
+      when String
+        PatternMatcher.expand(value, values)
+      when Hash
+        value.transform_values { |nested| expand_attributes(nested, values) }
+      when Array
+        value.map { |nested| expand_attributes(nested, values) }
+      else
+        value
+      end
+    end
   end
 end

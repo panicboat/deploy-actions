@@ -17,7 +17,13 @@ module UseCases
               next unless captures
               service = captures.fetch('service')
               next if service.start_with?('.')
-              environments = stack.key?('environments') ? stack['environments'].keys : [nil]
+              environments = if stack.key?('environments')
+                stack['environments'].keys
+              elsif stack.key?('attributes')
+                [nil]
+              else
+                [captures.fetch('environment')]
+              end
               environments &= [captures['environment']] if captures.key?('environment')
               directory = Entities::PatternMatcher.expand(pattern, captures)
               custom = captures.reject { |key, _| %w[service environment].include?(key) }

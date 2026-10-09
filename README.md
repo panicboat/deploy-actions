@@ -39,7 +39,7 @@ Generates a matrix for downstream Actions from `deploy:<service>` labels and the
 **Highlights:**
 
 - Label-to-target resolution
-- Target selection from configured environments
+- Target selection from declared and discovered environments
 - Deployment-matrix generation
 - Safety validation
 
@@ -57,7 +57,7 @@ Generates a matrix for downstream Actions from `deploy:<service>` labels and the
 
 ### Label Resolver
 
-`environments` is optional. Specify multiple environments as a comma-separated list; omit it to target all configured environments.
+`environments` is optional. Specify multiple environments as a comma-separated list; omit it to target all declared and discovered environments.
 
 ```yaml
 - uses: panicboat/deploy-actions/label-resolver@v1
@@ -94,7 +94,11 @@ stacks:
       - "dystopia/{service}"
       - "system-components/{service}"
     attributes:
-      repository: registry.example.com/app
+      repository: registry.example.com/{service}
+  - name: kubernetes
+    paths:
+      - "dystopia/{service}/kubernetes/overlays/{environment}"
+      - "system-components/{service}/kubernetes/overlays/{environment}"
 ```
 
 ### Stack Definitions
@@ -105,14 +109,22 @@ stacks:
 | `id` | Optional | Instance identifier; defaults to `name` and must be unique across the configuration |
 | `paths` | Required | Nonempty array of relative paths; every path must contain `{service}` |
 | `environments` | Optional | Nonempty map from environment names to environment attributes |
-| `attributes` | Optional | Attributes shared across environments; cannot be combined with `environments` |
+| `attributes` | Optional | Explicitly selects a target shared across environments, including `attributes: {}`; cannot be combined with `environments` |
 | `exclude` | Optional | Array of exclusion conditions; defaults to an empty array |
 
 Products that share a stack use multiple entries in one definition's `paths`. For independent stacks, use separate definitions with the same `name` and different `id` values, each with its own paths and attributes.
 
-The keys in `environments` define the stack's environment names. The environment list is the union of all stacks' environment names. Omitting the environment selection targets all configured environments. Each stack generates targets only for its own environments, and selecting an unknown environment is an error. Attribute values and types are preserved in the output; environments do not need identical attribute keys.
+The keys in `environments` define the stack's environment names. A stack with neither `environments` nor `attributes` discovers environment names from the `{environment}` position in existing directories matching its paths. Every path in that stack must contain `{environment}`; otherwise the configuration is invalid. Discovered targets have no additional attributes and do not inherit another stack's environments, attributes, or exclusions.
 
-A stack with `environments` generates targets for each environment even when its paths do not contain `{environment}`. The same directory can use different environment attributes. A stack without `environments` is shared across environments and generates one target with `environment: null` per directory. It uses `attributes` and cannot contain `{environment}` in its paths.
+The selectable environment list is the union of all declared names and names discovered at execution time. Excluded environments remain selectable. Omitting the environment selection targets this union. Each stack generates targets only for its own declared or discovered environments. Selecting a name absent from the union is an error.
+
+A stack with `environments` generates targets for each environment even when its paths do not contain `{environment}`. The same directory can use different environment attributes. A stack with `attributes` generates one target with `environment: null` per directory, regardless of environment selection. Its paths cannot contain `{environment}`. Use `attributes: {}` when a shared target needs no attributes.
+
+### Attribute Values
+
+String values in `attributes` and environment attribute maps support `{service}` and arbitrary placeholders captured from the path, such as `{team}`. Environment attributes also support `{environment}`, even if the path does not contain it. The same rules apply to strings nested in maps or arrays. Map keys remain literal, and non-string values retain their types. Environments do not need identical attribute keys.
+
+Every placeholder referenced by an attribute must be available for every path in that stack; unresolved references are configuration errors. Shared attributes cannot reference `{environment}`. For example, `paths: ["teams/{team}/{service}"]` with `attributes: {repository: "ghcr.io/{team}/{service}"}` produces `ghcr.io/payments/api` for `teams/payments/api`.
 
 ### Path Matching
 
@@ -126,7 +138,7 @@ Each entry in `exclude` is a nonempty condition map. Conditions can use `service
 
 Conditions use exact matching: keys within a map are combined with AND, and entries in the array are combined with OR. Omitted keys impose no restriction. A condition can specify only a service, only an environment, or only an arbitrary placeholder. A condition requiring a captured value absent from the matched path does not match.
 
-Condition values must be nonempty strings representing one path segment; `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. Environment conditions can name only the stack's own environments. For stacks shared across environments, `environment` can be omitted or set to `null`; other condition values cannot be `null`.
+Condition values must be nonempty strings representing one path segment; `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. When `environments` is specified, environment conditions can name only the stack's declared environments. For stacks that discover environments, an environment condition may name a directory value that does not yet exist. For stacks shared across environments, `environment` can be omitted or set to `null`; other condition values cannot be `null`. Condition values are literal and do not expand placeholders.
 
 See [workflow-config.yaml](action-scripts/workflow-config.yaml) for a working configuration example.
 
@@ -183,7 +195,7 @@ The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of thi
 | Key | Source |
 |---|---|
 | `service` | Service name from a label or discovered through `deploy:all` |
-| `environment` | Configured environment name, or `null` for a target shared across environments |
+| `environment` | Declared or discovered environment name, or `null` for a target shared across environments |
 | `stack` | Stack `name` |
 | `stack_id` | Resolved `id` |
 | `working_directory` | Relative path of the existing target directory |
