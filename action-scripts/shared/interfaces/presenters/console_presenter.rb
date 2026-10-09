@@ -5,15 +5,11 @@ module Interfaces
   module Presenters
     class ConsolePresenter
       # Present label dispatch results
-      def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:, excluded_services: [])
+      def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)
         puts "🏷️  Label Dispatch Results".colorize(:blue)
         puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
         puts "Labels Added: #{labels_added.join(', ')}" if labels_added.any?
         puts "Labels Removed: #{labels_removed.join(', ')}" if labels_removed.any?
-
-        if excluded_services.any?
-          puts "Excluded Services: #{excluded_services.join(', ')}".colorize(:yellow)
-        end
 
         puts "Changed Files: #{changed_files.length} files"
 

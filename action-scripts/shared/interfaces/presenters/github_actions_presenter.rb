@@ -5,7 +5,7 @@ module Interfaces
   module Presenters
     class GitHubActionsPresenter
       # Present label dispatch results for GitHub Actions
-      def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:, excluded_services: [])
+      def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)
         set_environment_variables(
           'DEPLOY_LABELS' => deploy_labels.map(&:to_s).to_json,
           'LABELS_ADDED' => labels_added.to_json,
@@ -13,8 +13,6 @@ module Interfaces
           'HAS_CHANGES' => deploy_labels.any?.to_s,
           'CHANGED_FILES' => changed_files.to_json,
           'SERVICES_DETECTED' => deploy_labels.map(&:service).uniq.to_json,
-          'EXCLUDED_SERVICES' => excluded_services.to_json,
-          'HAS_EXCLUDED_SERVICES' => excluded_services.any?.to_s
         )
 
         set_action_outputs(
@@ -23,15 +21,12 @@ module Interfaces
           'labels-removed' => labels_removed.to_json,
           'services-detected' => deploy_labels.map(&:service).uniq.to_json,
           'has-changes' => deploy_labels.any?.to_s,
-          'excluded-services' => excluded_services.to_json,
-          'has-excluded-services' => excluded_services.any?.to_s
         )
 
         puts "🏷️ Label Dispatch Completed"
         puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
         puts "Labels Added: #{labels_added.join(', ')}" if labels_added.any?
         puts "Labels Removed: #{labels_removed.join(', ')}" if labels_removed.any?
-        puts "Excluded Services: #{excluded_services.join(', ')}" if excluded_services.any?
       end
 
       # Present deployment matrix for GitHub Actions

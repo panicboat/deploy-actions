@@ -338,7 +338,7 @@ Run: `git commit -s -m 'feat: generate deployment targets from stack definitions
 - Produces: `DetectChangedServices#execute(base_ref: nil, head_ref: nil)` → 成功時 `deploy_labels`・`changed_files`・`services_detected`、失敗時 `error_message` を持つ `Result`。
 - Produces: 両 presenter の `#present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)`。controller はこの signature で呼び出す。
 
-- [ ] **Step 1: Write per-match exclusion and output tests**
+- [x] **Step 1: Write per-match exclusion and output tests**
 
 変更ファイル `teams/platform/demo/aws/production/main.tf` に対し、team=platform・service=demo・environment=production の条件でラベルを生成しないことをテストする。同じ設定で develop の変更を加えると `deploy:demo` を生成することをテストする。
 
@@ -346,23 +346,23 @@ Run: `git commit -s -m 'feat: generate deployment targets from stack definitions
 
 controller の spec は presenter 呼び出しから `excluded_services` が消えることを確認する。GitHub presenter の spec は一時ファイルを `GITHUB_ENV`・`GITHUB_OUTPUT` とし、現行公開 outputs のラベル・サービス・変更有無が出力され、`EXCLUDED_SERVICES`・`HAS_EXCLUDED_SERVICES`・`excluded-services`・`has-excluded-services` が出力されないことを確認する。Console presenter の spec は、ラベルとサービス結果を表示することを確認する。
 
-- [ ] **Step 2: Confirm the dispatcher tests fail**
+- [x] **Step 2: Confirm the dispatcher tests fail**
 
 Run: `bundle exec rspec spec/label-dispatcher spec/shared/interfaces/presenters`
 
 Expected: stack 別・照合別の判定と旧除外出力の assertion が FAIL。
 
-- [ ] **Step 3: Implement service detection from valid matches**
+- [x] **Step 3: Implement service detection from valid matches**
 
 stack と paths を走査し、変更ファイルから service・環境・任意の placeholder を抽出する。サービス名が `.` で始まる照合は対象にしない。環境名がパスにある場合は当該 stack の定義内であることを確認し、ない場合は定義された各環境、環境共通なら nil を使う。`PatternMatcher.expand(pattern, captures)` で照合したディレクトリを確定し、service・stack_id・environment・working_directory が同じ照合の抽出値が矛盾する場合は failure にする。その後に各照合を `excluded?` で判定し、除外されない照合が一つでもあるサービスを一度だけラベル対象にする。
 
 全体のサービス除外、理由・種別のログ、旧結果フィールド、controller と presenter の旧引数・内部環境変数・内部出力を削除する。対象を列挙する際に filesystem の存在は要求せず、削除されたファイルの変更パスにも同じ照合を適用する。
 
-- [ ] **Step 4: Confirm the dispatcher tests pass**
+- [x] **Step 4: Confirm the dispatcher tests pass**
 
 Step 2 と同じコマンドを実行する。Expected: exit 0、`0 failures`。除外された照合だけのサービスと、除外されない照合を持つサービスの双方を確認して完了とする。
 
-- [ ] **Step 5: Commit changed service detection**
+- [x] **Step 5: Commit changed service detection**
 
 Files の変更を stage して `git diff --cached --check` を実行する。
 

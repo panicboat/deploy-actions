@@ -19,7 +19,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     let(:pr_number) { 123 }
     let(:deploy_labels) { [build(:deploy_label, :valid_service)] }
     let(:changed_files) { ['services/test-service/main.tf'] }
-    let(:excluded_services) { ['excluded-service'] }
 
     context 'with successful detection and no GitHub Actions' do
       let(:detection_result) do
@@ -29,7 +28,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
           failure?: false,
           deploy_labels: deploy_labels,
           changed_files: changed_files,
-          excluded_services: excluded_services
         )
       end
 
@@ -52,7 +50,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
           labels_added: [],
           labels_removed: [],
           changed_files: changed_files,
-          excluded_services: excluded_services
         )
       end
     end
@@ -65,7 +62,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
           failure?: false,
           deploy_labels: deploy_labels,
           changed_files: changed_files,
-          excluded_services: excluded_services
         )
       end
       let(:manage_result) do
@@ -100,7 +96,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
           labels_added: ['deploy:test-service'],
           labels_removed: ['deploy:old-service'],
           changed_files: changed_files,
-          excluded_services: excluded_services
         )
       end
     end
@@ -132,7 +127,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
           failure?: false,
           deploy_labels: deploy_labels,
           changed_files: changed_files,
-          excluded_services: excluded_services
         )
       end
       let(:manage_result) { double('Result', success?: false, failure?: true) }
@@ -160,7 +154,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
           failure?: false,
           deploy_labels: deploy_labels,
           changed_files: changed_files,
-          excluded_services: []
         )
       end
 
@@ -197,7 +190,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
         failure?: false,
         deploy_labels: [build(:deploy_label, :valid_service)],
         changed_files: ['test-file.tf'],
-        excluded_services: []
       )
     end
 
@@ -218,7 +210,6 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
         labels_added: [],
         labels_removed: [],
         changed_files: detection_result.changed_files,
-        excluded_services: detection_result.excluded_services
       )
     end
 
