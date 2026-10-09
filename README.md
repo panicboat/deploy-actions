@@ -1,6 +1,6 @@
 # Deploy Actions
 
-**English** | [🇯🇵 Japanese](README-ja.md)
+**English** | [🇯🇵 日本語](README-ja.md)
 
 A GitHub Actions toolkit that drives PR-label-based deployment orchestration for multi-service repositories.
 
