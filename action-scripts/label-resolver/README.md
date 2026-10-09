@@ -1,6 +1,6 @@
 # Label Resolver
 
-**English** | [🇯🇵 日本語](README-ja.md)
+**English** | [🇯🇵 Japanese](README-ja.md)
 
 A Ruby-based deployment resolution tool that converts PR labels into deployment targets for GitHub Actions automation using explicit environment targeting.
 
@@ -18,65 +18,99 @@ The Label Resolver analyzes PR labels and generates deployment targets for speci
 
 ## Usage
 
-The Label Resolver provides a CLI interface through `bin/resolver`:
+Run commands from the `action-scripts` directory.
 
-### Basic Commands
+The Label Resolver provides a CLI interface through `label-resolver/bin/resolver`:
+
+### Commands
+
+Resolve deployment from PR labels for specific environment(s).
 
 ```bash
-# Resolve deployment from PR labels for specific environment(s)
 bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
+```
 
-# Test deployment workflow
+Inspect deployment target resolution.
+
+```bash
 bundle exec ruby label-resolver/bin/resolver test PR_NUMBER [ENVIRONMENTS]
+```
 
-# Simulate GitHub Actions environment
+Simulate GitHub Actions environment.
+
+```bash
 bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER [ENVIRONMENTS]
+```
 
-# Validate environment configuration
+Validate environment configuration.
+
+```bash
 bundle exec ruby label-resolver/bin/resolver validate_env
+```
 
-# Debug workflow step-by-step
+Debug workflow step-by-step.
+
+```bash
 bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER [ENVIRONMENTS]
 ```
 
 **Environment Specification:**
+
 - Single environment: `develop`
 - Multiple environments: `develop,staging` (comma-separated)
 - All environments: omit ENVIRONMENTS parameter
 
 ### Examples
 
+Resolve deployments for develop environment.
+
 ```bash
-# Resolve deployments for develop environment
-./bin/resolver resolve 123 develop
+bundle exec ruby label-resolver/bin/resolver resolve 123 develop
+```
 
-# Test multiple environments simultaneously
-./bin/resolver test 456 develop,staging
+Test multiple environments simultaneously.
 
-# Debug production deployment
-./bin/resolver debug 789 production
+```bash
+bundle exec ruby label-resolver/bin/resolver test 456 develop,staging
+```
 
-# Deploy to all available environments
-./bin/resolver resolve 123
+Debug production deployment.
+
+```bash
+bundle exec ruby label-resolver/bin/resolver debug 789 production
+```
+
+Resolve deployment targets for all configured environments.
+
+```bash
+bundle exec ruby label-resolver/bin/resolver resolve 123
 ```
 
 ### Workflow Integration
 
 The resolver is typically called from GitHub Actions workflows:
 
-```yaml
-# Single environment deployment
-- name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@v1
-  with:
-    pr-number: ${{ github.event.pull_request.number }}
-    environments: ${{ inputs.target_environment }}
+Single environment deployment.
 
-# Multiple environment deployment
+```yaml
 - name: Resolve deployment targets
   uses: panicboat/deploy-actions/label-resolver@v1
   with:
     pr-number: ${{ github.event.pull_request.number }}
+    repository: ${{ github.repository }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    environments: ${{ inputs.target_environment }}
+```
+
+Multiple environment deployment.
+
+```yaml
+- name: Resolve deployment targets
+  uses: panicboat/deploy-actions/label-resolver@v1
+  with:
+    pr-number: ${{ github.event.pull_request.number }}
+    repository: ${{ github.repository }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
     environments: "develop,staging"
 ```
 
@@ -118,7 +152,7 @@ The resolver provides the following GitHub Actions outputs:
 
 ## Configuration
 
-設定仕様と matrix の形式はルートの [Configuration](../../README.md#configuration) と [Matrix Output](../../README.md#matrix-output) を参照してください。
+See the root [Configuration](../../README.md#configuration) and [Matrix Output](../../README.md#matrix-output) sections for the schema and matrix format.
 
 ## Deploy Labels
 
@@ -127,7 +161,7 @@ The system recognizes labels in the format `deploy:service`:
 - `deploy:auth` - Deploy auth service
 - `deploy:api` - Deploy api service
 - `deploy:frontend` - Deploy frontend service
-- `deploy:all` - 実在する全サービスの対象を解決
+- `deploy:all` - Resolve targets for all existing services
 
 ## Environment Targeting
 
@@ -136,12 +170,13 @@ The system recognizes labels in the format `deploy:service`:
 - Environments are specified directly as parameters
 - No dependency on branch names for environment determination
 - Supports any deployment environment defined in configuration
+- Supports targeting multiple environments in one invocation
 
 ## Target Resolution
 
-指定環境を各 stack の定義環境に絞り、全パスの実在ディレクトリを列挙します。環境指定の省略または空白入力は全定義環境を選択します。環境共通の対象は各ディレクトリにつき一度だけ生成します。
+Intersects the requested environments with each stack's configured environments and enumerates existing directories across all paths. Omitting the environment selection or providing only whitespace selects all configured environments. Targets shared across environments are generated once per directory.
 
-`deploy:all` は設定したパスから全サービスを探索します。除外条件に一致する対象は matrix に含めません。存在しないパスは正常な空の結果になり、未知環境・列挙エラー・抽出値の矛盾は失敗になります。
+`deploy:all` discovers all services from the configured paths. Targets matching exclusion conditions are omitted from the matrix. Missing paths produce a valid empty result; unknown environments, enumeration errors, and conflicting captured values cause failures.
 
 ## Error Handling
 
@@ -150,7 +185,7 @@ The resolver provides comprehensive error handling:
 - **Invalid Environment**: Clear error when target environment doesn't exist
 - **Missing Labels**: Graceful handling of PRs without deploy labels
 - **Configuration Errors**: Detailed validation of workflow configuration
-- **Directory Detection**: 存在しないパスは正常な空の結果
+- **Directory Detection**: Missing paths produce a valid empty result
 
 ## Development
 
@@ -163,13 +198,17 @@ bundle exec rspec spec/label-resolver/
 
 ### Local Testing
 
+Set up environment.
+
 ```bash
-# Set up environment
 export GITHUB_TOKEN=your_token
 export GITHUB_REPOSITORY=owner/repo
 export SOURCE_REPO_PATH=your_source_path
 export WORKFLOW_CONFIG_PATH=workflow-config.yaml
+```
 
-# Test with real PR
-./bin/resolver debug 123 develop
+Test with real PR.
+
+```bash
+bundle exec ruby label-resolver/bin/resolver debug 123 develop
 ```

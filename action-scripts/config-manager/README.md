@@ -1,43 +1,43 @@
 # Config Manager
 
-**English** | [🇯🇵 日本語](README-ja.md)
+**English** | [🇯🇵 Japanese](README-ja.md)
 
 A Ruby-based configuration validation and management tool for GitHub Actions deployment automation.
 
 ## Overview
 
-stack 定義の読み込みと検証、設定表示、サービスの実在ディレクトリ診断を提供します。設定仕様は [Configuration](../../README.md#configuration)、出力形式は [Matrix Output](../../README.md#matrix-output) を参照してください。
+Loads and validates stack definitions, displays configuration, and diagnoses services using existing directories. See [Configuration](../../README.md#configuration) for the schema and [Matrix Output](../../README.md#matrix-output) for the output format.
 
 ## Usage
 
-The Config Manager provides a CLI interface through `bin/config-manager`:
+The Config Manager provides a CLI interface through `config-manager/bin/config-manager`:
 
 ### Commands
 
-`action-scripts` を作業ディレクトリとして実行します。
+Run commands from the `action-scripts` directory.
 
 | Command | Result |
 |---|---|
-| `bundle exec ruby config-manager/bin/config-manager validate` | 設定の検証結果と stack・環境数 |
-| `bundle exec ruby config-manager/bin/config-manager show` | 各 stack ID の全パス、環境属性または共通属性、除外条件 |
-| `bundle exec ruby config-manager/bin/config-manager environments` | 定義した環境名の和集合 |
-| `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | 実在する全一致対象と除外状態 |
-| `bundle exec ruby config-manager/bin/config-manager diagnostics` | 設定、環境変数、Git 状態、設定ファイルの診断 |
-| `bundle exec ruby config-manager/bin/config-manager template` | 新しい設定を作るための YAML の表示 |
-| `bundle exec ruby config-manager/bin/config-manager check_file` | 既定ファイルの存在、読み取り、YAML 構文の確認 |
+| `bundle exec ruby config-manager/bin/config-manager validate` | Validation result and stack/environment counts |
+| `bundle exec ruby config-manager/bin/config-manager show` | All paths, environment or shared attributes, and exclusions for each stack ID |
+| `bundle exec ruby config-manager/bin/config-manager environments` | Union of configured environment names |
+| `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | All existing matching targets and their exclusion status |
+| `bundle exec ruby config-manager/bin/config-manager diagnostics` | Diagnostics for configuration, environment variables, Git state, and the configuration file |
+| `bundle exec ruby config-manager/bin/config-manager template` | Display of YAML for creating a configuration |
+| `bundle exec ruby config-manager/bin/config-manager check_file` | Existence, readability, and YAML syntax checks for the default file |
 
 ### Service Diagnosis
 
-環境を省略すると、そのサービスの全定義環境と共通対象を調べます。環境を指定すると、指定環境と共通対象を調べます。サービスの登録は不要です。パスに一致しないサービスは空の結果になります。
+Omitting the environment inspects all configured environments and shared targets for the service. Selecting an environment inspects that environment and shared targets. Services do not require registration. A service that matches no paths produces an empty result.
 
-一致する全ディレクトリを stack ID ごとに表示し、属性と任意 placeholder の抽出値を保持します。除外された対象も `excluded: true` として表示するため、実行対象から外れる条件を確認できます。
+All matching directories are displayed by stack ID, preserving attributes and captured arbitrary placeholders. Excluded targets are also displayed with `excluded: true`, so you can inspect why they are omitted from deployment.
 
 ```bash
 bundle exec ruby config-manager/bin/config-manager test demo
 bundle exec ruby config-manager/bin/config-manager test demo production
 ```
 
-未知の環境、設定の不正、ディレクトリ列挙の失敗、同じ対象の抽出値の矛盾はエラーとして表示します。
+Unknown environments, invalid configuration, directory enumeration failures, and conflicting captured values for the same target are reported as errors.
 
 ## Architecture
 
@@ -50,11 +50,12 @@ bundle exec ruby config-manager/bin/config-manager test demo production
 
 ### Validation Flow
 
-YAML を読み込み、設定モデルで構造と整合性を検証し、検証結果と stack・環境数を表示します。検証規則の詳細は [Configuration](../../README.md#configuration) を参照してください。
+Loads YAML, validates structure and consistency through the configuration model, and displays the validation result with stack/environment counts. See [Configuration](../../README.md#configuration) for the validation rules.
 
 ## Error Handling
 
 Detailed error reporting with:
+
 - **Specific Error Messages**: Pinpoint configuration issues
 - **Validation Context**: Clear indication of problematic sections
 - **Suggestions**: Guidance for fixing common configuration problems
@@ -63,6 +64,7 @@ Detailed error reporting with:
 ## Integration
 
 The Config Manager integrates with:
+
 - **Label Resolver**: Provides configuration for deployment targeting
 - **Label Dispatcher**: Validates service and directory configurations
 - **GitHub Actions**: Environment validation for CI/CD workflows
@@ -79,10 +81,7 @@ bundle exec rspec spec/config-manager/
 ### Local Testing
 
 ```bash
-# Test with custom configuration
 cp workflow-config.yaml test-config.yaml
-./bin/config-manager validate
-
-# Test service configuration
-./bin/config-manager test myservice develop
+WORKFLOW_CONFIG_PATH=test-config.yaml bundle exec ruby config-manager/bin/config-manager validate
+bundle exec ruby config-manager/bin/config-manager test myservice develop
 ```

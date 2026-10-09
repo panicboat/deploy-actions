@@ -1,6 +1,6 @@
 # Deploy Actions
 
-**English** | [🇯🇵 日本語](README-ja.md)
+**English** | [🇯🇵 Japanese](README-ja.md)
 
 A GitHub Actions toolkit that drives PR-label-based deployment orchestration for multi-service repositories.
 
@@ -12,7 +12,14 @@ Deploy Actions converts file changes into deployment labels and converts those l
 
 ### 1. Config Manager (`action-scripts/config-manager/`)
 
-`workflow-config.yaml` の stack 定義を検証し、設定表示・環境一覧・実在ディレクトリのサービス診断・テンプレート生成を提供します。
+Validates stack definitions in `workflow-config.yaml` and provides configuration display, environment listing, service diagnosis using existing directories, and template generation.
+
+**Highlights:**
+
+- Configuration validation with detailed error reports
+- Environment listing and service diagnosis
+- Stack path and exclusion validation
+- Template generation
 
 ### 2. Label Dispatcher (`label-dispatcher/`)
 
@@ -27,12 +34,12 @@ Detects file changes from a PR and creates `deploy:<service>` labels for affecte
 
 ### 3. Label Resolver (`label-resolver/`)
 
-`deploy:<service>` ラベルと指定環境から、後続 Action が使う matrix を生成します。
+Generates a matrix for downstream Actions from `deploy:<service>` labels and the selected environments.
 
 **Highlights:**
 
 - Label-to-target resolution
-- 定義された環境からの対象選択
+- Target selection from configured environments
 - Deployment-matrix generation
 - Safety validation
 
@@ -50,18 +57,20 @@ Detects file changes from a PR and creates `deploy:<service>` labels for affecte
 
 ### Label Resolver
 
+`environments` is optional. Specify multiple environments as a comma-separated list; omit it to target all configured environments.
+
 ```yaml
 - uses: panicboat/deploy-actions/label-resolver@v1
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    environments: develop  # optional, comma-separated (e.g. develop,staging)
+    environments: develop
 ```
 
 ## Configuration
 
-`workflow-config.yaml` のトップレベルには、空でない `stacks` 配列を定義します。同じ stack のパス、環境属性、除外条件を一つの定義で管理します。
+Define a nonempty `stacks` array at the top level of `workflow-config.yaml`. Each stack definition contains its paths, environment attributes, and exclusion conditions.
 
 ```yaml
 stacks:
@@ -92,38 +101,38 @@ stacks:
 
 | Field | Requirement | Behavior |
 |---|---|---|
-| `name` | 必須 | stack の種類。属性名やプロバイダーを制限しない |
-| `id` | 任意 | インスタンス識別子。省略時は `name`。設定全体で一意 |
-| `paths` | 必須 | 空でない相対パス配列。全パスに `{service}` が必要 |
-| `environments` | 任意 | 環境名をキー、環境属性を値とする空でないマップ |
-| `attributes` | 任意 | 環境共通の属性。`environments` と併用できない |
-| `exclude` | 任意 | 除外条件の配列。省略時は空配列 |
+| `name` | Required | Stack type; does not restrict attribute names or providers |
+| `id` | Optional | Instance identifier; defaults to `name` and must be unique across the configuration |
+| `paths` | Required | Nonempty array of relative paths; every path must contain `{service}` |
+| `environments` | Optional | Nonempty map from environment names to environment attributes |
+| `attributes` | Optional | Attributes shared across environments; cannot be combined with `environments` |
+| `exclude` | Optional | Array of exclusion conditions; defaults to an empty array |
 
-共有するプロダクトは一つの定義の `paths` に追加します。独立させる場合は、同じ `name` に異なる `id` を付けた別定義にし、それぞれにパスと属性を置きます。
+Products that share a stack use multiple entries in one definition's `paths`. For independent stacks, use separate definitions with the same `name` and different `id` values, each with its own paths and attributes.
 
-`environments` のキーがその stack の環境名です。環境一覧は全 stack の和集合になり、環境指定を省略すると全定義環境が対象になります。各 stack は自身の定義環境だけを生成し、未知の環境指定はエラーになります。属性の値と型はそのまま出力され、環境間の属性キーを揃える必要はありません。
+The keys in `environments` define the stack's environment names. The environment list is the union of all stacks' environment names. Omitting the environment selection targets all configured environments. Each stack generates targets only for its own environments, and selecting an unknown environment is an error. Attribute values and types are preserved in the output; environments do not need identical attribute keys.
 
-パスに `{environment}` がなくても、`environments` があれば環境ごとの対象になります。同じディレクトリを異なる環境属性で使えます。`environments` がなければ環境共通で、`environment: null` の対象を各ディレクトリにつき一度だけ生成します。この場合の属性は `attributes` から取得し、パスに `{environment}` は指定できません。
+A stack with `environments` generates targets for each environment even when its paths do not contain `{environment}`. The same directory can use different environment attributes. A stack without `environments` is shared across environments and generates one target with `environment: null` per directory. It uses `attributes` and cannot contain `{environment}` in its paths.
 
 ### Path Matching
 
-パスはリポジトリルートからの完全な相対パターンです。絶対パスと `..` 要素は拒否し、先頭の `./`、余分な `/`、`.` 要素は正規化します。すべてのパターンに一致する実在ディレクトリを列挙し、存在しないパスは対象を生成しません。サービスの登録は不要です。ドットで始まるサービスは対象外です。
+Paths are complete relative patterns from the repository root. Absolute paths and `..` segments are rejected. Leading `./`, extra `/` separators, and `.` segments are normalized. All existing directories matching any pattern are enumerated; missing paths generate no targets. Services do not require registration. Service names starting with a dot are excluded.
 
-`{team}` などの任意 placeholder を使えます。名前は `[a-z_][a-z0-9_]*`、値はパスの一要素です。同じ名前を繰り返した場合は、すべて同じ値に一致する必要があります。glob の記号はリテラルとして扱います。任意 placeholder と matrix の固定キー、または同じ stack のいずれかの環境属性・共通属性キーが衝突する定義は拒否します。
+Arbitrary placeholders such as `{team}` are supported. Names must match `[a-z_][a-z0-9_]*`, and each value occupies one path segment. Repeated occurrences of a placeholder must match the same value. Glob characters are treated literally. Definitions are rejected if an arbitrary placeholder conflicts with a fixed matrix key or with any environment or shared attribute key in the same stack.
 
 ### Exclusion Conditions
 
-`exclude` の各要素は空でない条件マップです。`service`、`environment`、その stack のいずれかのパスにある任意 placeholder を条件にできます。属性名は条件キーとして使えません。
+Each entry in `exclude` is a nonempty condition map. Conditions can use `service`, `environment`, or any arbitrary placeholder found in the stack's paths. Attribute names cannot be used as condition keys.
 
-一つのマップ内は AND、配列内は OR で完全一致を判定します。省略したキーは制約になりません。service のみ、environment のみ、任意 placeholder のみでも指定できます。照合したパスにない抽出値を要求する条件は一致しません。
+Conditions use exact matching: keys within a map are combined with AND, and entries in the array are combined with OR. Omitted keys impose no restriction. A condition can specify only a service, only an environment, or only an arbitrary placeholder. A condition requiring a captured value absent from the matched path does not match.
 
-条件値は空でない文字列で、`/`、`.`、`..` は使えません。service はドットで始められません。環境条件は自身の定義環境だけを指定できます。環境共通 stack では environment の省略または `null` を受け付け、environment 以外の条件値に `null` は使えません。
+Condition values must be nonempty strings representing one path segment; `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. Environment conditions can name only the stack's own environments. For stacks shared across environments, `environment` can be omitted or set to `null`; other condition values cannot be `null`.
 
-実行可能な設定例は [workflow-config.yaml](action-scripts/workflow-config.yaml) を参照してください。
+See [workflow-config.yaml](action-scripts/workflow-config.yaml) for a working configuration example.
 
-## Workflow integration
+## Workflow Integration
 
-### 1. Change-detection workflow
+### 1. Change Detection
 
 ```yaml
 name: Detect Changes and Create Labels
@@ -142,7 +151,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### 2. Deployment-target resolution
+### 2. Target Resolution
 
 ```yaml
 name: Deploy
@@ -161,27 +170,27 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      # Then run your own deploy step using ${{ steps.resolve.outputs.targets }}
 ```
+
+Pass `${{ steps.resolve.outputs.targets }}` to your deployment step.
 
 The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of this repository — the maintainer's personal wrappers live at [`panicboat/panicboat-actions`](https://github.com/panicboat/panicboat-actions).
 
 ## Matrix Output
 
-`label-resolver` は `outputs.targets` と環境変数 `DEPLOYMENT_TARGETS` に JSON 配列を出力します。固定キーは次の5個で、属性と任意 placeholder の抽出値を同じ階層に展開します。
+`label-resolver` writes a JSON array to `outputs.targets` and the `DEPLOYMENT_TARGETS` environment variable. Each target has the following five fixed keys, with attributes and captured arbitrary placeholders flattened into the same object.
 
 | Key | Source |
 |---|---|
-| `service` | ラベルまたは `deploy:all` で探索したサービス名 |
-| `environment` | 定義した環境名。環境共通なら `null` |
-| `stack` | stack の `name` |
-| `stack_id` | 確定した `id` |
-| `working_directory` | 実在する対象ディレクトリの相対パス |
-| 属性のキー | 当該環境属性、または共通 `attributes` |
-| 任意 placeholder のキー | 一致したパスの抽出値 |
+| `service` | Service name from a label or discovered through `deploy:all` |
+| `environment` | Configured environment name, or `null` for a target shared across environments |
+| `stack` | Stack `name` |
+| `stack_id` | Resolved `id` |
+| `working_directory` | Relative path of the existing target directory |
+| Attribute keys | Selected environment attributes or shared `attributes` |
+| Arbitrary placeholder keys | Values captured from the matched path |
 
-Configuration の例で `teams/payments/api/aws/develop` が存在する場合、次の行を生成します。
+With the configuration above, an existing `teams/payments/api/aws/develop` directory generates the following row.
 
 ```json
 {
@@ -195,13 +204,13 @@ Configuration の例で `teams/payments/api/aws/develop` が存在する場合�
 }
 ```
 
-対象の同一性は service・stack_id・environment・working_directory で決まります。同じ対象の重複は一行にまとめます。同じ対象を異なる抽出値マップで解釈するパスは、除外条件や記載順にかかわらずエラーになります。下流では `${{ matrix.team }}` のように任意のキーを参照できます。
+Target identity consists of `service`, `stack_id`, `environment`, and `working_directory`. Duplicate targets are merged into one row. Paths that interpret the same target with different captured value maps cause an error, regardless of exclusions or definition order. Downstream steps can reference arbitrary keys such as `${{ matrix.team }}`.
 
 ## Development
 
 ### Prerequisites
 
-- Ruby 4.0.3
+- Ruby ([.ruby-version](action-scripts/.ruby-version))
 - Bundler
 - Git
 
@@ -214,11 +223,11 @@ bundle install
 bundle exec rspec
 ```
 
-### Testing individual components
+### Component Testing
 
 ```bash
 bundle exec ruby config-manager/bin/config-manager validate
-bundle exec ruby label-dispatcher/bin/dispatcher detect
+bundle exec ruby label-dispatcher/bin/dispatcher test
 bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
 ```
 
