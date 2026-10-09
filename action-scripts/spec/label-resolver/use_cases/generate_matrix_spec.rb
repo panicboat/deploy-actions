@@ -172,4 +172,30 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     expect(items(labels: [])).to eq([])
     expect(items(labels: ['other', 'deploy:demo:invalid'])).to eq([])
   end
+  it 'returns a failure without partial targets for actual directory permission errors' do
+    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['readable/{service}', 'blocked/{service}'] }]
+    directory('readable/demo'); directory('blocked/demo')
+    path = File.join(@root, 'blocked')
+    File.chmod(0, path)
+    expect { Dir.children(path) }.to raise_error(Errno::EACCES)
+    result = generate
+    expect(result).to be_failure
+    expect(result.error_message).to include('Permission denied')
+    expect(result.data).not_to have_key(:deployment_targets)
+  ensure
+    File.chmod(0o755, path) if path
+  end
+
+  it 'agrees with change detection for dot-prefixed environments and custom captures' do
+    config_hash['stacks'] = [{ 'name' => 'terragrunt', 'paths' => ['teams/{team}/{service}/{environment}'], 'environments' => { '.preview' => { 'token' => nil } } }]
+    directory('teams/.platform/demo/.preview')
+    allow(file_client).to receive(:get_changed_files).and_return(['teams/.platform/demo/.preview/main.tf'])
+    detector = UseCases::LabelManagement::DetectChangedServices.new(config_client: config_client, file_client: file_client)
+    detection = detector.execute
+    expect(detection.services_detected).to eq(['demo'])
+    expect(items(labels: detection.deploy_labels.map(&:to_s))).to eq([
+      { service: 'demo', stack: 'terragrunt', stack_id: 'terragrunt', environment: '.preview', working_directory: 'teams/.platform/demo/.preview', team: '.platform', token: nil }
+    ])
+  end
+
 end

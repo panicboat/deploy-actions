@@ -37,7 +37,7 @@ module Infrastructure
         return root if File.directory?(root) && (File.directory?(git_path) || File.file?(git_path))
       end
 
-      # FALLBACK: Local commands use the enclosing checkout when SOURCE_REPO_PATH does not identify a repository.
+      # FALLBACK: Local runs may retain SOURCE_REPO_PATH after the source checkout becomes unavailable.
       current = File.expand_path(start_path)
       loop do
         git_path = File.join(current, '.git')
@@ -51,16 +51,22 @@ module Infrastructure
 
     def resolve_directories(pattern:, values: {})
       root = repository_root
-      placeholders = Entities::PatternMatcher.placeholders(pattern)
-      glob = pattern.gsub(/#{Entities::PatternMatcher::PLACEHOLDER_REGEX.source}|[\\*?\[\]{}]/) do |token|
-        token.match?(/\A#{Entities::PatternMatcher::PLACEHOLDER_REGEX.source}\z/) ? '*' : "\\#{token}"
+      candidates = [{ working_directory: '', captures: {} }]
+      parts = pattern.split('/')
+      parts.each_index do |index|
+        prefix = parts[0..index].join('/')
+        candidates = candidates.flat_map do |parent|
+          Dir.children(File.join(root, parent.fetch(:working_directory))).sort.filter_map do |name|
+            path = [parent.fetch(:working_directory), name].reject(&:empty?).join('/')
+            captures = Entities::PatternMatcher.extract(prefix, path)
+            next unless captures && captures.all? { |key, value| !values.key?(key) || value == values[key] }
+            next if captures['service']&.start_with?('.')
+            next unless directory_exists?(File.join(root, path))
+            { working_directory: path, captures: captures }
+          end
+        end
       end
-      Dir.glob(glob, base: root).sort.filter_map do |path|
-        next unless File.directory?(File.join(root, path))
-        captures = Entities::PatternMatcher.extract(pattern, path)
-        next unless captures && placeholders.all? { |key| !values.key?(key) || captures[key] == values[key] }
-        { working_directory: path, captures: captures }
-      end
+      candidates.sort_by { |match| match.fetch(:working_directory) }
     end
 
     private
@@ -106,9 +112,11 @@ module Infrastructure
       (staged_files + unstaged_files).uniq
     end
 
-    # Check if directory exists
     def directory_exists?(path)
-      File.directory?(path)
+      File.stat(path).directory?
+    rescue Errno::ENOENT, Errno::ENOTDIR
+      # SILENT: Absent paths are valid even when entries disappear or symlinks lose their targets.
+      false
     end
 
     # Check if file exists

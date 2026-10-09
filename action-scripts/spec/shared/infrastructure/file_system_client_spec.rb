@@ -57,9 +57,53 @@ RSpec.describe Infrastructure::FileSystemClient do
     expect(client.resolve_directories(pattern: 'dystopia/{service}/aws')).to eq([])
   end
 
-  it 'propagates directory enumeration errors' do
-    allow(Dir).to receive(:glob).and_raise(Errno::EACCES)
-    expect { client.resolve_directories(pattern: 'dystopia/{service}') }.to raise_error(Errno::EACCES)
+  it 'propagates actual permission errors for literal and placeholder directories' do
+    directory('blocked/demo')
+    path = File.join(@root, 'blocked')
+    File.chmod(0, path)
+    expect { Dir.children(path) }.to raise_error(Errno::EACCES)
+    expect { client.resolve_directories(pattern: 'blocked/{service}') }.to raise_error(Errno::EACCES)
+    expect { client.resolve_directories(pattern: '{team}/{service}') }.to raise_error(Errno::EACCES)
+  ensure
+    File.chmod(0o755, path) if path
+  end
+
+  it 'resolves dot-prefixed environments and arbitrary placeholders without dot entries' do
+    directory('teams/.platform/demo/.preview')
+    expect(client.resolve_directories(pattern: 'teams/{team}/{service}/{environment}', values: { 'environment' => '.preview' })).to eq([
+      { working_directory: 'teams/.platform/demo/.preview', captures: { 'team' => '.platform', 'service' => 'demo', 'environment' => '.preview' } }
+    ])
+  end
+
+  it 'does not traverse hidden services' do
+    directory('teams/platform/.hidden/aws')
+    path = File.join(@root, 'teams/platform/.hidden')
+    File.chmod(0, path)
+    expect(client.resolve_directories(pattern: 'teams/{team}/{service}/aws')).to eq([])
+  ensure
+    File.chmod(0o755, path) if path
+  end
+
+  it 'does not traverse repeated-placeholder mismatches or unselected services' do
+    directory('teams/platform/sandbox/demo')
+    path = File.join(@root, 'teams/platform/sandbox')
+    File.chmod(0, path)
+    expect(client.resolve_directories(pattern: 'teams/{team}/{team}/{service}')).to eq([])
+    expect(client.resolve_directories(pattern: 'teams/{team}/{service}/{environment}', values: { 'service' => 'other' })).to eq([])
+  ensure
+    File.chmod(0o755, path) if path
+  end
+
+  it 'ignores dangling symlinks while preserving directory stat permission errors' do
+    File.symlink(File.join(@root, 'absent'), File.join(@root, 'dangling'))
+    expect(client.resolve_directories(pattern: '{service}').map { |match| match[:working_directory] }).not_to include('dangling')
+    directory('protected/demo')
+    path = File.join(@root, 'protected')
+    File.symlink(File.join(path, 'demo'), File.join(@root, 'linked'))
+    File.chmod(0, path)
+    expect { client.resolve_directories(pattern: 'linked/{service}') }.to raise_error(Errno::EACCES)
+  ensure
+    File.chmod(0o755, path) if path
   end
 
   it 'uses the source repository root' do

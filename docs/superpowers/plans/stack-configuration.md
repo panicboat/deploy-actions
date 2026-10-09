@@ -464,7 +464,7 @@ Run: `rg -n 'stack_conventions|stack_convention_root|directory_stacks|required_a
 
 `superpowers:requesting-code-review` を適用し、計画と設計書の要件、除外判定、全利用側の旧モデル削除をレビューする。指摘を解消し、変更した箇所に必要な検証を再実行した時点で完了とする。
 
-- [ ] **Step 10: Commit the configuration commands and examples**
+- [x] **Step 10: Commit the configuration commands and examples**
 
 Files の変更を指定して stage し、`git diff --cached --check` を実行する。
 
