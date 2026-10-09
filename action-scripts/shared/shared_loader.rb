@@ -7,7 +7,7 @@ require 'bundler/setup'
 require 'yaml'
 require 'json'
 require 'octokit'
-require 'colorize' unless ENV['GITHUB_ACTIONS']
+require 'colorize'
 
 # Load shared components in Clean Architecture dependency order
 [

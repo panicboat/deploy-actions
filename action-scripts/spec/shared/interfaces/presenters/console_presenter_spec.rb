@@ -1,10 +1,21 @@
 require 'spec_helper'
+require 'open3'
+require 'rbconfig'
 
 RSpec.describe Interfaces::Presenters::ConsolePresenter do
   it 'displays labels and changed files without service exclusion metadata' do
     expect do
       described_class.new.present_label_dispatch_result(deploy_labels: [Entities::DeployLabel.new('deploy:demo')], labels_added: ['deploy:demo'], labels_removed: [], changed_files: ['dystopia/demo/main.rb'])
     end.to output(/Deploy Labels: deploy:demo.*Changed Files: 1 files/m).to_stdout
+  end
+
+  it 'displays console results when loaded in a GitHub Actions process' do
+    loader = File.expand_path('../../../../shared/shared_loader', __dir__)
+    script = "Interfaces::Presenters::ConsolePresenter.new.present_label_dispatch_result(deploy_labels: [Entities::DeployLabel.new('deploy:demo')], labels_added: ['deploy:demo'], labels_removed: [], changed_files: ['dystopia/demo/main.rb'])"
+    stdout, stderr, status = Open3.capture3({ 'GITHUB_ACTIONS' => 'true' }, RbConfig.ruby, '-r', loader, '-e', script)
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include('Deploy Labels: deploy:demo', 'Changed Files: 1 files')
   end
 
   it 'accepts only the dispatch result fields' do
