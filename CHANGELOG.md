@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/panicboat/deploy-actions/compare/v1.4.2...v2.0.0) (2026-10-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* discover stack environments and expand attributes ([#334](https://github.com/panicboat/deploy-actions/issues/334))
+
+### Features
+
+* discover stack environments and expand attributes ([#334](https://github.com/panicboat/deploy-actions/issues/334)) ([9c87a02](https://github.com/panicboat/deploy-actions/commit/9c87a02c3b14ff5f2f1ff2a07467b1a33be5f874))
+
 ## [1.4.2](https://github.com/panicboat/deploy-actions/compare/v1.4.1...v1.4.2) (2026-10-09)
 
 
