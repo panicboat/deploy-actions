@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/panicboat/deploy-actions/compare/v1.3.0...v1.4.0) (2026-10-09)
+
+
+### Features
+
+* define stack paths, environments, and exclusions ([#328](https://github.com/panicboat/deploy-actions/issues/328)) ([32a515a](https://github.com/panicboat/deploy-actions/commit/32a515aadc1dd0b4f850082e7e6ae39d2abf5a29))
+
 ## [1.3.0](https://github.com/panicboat/deploy-actions/compare/v1.2.0...v1.3.0) (2026-09-06)
 
 
