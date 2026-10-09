@@ -63,6 +63,18 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     expect(services).to eq(['api'])
   end
 
+  it 'ignores files placed at the service position' do
+    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => {} }]
+    changed_files.replace(['dystopia/README.md', 'dystopia/api/main.rb'])
+    expect(services).to eq(['api'])
+  end
+
+  it 'ignores files placed at the environment position' do
+    config_hash['stacks'] = [{ 'name' => 'kubernetes', 'paths' => ['dystopia/{service}/kubernetes/overlays/{environment}'] }]
+    changed_files.replace(['dystopia/web/kubernetes/overlays/README.md', 'dystopia/api/kubernetes/overlays/develop/kustomization.yaml'])
+    expect(services).to eq(['api'])
+  end
+
   it 'uses AND within conditions and OR across conditions' do
     stack['exclude'] = [{ 'team' => 'platform', 'service' => 'demo' }, { 'team' => 'sandbox' }]
     changed_files.replace(['teams/platform/api/aws/develop/main.tf', 'teams/sandbox/api/aws/develop/main.tf', 'teams/platform/demo/aws/develop/main.tf'])

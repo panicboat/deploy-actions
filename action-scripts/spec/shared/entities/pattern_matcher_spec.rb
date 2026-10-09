@@ -129,10 +129,16 @@ RSpec.describe Entities::PatternMatcher do
       expect(result).to eq('service' => 'foo')
     end
 
-    it 'matches when path equals the pattern exactly' do
+    it 'returns nil when the path equals the pattern exactly' do
       expect(
         described_class.extract_prefix('{service}/terragrunt', 'foo/terragrunt')
-      ).to eq('service' => 'foo')
+      ).to be_nil
+    end
+
+    it 'returns nil when the path ends with a separator after the pattern' do
+      expect(
+        described_class.extract_prefix('{service}/terragrunt', 'foo/terragrunt/')
+      ).to be_nil
     end
 
     it 'returns nil when the path is shorter than the pattern' do
