@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/panicboat/deploy-actions/compare/v1.4.1...v1.4.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* run scripts directly from action path without checking out deploy-actions ([#332](https://github.com/panicboat/deploy-actions/issues/332)) ([0aea6e7](https://github.com/panicboat/deploy-actions/commit/0aea6e79458bf1075ba8b67ae809b7bc17682e87))
+
 ## [1.4.1](https://github.com/panicboat/deploy-actions/compare/v1.4.0...v1.4.1) (2026-10-09)
 
 
