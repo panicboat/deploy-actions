@@ -31,6 +31,7 @@ class ConfigManagerContainer
 
     # Infrastructure clients
     container[:config_client] = Infrastructure::ConfigClient.new
+    container[:file_client] = Infrastructure::FileSystemClient.new
 
     # Use cases
     container[:validate_config] = UseCases::ConfigManagement::ValidateConfig.new(
@@ -46,6 +47,7 @@ class ConfigManagerContainer
     container[:config_manager_controller] = Interfaces::Controllers::ConfigManagerController.new(
       validate_config_use_case: container[:validate_config],
       config_client: container[:config_client],
+      file_client: container[:file_client],
       presenter: presenter
     )
 

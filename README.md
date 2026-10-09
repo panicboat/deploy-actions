@@ -1,6 +1,6 @@
 # Deploy Actions
 
-**English** | [🇯🇵 日本語](README-ja.md)
+**English** | [🇯🇵 Japanese](README-ja.md)
 
 A GitHub Actions toolkit that drives PR-label-based deployment orchestration for multi-service repositories.
 
@@ -12,13 +12,13 @@ Deploy Actions converts file changes into deployment labels and converts those l
 
 ### 1. Config Manager (`action-scripts/config-manager/`)
 
-Validates and manages the `workflow-config.yaml` that defines environments, services, and directory conventions.
+Validates stack definitions in `workflow-config.yaml` and provides configuration display, environment listing, service diagnosis using existing directories, and template generation.
 
 **Highlights:**
 
-- Configuration validation with detailed error reporting
-- Environment and service management
-- Directory-convention validation
+- Configuration validation with detailed error reports
+- Environment listing and service diagnosis
+- Stack path and exclusion validation
 - Template generation
 
 ### 2. Label Dispatcher (`label-dispatcher/`)
@@ -34,12 +34,12 @@ Detects file changes from a PR and creates `deploy:<service>` labels for affecte
 
 ### 3. Label Resolver (`label-resolver/`)
 
-Translates `deploy:<service>` labels and branch context into a deployment-target matrix that downstream actions consume.
+Generates a matrix for downstream Actions from `deploy:<service>` labels and the selected environments.
 
 **Highlights:**
 
 - Label-to-target resolution
-- Environment detection from branch
+- Target selection from configured environments
 - Deployment-matrix generation
 - Safety validation
 
@@ -57,73 +57,82 @@ Translates `deploy:<service>` labels and branch context into a deployment-target
 
 ### Label Resolver
 
+`environments` is optional. Specify multiple environments as a comma-separated list; omit it to target all configured environments.
+
 ```yaml
 - uses: panicboat/deploy-actions/label-resolver@v1
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    environments: develop  # optional, comma-separated (e.g. develop,staging)
+    environments: develop
 ```
 
 ## Configuration
 
-The toolkit reads `workflow-config.yaml`:
+Define a nonempty `stacks` array at the top level of `workflow-config.yaml`. Each stack definition contains its paths, environment attributes, and exclusion conditions.
 
 ```yaml
-environments:
-  - environment: develop
-    stacks:
-      aws:
+stacks:
+  - name: terragrunt
+    id: aws
+    paths:
+      - "dystopia/{service}/aws/{environment}"
+      - "system-components/{service}/infrastructure/aws/{environment}"
+      - "teams/{team}/{service}/aws/{environment}"
+    environments:
+      develop:
         aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-        iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-stack_conventions:
-  - root: "{service}"          # placeholders other than {service}/{environment}
-                               # are also allowed; their values are emitted as
-                               # top-level keys in matrix output (e.g. {team}).
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "Manual deployment required"
-      type: "permanent"
+      production:
+        aws_region: us-west-2
+    exclude:
+      - service: demo
+        environment: production
+      - team: sandbox
+  - name: container
+    paths:
+      - "dystopia/{service}"
+      - "system-components/{service}"
+    attributes:
+      repository: registry.example.com/app
 ```
 
-See `action-scripts/workflow-config.yaml` for a runnable sample.
+### Stack Definitions
 
-### Multiple instances of the same stack name
+| Field | Requirement | Behavior |
+|---|---|---|
+| `name` | Required | Stack type; does not restrict attribute names or providers |
+| `id` | Optional | Instance identifier; defaults to `name` and must be unique across the configuration |
+| `paths` | Required | Nonempty array of relative paths; every path must contain `{service}` |
+| `environments` | Optional | Nonempty map from environment names to environment attributes |
+| `attributes` | Optional | Attributes shared across environments; cannot be combined with `environments` |
+| `exclude` | Optional | Array of exclusion conditions; defaults to an empty array |
 
-When a service needs two instances of the same stack (e.g. one Terragrunt
-stack for AWS resources and one for Stripe), give each entry a distinct `id`.
+Products that share a stack use multiple entries in one definition's `paths`. For independent stacks, use separate definitions with the same `name` and different `id` values, each with its own paths and attributes.
 
-```yaml
-# `id` is optional; when omitted it falls back to `name`. Within a single
-# convention, `id || name` must be unique.
-stack_conventions:
-  - root: "dystopia/{service}"
-    stacks:
-      - name: terragrunt
-        id: aws
-        directory: infrastructure/aws/{environment}
-        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-      - name: terragrunt
-        id: stripe
-        directory: infrastructure/stripe/{environment}
-        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-```
+The keys in `environments` define the stack's environment names. The environment list is the union of all stacks' environment names. Omitting the environment selection targets all configured environments. Each stack generates targets only for its own environments, and selecting an unknown environment is an error. Attribute values and types are preserved in the output; environments do not need identical attribute keys.
 
-## Workflow integration
+A stack with `environments` generates targets for each environment even when its paths do not contain `{environment}`. The same directory can use different environment attributes. A stack without `environments` is shared across environments and generates one target with `environment: null` per directory. It uses `attributes` and cannot contain `{environment}` in its paths.
 
-### 1. Change-detection workflow
+### Path Matching
+
+Paths are complete relative patterns from the repository root. Absolute paths and `..` segments are rejected. Leading `./`, extra `/` separators, and `.` segments are normalized. All existing directories matching any pattern are enumerated; missing paths generate no targets. Services do not require registration. Service names starting with a dot are excluded.
+
+Arbitrary placeholders such as `{team}` are supported. Names must match `[a-z_][a-z0-9_]*`, and each value occupies one path segment. Repeated occurrences of a placeholder must match the same value. Glob characters are treated literally. Definitions are rejected if an arbitrary placeholder conflicts with a fixed matrix key or with any environment or shared attribute key in the same stack.
+
+### Exclusion Conditions
+
+Each entry in `exclude` is a nonempty condition map. Conditions can use `service`, `environment`, or any arbitrary placeholder found in the stack's paths. Attribute names cannot be used as condition keys.
+
+Conditions use exact matching: keys within a map are combined with AND, and entries in the array are combined with OR. Omitted keys impose no restriction. A condition can specify only a service, only an environment, or only an arbitrary placeholder. A condition requiring a captured value absent from the matched path does not match.
+
+Condition values must be nonempty strings representing one path segment; `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. Environment conditions can name only the stack's own environments. For stacks shared across environments, `environment` can be omitted or set to `null`; other condition values cannot be `null`.
+
+See [workflow-config.yaml](action-scripts/workflow-config.yaml) for a working configuration example.
+
+## Workflow Integration
+
+### 1. Change Detection
 
 ```yaml
 name: Detect Changes and Create Labels
@@ -142,7 +151,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### 2. Deployment-target resolution
+### 2. Target Resolution
 
 ```yaml
 name: Deploy
@@ -161,69 +170,47 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      # Then run your own deploy step using ${{ steps.resolve.outputs.targets }}
 ```
+
+Pass `${{ steps.resolve.outputs.targets }}` to your deployment step.
 
 The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of this repository — the maintainer's personal wrappers live at [`panicboat/panicboat-actions`](https://github.com/panicboat/panicboat-actions).
 
 ## Matrix Output
 
-`label-resolver` produces a JSON array on `outputs.targets` (and the `DEPLOYMENT_TARGETS` env var). Each matrix item is flat:
+`label-resolver` writes a JSON array to `outputs.targets` and the `DEPLOYMENT_TARGETS` environment variable. Each target has the following five fixed keys, with attributes and captured arbitrary placeholders flattened into the same object.
 
-| Key | Source | Notes |
-|---|---|---|
-| `service` | Fixed | `deploy:<service>` label |
-| `environment` | Fixed | `null` for environment-agnostic stacks |
-| `stack` | Fixed | e.g. `aws`, `kubernetes` |
-| `stack_id` | Fixed | Instance identity (`id \|\| name`). Equals `stack` when `id` is not set. |
-| `working_directory` | Fixed | Resolved deploy directory |
-| `stack_convention_root` | Fixed | `root` portion of the matched pattern, expanded |
-| (attributes keys) | Dynamic | Everything under `environments[].stacks[stack].*` |
-| (captures keys) | Dynamic | Values of arbitrary `{placeholder}` segments in the matched pattern, excluding `service` / `environment` |
+| Key | Source |
+|---|---|
+| `service` | Service name from a label or discovered through `deploy:all` |
+| `environment` | Configured environment name, or `null` for a target shared across environments |
+| `stack` | Stack `name` |
+| `stack_id` | Resolved `id` |
+| `working_directory` | Relative path of the existing target directory |
+| Attribute keys | Selected environment attributes or shared `attributes` |
+| Arbitrary placeholder keys | Values captured from the matched path |
 
-Example. Given this `workflow-config.yaml`:
-
-```yaml
-environments:
-  - environment: develop
-    stacks:
-      aws:
-        aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-        iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-stack_conventions:
-  - root: "{team}/{service}"
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-```
-
-a working directory at `payments/api/aws/develop` resolves to:
+With the configuration above, an existing `teams/payments/api/aws/develop` directory generates the following row.
 
 ```json
 {
   "service": "api",
   "environment": "develop",
-  "stack": "aws",
+  "stack": "terragrunt",
   "stack_id": "aws",
-  "working_directory": "payments/api/aws/develop",
-  "stack_convention_root": "payments/api",
+  "working_directory": "teams/payments/api/aws/develop",
   "aws_region": "ap-northeast-1",
-  "iam_role_plan": "arn:aws:iam::ACCOUNT:role/plan-role",
-  "iam_role_apply": "arn:aws:iam::ACCOUNT:role/apply-role",
   "team": "payments"
 }
 ```
 
-`aws_region` / `iam_role_plan` / `iam_role_apply` come from `environments[0].stacks.aws` (attributes); `team` comes from the `{team}` placeholder in `root` (captures). Downstream composite actions can reference any key directly, e.g. `${{ matrix.team }}`. Placeholder names that would collide with a fixed key or with any attribute key are rejected at `config-manager validate` time.
+Target identity consists of `service`, `stack_id`, `environment`, and `working_directory`. Duplicate targets are merged into one row. Paths that interpret the same target with different captured value maps cause an error, regardless of exclusions or definition order. Downstream steps can reference arbitrary keys such as `${{ matrix.team }}`.
 
 ## Development
 
 ### Prerequisites
 
-- Ruby 4.0.3
+- Ruby ([.ruby-version](action-scripts/.ruby-version))
 - Bundler
 - Git
 
@@ -236,11 +223,11 @@ bundle install
 bundle exec rspec
 ```
 
-### Testing individual components
+### Component Testing
 
 ```bash
 bundle exec ruby config-manager/bin/config-manager validate
-bundle exec ruby label-dispatcher/bin/dispatcher detect
+bundle exec ruby label-dispatcher/bin/dispatcher test
 bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
 ```
 

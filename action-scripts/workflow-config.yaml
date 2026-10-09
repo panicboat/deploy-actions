@@ -1,51 +1,42 @@
-environments:
-  - environment: develop
-    stacks:
-      aws:
+stacks:
+  - name: terragrunt
+    id: aws
+    paths:
+      - "dystopia/{service}/aws/{environment}"
+      - "system-components/{service}/infrastructure/aws/{environment}"
+    environments:
+      develop:
         aws_region: ap-northeast-1
         iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
         iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
-      docker:
-        repository: 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/REPOSITORY_NAME
-      kubernetes:
-        namespace: default
-
-  - environment: staging
-    stacks:
-      aws:
+      staging:
         aws_region: ap-northeast-1
         iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-staging-role
         iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-staging-role
-      docker:
-        repository: 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/REPOSITORY_NAME
-      kubernetes:
-        namespace: default
-
-  - environment: production
-    stacks:
-      aws:
+      production:
         aws_region: ap-northeast-1
         iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-production-role
         iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-production-role
-      docker:
-        repository: 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/REPOSITORY_NAME
-      kubernetes:
+    exclude:
+      - service: demo
+  - name: container
+    paths:
+      - "dystopia/{service}"
+      - "system-components/{service}"
+    attributes:
+      repository: registry.example.com/app
+    exclude:
+      - service: demo
+  - name: kubernetes
+    paths:
+      - "dystopia/{service}/kubernetes/overlays/{environment}"
+      - "system-components/{service}/kubernetes/overlays/{environment}"
+    environments:
+      develop:
         namespace: default
-
-stack_conventions:
-  - root: "{service}"
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-      - name: docker
-        directory: ""
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-
-services:
-  - name: demo
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "The demo service is for learning purposes, so the directory structure is completely different."
-      type: "permanent"
+      staging:
+        namespace: default
+      production:
+        namespace: default
+    exclude:
+      - service: demo

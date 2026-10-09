@@ -1,6 +1,6 @@
 # Label Dispatcher
 
-**English** | [🇯🇵 日本語](README-ja.md)
+**English** | [🇯🇵 Japanese](README-ja.md)
 
 A Ruby-based service change detection and label management tool for GitHub Actions deployment automation.
 
@@ -13,34 +13,52 @@ The Label Dispatcher analyzes file changes in pull requests, detects affected se
 - **Change Detection**: Analyze Git diffs to identify modified files
 - **Service Mapping**: Map file changes to service deployments
 - **Label Management**: Automatically add/remove deployment labels on PRs
-- **Exclusion Support**: Handle services excluded from automation
+- **Exclusion Support**: Exclude matches using conditions defined for each stack
 - **GitHub Integration**: Seamless PR label management
 - **Directory Conventions**: Flexible service directory detection
 - **Deployment Strategy Agnostic**: Works with any branching strategy or development workflow
 
 ## Usage
 
-The Label Dispatcher provides a CLI interface through `bin/dispatcher`:
+Run commands from the `action-scripts` directory.
 
-### Basic Commands
+The Label Dispatcher provides a CLI interface through `label-dispatcher/bin/dispatcher`:
+
+### Commands
+
+Dispatch labels for a PR (automatic mode).
 
 ```bash
-# Dispatch labels for a PR (automatic mode)
 bundle exec ruby label-dispatcher/bin/dispatcher dispatch PR_NUMBER
+```
 
-# Test change detection without PR interaction
+Test change detection without PR interaction.
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher test
+```
 
-# Test with specific git references
+Test with specific git references.
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=feature/auth
+```
 
-# Simulate GitHub Actions environment
+Simulate GitHub Actions environment.
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher simulate PR_NUMBER
+```
 
-# Validate environment configuration
+Validate environment configuration.
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher validate_env
+```
 
-# Show usage examples and tips
+Show usage examples and tips.
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher help_usage
 ```
 
@@ -66,80 +84,31 @@ The dispatcher sets the following environment variables for GitHub Actions:
 - `LABELS_REMOVED`: JSON array of labels that were removed
 - `HAS_CHANGES`: Boolean indicating if changes were detected
 
-## Core Logic
+## Change Matching
 
-### 1. Change Detection
+Matches changed files against configured stack paths and extracts services, environments, and arbitrary placeholders. A path without an environment name is evaluated for each environment defined by its stack. A stack shared across environments is evaluated with `environment: null`.
 
-Analyzes Git differences to identify modified files:
-- Compares base and head commits
-- Identifies added, modified, and deleted files
-- Filters out non-deployment relevant changes
-- Supports both API-based and Git-based detection
-
-### 2. Service Mapping
-
-Maps file changes to service deployments:
-- Uses directory conventions to identify services
-- Supports both default and custom directory patterns
-- Handles multiple deployment stacks (Terragrunt, Kubernetes)
-- Applies service-specific configuration overrides
-
-### 3. Label Management
-
-Automatically manages PR labels:
-- Adds `deploy:service-name` labels for changed services
-- Removes labels for services no longer changed
-- Maintains label consistency across PR updates
-- Supports batch label operations
-
-### 4. Exclusion Handling
-
-Manages services excluded from automation:
-- Identifies excluded services from configuration
-- Provides exclusion reason and type information
-- Supports temporary and permanent exclusions
+Applies exclusion conditions to each match. A service receives one label if at least one match is not excluded. To detect changes throughout a service directory, include that path in a stack definition. Directories need not exist because deleted files are also matched.
 
 ## Configuration
 
-The dispatcher uses `workflow-config.yaml` for configuration:
-
-```yaml
-# Directory conventions for service detection (hierarchical structure)
-stack_conventions:
-  - root: "{service}"
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-
-# Service-specific configurations
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "Manual deployment required due to special requirements"
-      type: "permanent"
-
-  - name: legacy-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "Migration in progress"
-      type: "temporary"
-```
+See the root [Configuration](../../README.md#configuration) section for the configuration schema.
 
 ## Architecture
 
 The Label Dispatcher follows a clean architecture pattern:
 
 ### Controllers
+
 - `LabelDispatcherController`: Orchestrates the dispatch process
 
 ### Use Cases
+
 - `DetectChangedServices`: Analyzes file changes and maps to services
 - `ManageLabels`: Handles PR label operations
 
 ### Infrastructure
+
 - `GitHubClient`: GitHub API interactions
 - `FileSystemClient`: Git operations and file analysis
 - `ConfigClient`: Configuration management
@@ -151,23 +120,9 @@ The Label Dispatcher follows a clean architecture pattern:
 - `GITHUB_ACTIONS`: Enables GitHub Actions output format
 - `WORKFLOW_CONFIG_PATH`: Path to configuration file (optional, defaults to workflow-config.yaml)
 
-## Service Detection Logic
+## Detection Results
 
-The dispatcher uses the following logic to detect services:
-
-1. **File Analysis**: Examine changed files in the PR
-2. **Pattern Matching**: Match file paths against directory conventions
-3. **Service Extraction**: Extract service names from matched patterns
-4. **Configuration Lookup**: Apply service-specific configurations
-5. **Exclusion Filtering**: Remove excluded services from results
-
-### Example Detection
-
-For a file change in `services/auth/aws/develop/main.tf`:
-- Matches pattern: `services/{service}/aws/{environment}`
-- Extracts service: `auth`
-- Applies configuration for `auth` service
-- Adds label: `deploy:auth`
+Detection results include labels, changed files, and affected services. GitHub Actions outputs are `deploy-labels`, `labels-added`, `labels-removed`, `services-detected`, and `has-changes`. Use [Service Diagnosis](../config-manager/README.md#service-diagnosis) to inspect exclusion status.
 
 ## Error Handling
 
@@ -182,7 +137,7 @@ The dispatcher provides comprehensive error handling:
 
 ### Dependencies
 
-- Ruby 3.4+
+- Ruby ([.ruby-version](../.ruby-version))
 - Bundler
 - Thor (CLI framework)
 - Octokit (GitHub API)
@@ -190,14 +145,21 @@ The dispatcher provides comprehensive error handling:
 
 ### Testing
 
+Inspect change detection in the current working directory.
+
 ```bash
-# Test with current working directory
 bundle exec ruby label-dispatcher/bin/dispatcher test
+```
 
-# Test with specific refs
+Test with specific refs.
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=HEAD
+```
 
-# Validate environment
+Validate environment.
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher validate_env
 ```
 
@@ -223,5 +185,5 @@ The dispatcher uses standardized label formats:
 - **Change Validation**: Ensures only relevant changes trigger deployments
 - **Configuration Validation**: Validates configuration before processing
 - **Permission Checks**: Verifies GitHub token permissions
-- **Exclusion Respect**: Honors service exclusion configurations
+- **Exclusion Respect**: Apply exclusion conditions to each match
 - **Audit Trail**: Logs all label operations for troubleshooting

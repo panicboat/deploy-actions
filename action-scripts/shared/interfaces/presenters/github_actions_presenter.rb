@@ -5,7 +5,7 @@ module Interfaces
   module Presenters
     class GitHubActionsPresenter
       # Present label dispatch results for GitHub Actions
-      def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:, excluded_services: [])
+      def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)
         set_environment_variables(
           'DEPLOY_LABELS' => deploy_labels.map(&:to_s).to_json,
           'LABELS_ADDED' => labels_added.to_json,
@@ -13,8 +13,6 @@ module Interfaces
           'HAS_CHANGES' => deploy_labels.any?.to_s,
           'CHANGED_FILES' => changed_files.to_json,
           'SERVICES_DETECTED' => deploy_labels.map(&:service).uniq.to_json,
-          'EXCLUDED_SERVICES' => excluded_services.to_json,
-          'HAS_EXCLUDED_SERVICES' => excluded_services.any?.to_s
         )
 
         set_action_outputs(
@@ -23,15 +21,12 @@ module Interfaces
           'labels-removed' => labels_removed.to_json,
           'services-detected' => deploy_labels.map(&:service).uniq.to_json,
           'has-changes' => deploy_labels.any?.to_s,
-          'excluded-services' => excluded_services.to_json,
-          'has-excluded-services' => excluded_services.any?.to_s
         )
 
         puts "🏷️ Label Dispatch Completed"
         puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
         puts "Labels Added: #{labels_added.join(', ')}" if labels_added.any?
         puts "Labels Removed: #{labels_removed.join(', ')}" if labels_removed.any?
-        puts "Excluded Services: #{excluded_services.join(', ')}" if excluded_services.any?
       end
 
       # Present deployment matrix for GitHub Actions
@@ -110,30 +105,22 @@ module Interfaces
         end
       end
 
-      # Present configuration details
       def present_config_details(config:)
-        puts "📋 Workflow Configuration"
-        puts "Environments: #{config.environments.keys.join(', ')}"
-        puts "Services: #{config.services.keys.join(', ')}"
-
-        puts "\nDirectory Conventions:"
-        config.stack_conventions.each do |convention|
-          root = convention['root']
-          (convention['stacks'] || []).each do |stack|
-            puts "  #{stack['name']}: #{root}/#{stack['directory']}"
-          end
+        puts "Workflow Configuration"
+        puts "Environments: #{config.environment_names.join(', ')}"
+        config.stacks.each do |stack|
+          puts "Stack '#{stack['id']}' (#{stack['name']}):"
+          puts stack.to_yaml
         end
       end
 
-      # Present service test results
-      def present_service_test_result(service_name:, environment:, stack_attributes:, service_config:, stack_directories:)
-        puts "🔧 Service Configuration Test"
+      def present_service_test_result(service_name:, matches:)
+        puts "Service Configuration Test"
         puts "Service: #{service_name}"
-        puts "Environment: #{environment}"
-        stack_directories.each do |stack_name, directory|
-          puts "Stack '#{stack_name}':"
-          puts "  directory: #{directory}"
-          (stack_attributes[stack_name] || {}).each { |key, value| puts "  #{key}: #{value}" }
+        matches.each do |match|
+          puts "Target:"
+          match.fetch(:target).to_matrix_item.each { |key, value| puts "  #{key}: #{value.inspect}" }
+          puts "  excluded: #{match.fetch(:excluded)}"
         end
       end
 

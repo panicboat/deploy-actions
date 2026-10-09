@@ -1,562 +1,233 @@
-# spec/shared/entities/workflow_config_spec.rb
-
 require 'spec_helper'
 
 RSpec.describe Entities::WorkflowConfig do
-  let(:config_hash) do
+  let(:stack) do
     {
-      'environments' => [
-        {
-          'environment' => 'develop',
-          'stacks' => {
-            'terragrunt' => {
-              'aws_region' => 'ap-northeast-1',
-              'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan-role',
-              'iam_role_apply' => 'arn:aws:iam::123456789012:role/apply-role'
-            },
-            'kubernetes' => {}
-          }
-        },
-        {
-          'environment' => 'staging',
-          'stacks' => {
-            'terragrunt' => {
-              'aws_region' => 'us-west-2',
-              'iam_role_plan' => 'arn:aws:iam::123456789012:role/staging-plan',
-              'iam_role_apply' => 'arn:aws:iam::123456789012:role/staging-apply'
-            }
-          }
-        },
-        {
-          'environment' => 'production',
-          'stacks' => {
-            'terragrunt' => {
-              'aws_region' => 'us-west-2',
-              'iam_role_plan' => 'arn:aws:iam::123456789012:role/production-plan',
-              'iam_role_apply' => 'arn:aws:iam::123456789012:role/production-apply'
-            }
-          }
-        }
-      ],
-      'stack_conventions' => [
-        {
-          'root' => '{service}',
-          'stacks' => [
-            {
-              'name' => 'terragrunt',
-              'directory' => 'terragrunt/{environment}',
-              'required_attributes' => ['aws_region', 'iam_role_plan', 'iam_role_apply']
-            },
-            {
-              'name' => 'kubernetes',
-              'directory' => 'kubernetes/overlays/{environment}'
-            }
-          ]
-        }
-      ],
-      'services' => [
-        {
-          'name' => 'test-service',
-          'stack_conventions' => {
-            'terragrunt' => 'services/{service}/terragrunt/envs/{environment}'
-          }
-        },
-        {
-          'name' => 'excluded-service',
-          'exclude_from_automation' => true,
-          'exclusion_config' => {
-            'reason' => 'Manual deployment required',
-            'type' => 'permanent'
-          }
-        }
-      ]
+      'name' => 'terragrunt',
+      'paths' => ['dystopia/{service}/aws/{environment}'],
+      'environments' => { 'develop' => { 'aws_region' => 'ap-northeast-1' }, 'production' => {} }
     }
   end
+  let(:config_hash) { { 'stacks' => [stack] } }
+  subject(:config) { described_class.new(config_hash) }
 
-  subject(:workflow_config) { described_class.new(config_hash) }
+  it 'resolves omitted identities and environment names' do
+    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['dystopia/{service}'] }
+    expect(config.stacks.map { |entry| entry['id'] }).to eq(%w[terragrunt container])
+    expect(config.environment_names).to eq(%w[develop production])
+    expect(config.stacks.last['attributes']).to eq({})
+    expect(config.stacks.first['exclude']).to eq([])
+  end
 
-  describe '#initialize' do
-    it 'initializes with config hash' do
-      expect(workflow_config.raw_config).to eq(config_hash)
+  it 'collects environment names from every stack without duplicates' do
+    config_hash['stacks'] << {
+      'name' => 'kubernetes', 'paths' => ['kubernetes/{service}'],
+      'environments' => { 'production' => {}, 'preview' => {} }
+    }
+    expect(config.environment_names).to eq(%w[develop production preview])
+  end
+
+  it 'normalizes relative paths without changing the input' do
+    stack['paths'] = ['./dystopia/./{service}/aws/{environment}/']
+    expect(config.stacks.first['paths']).to eq(['dystopia/{service}/aws/{environment}'])
+    expect(stack['paths']).to eq(['./dystopia/./{service}/aws/{environment}/'])
+    expect(stack).not_to have_key('id')
+  end
+
+  it 'preserves attributes with different keys and value types' do
+    stack['environments']['production'] = { 'token' => nil, 'enabled' => false, 'count' => 2, 'regions' => ['west'] }
+    expect(config.stacks.first['environments']).to eq(
+      'develop' => { 'aws_region' => 'ap-northeast-1' },
+      'production' => { 'token' => nil, 'enabled' => false, 'count' => 2, 'regions' => ['west'] }
+    )
+  end
+
+  it 'accepts repeated placeholders' do
+    stack['paths'] = ['teams/{team}/{service}/{team}/aws/{environment}']
+    expect { config }.not_to raise_error
+  end
+
+  it 'matches all conditions in a rule and any rule in the array' do
+    stack['paths'] = ['{team}/{service}/aws/{environment}']
+    stack['exclude'] = [
+      { 'team' => 'platform', 'service' => 'demo', 'environment' => 'production' },
+      { 'team' => 'sandbox' }
+    ]
+    entry = config.stacks.first
+    expect(config.excluded?(entry, 'team' => 'platform', 'service' => 'demo', 'environment' => 'production')).to be(true)
+    expect(config.excluded?(entry, 'team' => 'platform', 'service' => 'demo', 'environment' => 'develop')).to be(false)
+    expect(config.excluded?(entry, 'team' => 'platform', 'service' => 'api', 'environment' => 'production')).to be(false)
+    expect(config.excluded?(entry, 'team' => 'sandbox', 'service' => 'api', 'environment' => 'develop')).to be(true)
+    expect(config.excluded?(entry, 'service' => 'demo', 'environment' => 'production')).to be(false)
+  end
+
+  it 'matches a service condition across environments' do
+    stack['exclude'] = [{ 'service' => 'demo' }]
+    %w[develop production].each do |environment|
+      expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'environment' => environment)).to be(true)
+      expect(config.excluded?(config.stacks.first, 'service' => 'api', 'environment' => environment)).to be(false)
     end
   end
 
-  describe '#environments' do
-    it 'returns environments hash keyed by environment name' do
-      environments = workflow_config.environments
-
-      expect(environments).to be_a(Hash)
-      expect(environments.keys).to contain_exactly('develop', 'staging', 'production')
-      expect(environments['develop']['stacks']['terragrunt']['aws_region']).to eq('ap-northeast-1')
-      expect(environments['staging']['stacks']['terragrunt']['aws_region']).to eq('us-west-2')
-      expect(environments['production']['stacks']['terragrunt']['aws_region']).to eq('us-west-2')
+  it 'matches an environment condition when the path has no environment' do
+    stack['paths'] = ['dystopia/{service}/aws']
+    stack['exclude'] = [{ 'environment' => 'production' }]
+    %w[demo api].each do |service|
+      expect(config.excluded?(config.stacks.first, 'service' => service, 'environment' => 'production')).to be(true)
+      expect(config.excluded?(config.stacks.first, 'service' => service, 'environment' => 'develop')).to be(false)
     end
   end
 
-  describe '#services' do
-    it 'returns services hash keyed by service name' do
-      services = workflow_config.services
-      
-      expect(services).to be_a(Hash)
-      expect(services.keys).to contain_exactly('test-service', 'excluded-service')
-      expect(services['test-service']['name']).to eq('test-service')
-      expect(services['excluded-service']['exclude_from_automation']).to be true
-    end
+  it 'allows custom keys from the union of stack paths without matching missing captures' do
+    stack['paths'] << 'teams/{team}/{service}/aws/{environment}'
+    stack['exclude'] = [{ 'team' => 'sandbox' }]
+    expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'environment' => 'production')).to be(false)
   end
 
-  describe '#environment_config' do
-    context 'with existing environment' do
-      it 'returns environment configuration including stacks' do
-        config = workflow_config.environment_config('develop')
-
-        expect(config['environment']).to eq('develop')
-        expect(config['stacks']['terragrunt']['aws_region']).to eq('ap-northeast-1')
-        expect(config['stacks']['terragrunt']['iam_role_plan']).to eq('arn:aws:iam::123456789012:role/plan-role')
-      end
-    end
-
-    context 'with non-existing environment' do
-      it 'returns nil' do
-        config = workflow_config.environment_config('non-existing')
-        expect(config).to be_nil
-      end
-    end
+  it 'allows another stack to use an attribute named after a placeholder' do
+    stack['paths'] = ['teams/{team}/{service}/aws/{environment}']
+    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => { 'team' => 'platform' } }
+    expect { config }.not_to raise_error
   end
 
-  describe '#stack_attributes_for' do
-    let(:config_hash) do
-      {
-        'environments' => [
-          {
-            'environment' => 'develop',
-            'stacks' => {
-              'terragrunt' => {
-                'aws_region' => 'ap-northeast-1',
-                'iam_role_plan' => 'arn:aws:iam::123:role/plan'
-              },
-              'kubernetes' => {}
-            }
-          }
-        ],
-        'stack_conventions' => [
-          { 'root' => '{service}', 'stacks' => [
-            { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' }
-          ] }
-        ]
-      }
+  context 'with common targets' do
+    let(:stack) { { 'name' => 'container', 'paths' => ['dystopia/{service}'] } }
+
+    it 'derives an empty environment list' do
+      expect(config.environment_names).to eq([])
     end
 
-    it 'returns attributes hash for an existing environment and stack' do
-      expect(workflow_config.stack_attributes_for('develop', 'terragrunt')).to eq(
-        'aws_region' => 'ap-northeast-1',
-        'iam_role_plan' => 'arn:aws:iam::123:role/plan'
-      )
+    it 'matches service rules without an environment condition' do
+      stack['exclude'] = [{ 'service' => 'demo' }]
+      expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'environment' => nil)).to be(true)
+      expect(config.excluded?(config.stacks.first, 'service' => 'api', 'environment' => nil)).to be(false)
     end
 
-    it 'returns empty hash for stack defined as empty hash' do
-      expect(workflow_config.stack_attributes_for('develop', 'kubernetes')).to eq({})
+    it 'distinguishes a null environment from an absent key' do
+      stack['exclude'] = [{ 'environment' => nil }]
+      expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'environment' => nil)).to be(true)
+      expect(config.excluded?(config.stacks.first, 'service' => 'demo')).to be(false)
     end
 
-    it 'returns empty hash for stack not defined under environment' do
-      expect(workflow_config.stack_attributes_for('develop', 'docker')).to eq({})
+    it 'rejects a named environment in a common exclusion' do
+      stack['exclude'] = [{ 'environment' => 'production' }]
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].exclude\[0\].environment/)
     end
 
-    it 'returns empty hash for non-existent environment' do
-      expect(workflow_config.stack_attributes_for('non-existent', 'terragrunt')).to eq({})
+    it 'rejects environment placeholders' do
+      stack['paths'] = ['dystopia/{service}/{environment}']
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].paths\[0\]/)
     end
 
-    it 'returns empty hash when environment has no stacks key' do
-      hash = config_hash.dup
-      hash['environments'] = [{ 'environment' => 'develop' }]
-      config = described_class.new(hash)
-      expect(config.stack_attributes_for('develop', 'terragrunt')).to eq({})
-    end
-  end
-
-  describe '#required_attributes_for' do
-    let(:config_hash) do
-      {
-        'environments' => [{ 'environment' => 'develop' }],
-        'stack_conventions' => [
-          {
-            'root' => '{service}',
-            'stacks' => [
-              {
-                'name' => 'terragrunt',
-                'directory' => 'terragrunt/{environment}',
-                'required_attributes' => ['aws_region', 'iam_role_plan']
-              },
-              {
-                'name' => 'kubernetes',
-                'directory' => 'kubernetes/overlays/{environment}'
-              }
-            ]
-          }
-        ]
-      }
-    end
-
-    it 'returns required attributes list for the stack' do
-      expect(workflow_config.required_attributes_for('terragrunt')).to eq(['aws_region', 'iam_role_plan'])
-    end
-
-    it 'returns empty array when required_attributes is not defined' do
-      expect(workflow_config.required_attributes_for('kubernetes')).to eq([])
-    end
-
-    it 'returns empty array when stack is not in any convention' do
-      expect(workflow_config.required_attributes_for('docker')).to eq([])
-    end
-  end
-
-
-  describe '#stack_conventions_for' do
-    context 'with service-specific convention' do
-      it 'returns service-specific convention' do
-        conventions = workflow_config.stack_conventions_for('test-service', 'terragrunt')
-        expect(conventions).to eq(['services/{service}/terragrunt/envs/{environment}'])
-      end
-    end
-
-    context 'with default convention' do
-      it 'returns default convention for service without specific configuration' do
-        conventions = workflow_config.stack_conventions_for('other-service', 'terragrunt')
-        expect(conventions).to eq(['{service}/terragrunt/{environment}'])
-      end
-    end
-
-    context 'with non-existing stack' do
-      it 'returns empty array' do
-        conventions = workflow_config.stack_conventions_for('test-service', 'non-existing')
-        expect(conventions).to be_empty
-      end
-    end
-
-    context 'when stack argument is omitted' do
-      it 'raises ArgumentError' do
-        expect { workflow_config.stack_conventions_for('test-service') }.to raise_error(ArgumentError)
+    [nil, [], 'value', { '' => true }, { 1 => true }, { 'stack_id' => 'other' }].each do |value|
+      it "rejects invalid common attributes #{value.inspect}" do
+        stack['attributes'] = value
+        expect { config }.to raise_error(ArgumentError, /stacks\[0\].attributes/)
       end
     end
   end
 
-  describe '#stack_convention_for' do
-    context 'with service-specific convention' do
-      it 'returns first service-specific convention' do
-        convention = workflow_config.stack_convention_for('test-service', 'terragrunt')
-        expect(convention).to eq('services/{service}/terragrunt/envs/{environment}')
-      end
+  [nil, [], {}, { 'stacks' => nil }, { 'stacks' => {} }, { 'stacks' => [] }, { 'stacks' => [nil] }].each do |value|
+    it "rejects invalid configuration structure #{value.inspect}" do
+      expect { described_class.new(value) }.to raise_error(ArgumentError, /configuration|stacks/)
     end
+  end
 
-    context 'with default convention' do
-      it 'returns first default convention for service without specific configuration' do
-        convention = workflow_config.stack_convention_for('other-service', 'terragrunt')
-        expect(convention).to eq('{service}/terragrunt/{environment}')
-      end
+  %w[services environments stack_conventions unknown].each do |key|
+    it "rejects the unknown top-level field #{key}" do
+      config_hash[key] = []
+      expect { config }.to raise_error(ArgumentError, /#{key}/)
     end
+  end
 
-    context 'with non-existing stack' do
-      it 'returns nil' do
-        convention = workflow_config.stack_convention_for('test-service', 'non-existing')
-        expect(convention).to be_nil
-      end
+  %w[root directory required_attributes unknown].each do |key|
+    it "rejects the unknown stack field #{key}" do
+      stack[key] = 'value'
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].#{key}/)
     end
+  end
 
-    context 'when stack argument is omitted' do
-      it 'raises ArgumentError' do
-        expect { workflow_config.stack_convention_for('test-service') }.to raise_error(ArgumentError)
+  {
+    'name' => [nil, '', 1],
+    'id' => [nil, '', 1],
+    'paths' => [nil, [], 'path', [nil], ['']],
+    'environments' => [nil, [], {}, { 'develop' => [] }, { '' => {} }, { 1 => {} }, { 'a/b' => {} }, { '.' => {} }, { '..' => {} }],
+    'exclude' => [nil, {}, [nil], [{}]]
+  }.each do |key, values|
+    values.each do |value|
+      it "rejects invalid #{key} #{value.inspect}" do
+        stack[key] = value
+        expect { config }.to raise_error(ArgumentError, /stacks\[0\].#{key}/)
       end
     end
   end
 
-  describe '#stack_convention_root' do
-    it 'returns the first root pattern from directory conventions' do
-      expect(workflow_config.stack_convention_root).to eq('{service}')
-    end
-
-    it 'returns all root patterns' do
-      expect(workflow_config.stack_convention_roots).to eq(['{service}'])
-    end
-
-    context 'with empty root' do
-      let(:config_hash) do
-        super().tap do |config|
-          config['stack_conventions'][0]['root'] = ''
-        end
-      end
-
-      it 'returns empty string' do
-        expect(workflow_config.stack_convention_root).to eq('')
-      end
-    end
-
-    context 'with missing stack_conventions' do
-      let(:config_hash) { super().except('stack_conventions') }
-
-      it 'raises validation error' do
-        expect { workflow_config }.to raise_error(/stack_conventions/)
-      end
+  [
+    '/dystopia/{service}', 'dystopia/../{service}', 'dystopia/aws',
+    'dystopia/{Service}', 'dystopia/{service}/{my-team}', 'dystopia/{service}/{team',
+    'dystopia/{{service}}', 'dystopia/{service}/{stack}',
+    'dystopia/{service}/{stack_id}', 'dystopia/{service}/{working_directory}'
+  ].each do |pattern|
+    it "rejects invalid path #{pattern}" do
+      stack['paths'] = [pattern]
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].paths\[0\]/)
     end
   end
 
-
-  describe '#safety_check_enabled?' do
-    it 'always returns false (safety checks removed)' do
-      expect(workflow_config.safety_check_enabled?('require_merged_pr')).to be false
-      expect(workflow_config.safety_check_enabled?('any_check')).to be false
+  [nil, 1, [], '', 'a/b', '.', '..', '.hidden'].each do |value|
+    it "rejects invalid service conditions #{value.inspect}" do
+      stack['exclude'] = [{ 'service' => value }]
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].exclude\[0\].service/)
     end
   end
 
-  describe '#excluded_services' do
-    it 'returns list of excluded service names' do
-      excluded = workflow_config.excluded_services
-      expect(excluded).to contain_exactly('excluded-service')
-    end
-
-    context 'with no excluded services' do
-      let(:config_hash) do
-        super().tap do |config|
-          config['services'] = [{ 'name' => 'test-service' }]
-        end
-      end
-
-      it 'returns empty array' do
-        excluded = workflow_config.excluded_services
-        expect(excluded).to be_empty
-      end
-    end
-
-    context 'with multiple root patterns' do
-      let(:config_hash) do
-        super().tap do |config|
-          config['stack_conventions'] = [
-            {
-              'root' => 'apps/web/{service}',
-              'stacks' => [
-                {
-                  'name' => 'terragrunt',
-                  'directory' => 'terragrunt/{environment}'
-                },
-                {
-                  'name' => 'kubernetes',
-                  'directory' => 'kubernetes/overlays/{environment}'
-                }
-              ]
-            },
-            {
-              'root' => 'services/{service}',
-              'stacks' => [
-                {
-                  'name' => 'terragrunt',
-                  'directory' => 'terragrunt/{environment}'
-                },
-                {
-                  'name' => 'kubernetes',
-                  'directory' => 'kubernetes/overlays/{environment}'
-                }
-              ]
-            }
-          ]
-        end
-      end
-
-      it 'returns all possible conventions' do
-        conventions = workflow_config.stack_conventions_for('other-service', 'terragrunt')
-        expect(conventions).to contain_exactly(
-          'apps/web/{service}/terragrunt/{environment}',
-          'services/{service}/terragrunt/{environment}'
-        )
-      end
-
-      it 'returns first convention for stack_convention_for' do
-        convention = workflow_config.stack_convention_for('other-service', 'terragrunt')
-        expect(convention).to eq('apps/web/{service}/terragrunt/{environment}')
-      end
-
-      it 'returns all root patterns' do
-        roots = workflow_config.stack_convention_roots
-        expect(roots).to contain_exactly('apps/web/{service}', 'services/{service}')
-      end
-
-      it 'returns first root pattern' do
-        root = workflow_config.stack_convention_root
-        expect(root).to eq('apps/web/{service}')
-      end
-
-      it 'returns all directory patterns including root patterns' do
-        patterns = workflow_config.all_directory_patterns
-        expect(patterns).to contain_exactly(
-          'apps/web/{service}',  # root pattern
-          'apps/web/{service}/terragrunt/{environment}',
-          'apps/web/{service}/kubernetes/overlays/{environment}',
-          'services/{service}',  # root pattern
-          'services/{service}/terragrunt/{environment}',
-          'services/{service}/kubernetes/overlays/{environment}'
-        )
-      end
+  [nil, 'preview', 1].each do |value|
+    it "rejects undeclared environment conditions #{value.inspect}" do
+      stack['exclude'] = [{ 'environment' => value }]
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].exclude\[0\].environment/)
     end
   end
 
-  describe '#validate!' do
-    context 'with valid configuration' do
-      it 'does not raise error' do
-        expect { workflow_config.validate! }.not_to raise_error
-      end
-    end
-
-    context 'with missing environments' do
-      let(:config_hash) { super().except('environments') }
-
-      it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/environments/)
-      end
-    end
-
-    context 'with missing stack_conventions' do
-      let(:config_hash) { super().except('stack_conventions') }
-
-      it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/stack_conventions/)
-      end
-    end
-
-
-    context 'with missing stack_conventions root' do
-      let(:config_hash) do
-        super().tap do |config|
-          config['stack_conventions'] = [{ 'stacks' => [] }]
-        end
-      end
-
-      it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/root/)
-      end
-    end
-
-    context 'with missing stack_conventions stacks' do
-      let(:config_hash) do
-        super().tap do |config|
-          config['stack_conventions'] = [{ 'root' => '{service}' }]
-        end
-      end
-
-      it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/stacks/)
-      end
-    end
-
-    context 'with non-array stack_conventions' do
-      let(:config_hash) do
-        super().tap do |config|
-          config['stack_conventions'] = { 'root' => '{service}', 'stacks' => [] }
-        end
-      end
-
-      it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/must be an array/)
-      end
-    end
-
-    context 'with invalid environment structure' do
-      let(:config_hash) do
-        super().tap do |config|
-          config['environments'] = [{ 'invalid' => 'structure' }]
-        end
-      end
-
-      it 'raises validation error' do
-        expect { workflow_config.validate! }.to raise_error(/Environment.*missing required field: environment/)
-      end
-    end
-  end
-  describe 'identity uniqueness (id || name) within a convention' do
-    let(:environments) { [{ 'environment' => 'production', 'stacks' => {} }] }
-    it('accepts distinct ids') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t','id'=>'a'},{'name'=>'t','id'=>'b'}]}]) }.not_to raise_error }
-    it('rejects duplicate names') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'t'},{'name'=>'t'}]}]) }.to raise_error(/duplicate identity 't'/) }
-    it('accepts same id in different conventions') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'a','stacks'=>[{'name'=>'t','id'=>'x'}]},{'root'=>'b','stacks'=>[{'name'=>'t','id'=>'x'}]}]) }.not_to raise_error }
-    it('rejects id colliding with another name') { expect { described_class.new('environments'=>environments,'stack_conventions'=>[{'root'=>'x','stacks'=>[{'name'=>'k'},{'name'=>'t','id'=>'k'}]}]) }.to raise_error(/duplicate identity 'k'/) }
-  end
-  describe '#stack_attributes_for with id fallback' do
-    let(:env_hash) do
-      { 'environments'=>[{ 'environment'=>'production', 'stacks'=>{ 'terragrunt'=>{ 'iam_role_plan'=>'arn:plan' } } }],
-        'stack_conventions'=>[{ 'root'=>'dystopia/{service}', 'stacks'=>[{ 'name'=>'terragrunt','id'=>'aws','directory'=>'infrastructure/aws/{environment}' }, { 'name'=>'terragrunt','id'=>'stripe','directory'=>'infrastructure/stripe/{environment}' }] }] }
-    end
-    it 'returns attributes keyed on id when present' do
-      env_hash['environments'][0]['stacks']['aws'] = { 'aws_region'=>'us-east-1' }
-      expect(described_class.new(env_hash).stack_attributes_for('production','aws')).to include('aws_region'=>'us-east-1')
-    end
-    it 'falls back to attributes keyed on name when id key is absent' do
-      expect(described_class.new(env_hash).stack_attributes_for('production','aws')).to include('iam_role_plan'=>'arn:plan')
-    end
-    it 'returns {} when neither id nor name resolves' do
-      expect(described_class.new(env_hash).stack_attributes_for('production','nonexistent')).to eq({})
-    end
-    it 'returns {} (not nil) when the bare name no longer resolves because every entry sharing it has an id' do
-      result=described_class.new(env_hash).stack_attributes_for('production','terragrunt')
-      expect(result).to eq({})
-      expect { Entities::DeploymentTarget.new(service:'x', stack:'terragrunt', working_directory:'y', attributes:result) }.not_to raise_error
+  %w[team aws_region].each do |key|
+    it "rejects undeclared exclusion keys #{key}" do
+      stack['exclude'] = [{ key => 'value' }]
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].exclude\[0\].#{key}/)
     end
   end
 
-  describe '#stack_conventions_for with id' do
-    let(:data) { { 'environments'=>[{ 'environment'=>'production','stacks'=>{} }], 'stack_conventions'=>[{ 'root'=>'dystopia/{service}', 'stacks'=>[{ 'name'=>'terragrunt','id'=>'aws','directory'=>'infrastructure/aws/{environment}' }, { 'name'=>'terragrunt','id'=>'stripe','directory'=>'infrastructure/stripe/{environment}' }] }] } }
-    it 'resolves each id to its own directory pattern independently' do
-      config=described_class.new(data); expect(config.stack_conventions_for('monolith','aws')).to eq(['dystopia/{service}/infrastructure/aws/{environment}']); expect(config.stack_conventions_for('monolith','stripe')).to eq(['dystopia/{service}/infrastructure/stripe/{environment}'])
-    end
-    it 'no longer resolves the bare name once every entry sharing it has an id' do
-      expect(described_class.new(data).stack_conventions_for('monolith','terragrunt')).to eq([])
-    end
-    it 'still resolves by name when no entry declares an id (backward compatible)' do
-      expect(described_class.new('environments'=>data['environments'],'stack_conventions'=>[{ 'root'=>'aws/{service}','stacks'=>[{ 'name'=>'terragrunt','directory'=>'envs/{environment}' }] }]).stack_conventions_for('eks','terragrunt')).to eq(['aws/{service}/envs/{environment}'])
-    end
+  it 'does not permit placeholders declared in another stack as exclusion keys' do
+    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['teams/{team}/{service}'] }
+    stack['exclude'] = [{ 'team' => 'sandbox' }]
+    expect { config }.to raise_error(ArgumentError, /stacks\[0\].exclude\[0\].team/)
   end
-  describe '#required_attributes_for with id fallback' do
-    let(:two_id_config) do
-      {
-        'environments' => [{ 'environment' => 'production', 'stacks' => {} }],
-        'stack_conventions' => [
-          { 'root' => 'dystopia/{service}',
-            'stacks' => [
-              { 'name' => 'terragrunt', 'id' => 'aws', 'directory' => 'infrastructure/aws/{environment}',
-                'required_attributes' => %w[aws_region] },
-              { 'name' => 'terragrunt', 'id' => 'stripe', 'directory' => 'infrastructure/stripe/{environment}',
-                'required_attributes' => %w[stripe_secret_ref] }
-            ] }
-        ]
-      }
-    end
 
-    it 'returns the required attributes of the entry matched by id' do
-      expect(described_class.new(two_id_config).required_attributes_for('stripe')).to eq(%w[stripe_secret_ref])
-    end
-
-    # A bare name that every co-named entry has replaced with an id is no longer
-    # an identity, so it resolves to nothing — the same answer stack_conventions_for
-    # and stack_attributes_for give for that input.
-    it 'returns [] for a bare name that ids have fully consumed' do
-      expect(described_class.new(two_id_config).required_attributes_for('terragrunt')).to eq([])
-    end
+  it 'rejects attribute inheritance between common and environment attributes' do
+    stack['attributes'] = {}
+    expect { config }.to raise_error(ArgumentError, /stacks\[0\]/)
   end
-  describe '#stack_attributes_for with id fallback' do
-    it 'resolves the bare-name entry when only some co-named siblings carry an id' do
-      data = {
-        'environments' => [
-          { 'environment' => 'production',
-            'stacks' => { 'aws' => { 'aws_region' => 'ap-northeast-1' },
-                          'terragrunt' => { 'plain_attr' => 'PLAIN' } } }
-        ],
-        'stack_conventions' => [
-          { 'root' => 'r/{service}',
-            'stacks' => [
-              { 'name' => 'terragrunt', 'id' => 'aws', 'directory' => 'a/{environment}' },
-              { 'name' => 'terragrunt', 'id' => 'stripe', 'directory' => 's/{environment}' },
-              { 'name' => 'terragrunt', 'directory' => 't/{environment}' }
-            ] }
-        ]
-      }
-      config = described_class.new(data)
-      expect(config.stack_attributes_for('production', 'terragrunt')).to eq('plain_attr' => 'PLAIN')
-      expect(config.stack_attributes_for('production', 'aws')).to eq('aws_region' => 'ap-northeast-1')
+
+  it 'rejects identities shared by separate definitions' do
+    stack['id'] = 'aws'
+    config_hash['stacks'] << { 'name' => 'aws', 'paths' => ['other/{service}'] }
+    expect { config }.to raise_error(ArgumentError, /stacks\[1\].id/)
+  end
+
+  it 'accepts distinct identities for the same stack kind' do
+    stack['id'] = 'aws'
+    config_hash['stacks'] << { 'name' => 'terragrunt', 'id' => 'stripe', 'paths' => ['other/{service}'] }
+    expect(config.stacks.map { |entry| entry['id'] }).to eq(%w[aws stripe])
+  end
+
+  ['', 1, 'service', 'environment', 'stack', 'stack_id', 'working_directory'].each do |key|
+    it "rejects invalid environment attribute keys #{key.inspect}" do
+      stack['environments']['production'] = { key => 'value' }
+      expect { config }.to raise_error(ArgumentError, /stacks\[0\].environments/)
     end
   end
 
+  it 'checks placeholder collisions against attributes in every environment' do
+    stack['paths'] = ['teams/{team}/{service}/aws/{environment}']
+    stack['environments']['production'] = { 'team' => 'platform' }
+    expect { config }.to raise_error(ArgumentError, /stacks\[0\].paths\[0\]/)
+  end
 end

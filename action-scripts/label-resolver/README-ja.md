@@ -16,68 +16,102 @@ Label Resolver は PR ラベルを分析し、指定された環境に対する�
 - **マトリクス生成**: 並列実行用のデプロイメントマトリクス作成
 - **GitHub Actions 統合**: GitHub Actions ワークフローとのシームレスな統合
 
-## 使用方法
+## 使い方
 
-Label Resolver は `bin/resolver` を通じて CLI インターフェースを提供します：
+`action-scripts` を作業ディレクトリとして実行します。
 
-### 基本コマンド
+Label Resolver は `label-resolver/bin/resolver` を通じて CLI インターフェースを提供します：
+
+### コマンド
+
+指定環境に対するデプロイ対象を PR ラベルから解決します。
 
 ```bash
-# 特定の環境に対する PR ラベルからのデプロイメント解決
-bundle exec ruby label-resolver/bin/resolver resolve PR番号 [環境一覧]
+bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
+```
 
-# デプロイメントワークフローのテスト
-bundle exec ruby label-resolver/bin/resolver test PR番号 [環境一覧]
+デプロイ対象の解決結果を確認します。
 
-# GitHub Actions 環境のシミュレーション
-bundle exec ruby label-resolver/bin/resolver simulate PR番号 [環境一覧]
+```bash
+bundle exec ruby label-resolver/bin/resolver test PR_NUMBER [ENVIRONMENTS]
+```
 
-# 環境設定の検証
+GitHub Actions の実行環境をシミュレートします。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER [ENVIRONMENTS]
+```
+
+実行環境の設定を検証します。
+
+```bash
 bundle exec ruby label-resolver/bin/resolver validate_env
+```
 
-# ワークフローのステップバイステップデバッグ
-bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
+処理を段階ごとにデバッグします。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER [ENVIRONMENTS]
 ```
 
 **環境指定：**
+
 - 単一環境: `develop`
 - 複数環境: `develop,staging` (カンマ区切り)
 - 全環境: 環境一覧パラメータを省略
 
-### 使用例
+### 実行例
+
+`develop` 環境のデプロイ対象を解決します。
 
 ```bash
-# develop 環境のデプロイメント解決
-./bin/resolver resolve 123 develop
-
-# 複数環境への同時テスト
-./bin/resolver test 456 develop,staging
-
-# production デプロイメントのデバッグ
-./bin/resolver debug 789 production
-
-# 利用可能な全環境へのデプロイ
-./bin/resolver resolve 123
+bundle exec ruby label-resolver/bin/resolver resolve 123 develop
 ```
 
-### ワークフロー統合
+複数環境のデプロイ対象をまとめて確認します。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver test 456 develop,staging
+```
+
+`production` 環境のデプロイ対象の解決をデバッグします。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver debug 789 production
+```
+
+定義された全環境のデプロイ対象を解決します。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver resolve 123
+```
+
+### ワークフローへの組み込み
 
 リゾルバーは通常 GitHub Actions ワークフローから呼び出されます：
 
-```yaml
-# 単一環境デプロイメント
-- name: デプロイメントターゲットの解決
-  uses: panicboat/deploy-actions/label-resolver@v1
-  with:
-    pr_number: ${{ github.event.pull_request.number }}
-    target_environments: ${{ inputs.target_environment }}
+単一環境を指定する場合：
 
-# 複数環境デプロイメント
-- name: デプロイメントターゲットの解決
+```yaml
+- name: Resolve deployment targets
   uses: panicboat/deploy-actions/label-resolver@v1
   with:
-    pr_number: ${{ github.event.pull_request.number }}
-    target_environments: "develop,staging"
+    pr-number: ${{ github.event.pull_request.number }}
+    repository: ${{ github.repository }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    environments: ${{ inputs.target_environment }}
+```
+
+複数環境を指定する場合：
+
+```yaml
+- name: Resolve deployment targets
+  uses: panicboat/deploy-actions/label-resolver@v1
+  with:
+    pr-number: ${{ github.event.pull_request.number }}
+    repository: ${{ github.repository }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    environments: "develop,staging"
 ```
 
 ### 環境変数
@@ -90,7 +124,7 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 - `SAFETY_STATUS`: 安全性検証の結果
 - `MERGED_PR_NUMBER`: デプロイメント追跡用の PR 番号
 
-### Action 出力
+### Action の出力
 
 リゾルバーは以下の GitHub Actions 出力を提供します：
 
@@ -100,7 +134,7 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 
 ## アーキテクチャ
 
-### コンポーネント
+### 構成要素
 
 - **LabelResolverController**: メインオーケストレーションロジック
 - **DetermineTargetEnvironment**: 複数環境検証
@@ -108,7 +142,7 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 - **ValidateDeploymentSafety**: 安全性チェック（現在簡素化）
 - **GenerateMatrix**: 複数環境用デプロイメントマトリクス生成
 
-### フロー
+### 処理の流れ
 
 1. **ラベル抽出**: PR からデプロイラベルを取得
 2. **環境検証**: 全ての対象環境が存在することを検証
@@ -118,43 +152,7 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 
 ## 設定
 
-リゾルバーは設定に `workflow-config.yaml` を使用します：
-
-```yaml
-environments:
-  - environment: develop
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-  - environment: staging
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/staging-plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/staging-apply-role
-
-  - environment: production
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
-
-stack_conventions:
-  - root: "{service}"
-    stacks:
-      - name: aws
-        id: primary
-        directory: "aws/{environment}"
-        targets: ["develop", "staging", "production"]
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-        targets: ["develop", "staging", "production"]
-
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "手動デプロイメントが必要"
-      type: "permanent"
-```
+設定仕様と matrix の形式はルートの [設定](../../README-ja.md#設定) と [matrix 出力](../../README-ja.md#matrix-出力) を参照してください。
 
 ## デプロイラベル
 
@@ -163,9 +161,9 @@ services:
 - `deploy:auth` - auth サービスをデプロイ
 - `deploy:api` - api サービスをデプロイ
 - `deploy:frontend` - frontend サービスをデプロイ
-- `deploy:all` - 除外されていない全サービスをデプロイ
+- `deploy:all` - 実在する全サービスの対象を解決
 
-## 環境指定
+## 環境の指定
 
 **トランクベース開発**: リゾルバーはブランチベースマッピングではなく明示的な環境指定を使用：
 
@@ -174,49 +172,43 @@ services:
 - 設定で定義された任意のデプロイメント環境をサポート
 - 複数環境への同時デプロイメントが可能
 
-## ディレクトリ構造検出
+## デプロイ対象の解決
 
-リゾルバーはディレクトリの存在確認により利用可能なスタックを自動検出します：
+指定環境を各 stack の定義環境に絞り、全パスの実在ディレクトリを列挙します。環境指定の省略または空白入力は全定義環境を選択します。環境共通の対象は各ディレクトリにつき一度だけ生成します。
 
-```
-{service}/
-├── aws/{environment}/                  # IaC スタック
-└── kubernetes/overlays/{environment}/  # Kubernetes スタック
-```
+`deploy:all` は設定したパスから全サービスを探索します。除外条件に一致する対象は matrix に含めません。存在しないパスは正常な空の結果になり、未知環境・列挙エラー・抽出値の矛盾は失敗になります。
 
-実際に存在するディレクトリのみがデプロイメントマトリクスに含まれます。
-
-オプションの `id` は stack インスタンスを識別します。識別子は `id || name` で決まり、
-1つの convention 内で一意でなければなりません。同じ `name` でも異なる `id` を持つ
-2つのエントリは、別々のターゲットとして生成されます。
-
-## エラーハンドリング
+## エラー処理
 
 リゾルバーは包括的なエラーハンドリングを提供します：
 
 - **無効な環境**: 対象環境が存在しない場合の明確なエラー
 - **ラベル不足**: デプロイラベルのない PR の適切な処理
 - **設定エラー**: ワークフロー設定の詳細な検証
-- **ディレクトリ検出**: デプロイメントディレクトリ不足の警告
+- **ディレクトリ検出**: 存在しないパスは正常な空の結果
 
 ## 開発
 
-### テスト実行
+### テストの実行
 
 ```bash
 cd action-scripts
 bundle exec rspec spec/label-resolver/
 ```
 
-### ローカルテスト
+### ローカルでの動作確認
+
+実行環境を設定します。
 
 ```bash
-# 環境設定
 export GITHUB_TOKEN=your_token
 export GITHUB_REPOSITORY=owner/repo
 export SOURCE_REPO_PATH=your_source_path
 export WORKFLOW_CONFIG_PATH=workflow-config.yaml
+```
 
-# 実際の PR でテスト
-./bin/resolver debug 123 develop
+実際の PR を使ってデバッグします。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver debug 123 develop
 ```

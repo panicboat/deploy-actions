@@ -1,16 +1,22 @@
 # spec/config-manager/controllers/config_manager_controller_spec.rb
 
 require 'spec_helper'
+require 'tmpdir'
+require 'fileutils'
 
 RSpec.describe Interfaces::Controllers::ConfigManagerController do
   let(:validate_config_use_case) { double('ValidateConfig') }
-  let(:config_client) { double('ConfigClient') }
+  let(:config_hash) { attributes_for(:workflow_config).fetch(:config_hash) }
+  let(:config) { Entities::WorkflowConfig.new(config_hash) }
+  let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
+  let(:file_client) { Infrastructure::FileSystemClient.new }
   let(:presenter) { double('Presenter') }
 
   subject(:controller) do
     described_class.new(
       validate_config_use_case: validate_config_use_case,
       config_client: config_client,
+      file_client: file_client,
       presenter: presenter
     )
   end
@@ -45,7 +51,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         double(
           'Result',
           success?: false,
-          validation_errors: ['Missing required field: environments'],
+          validation_errors: ['Missing required field: stacks'],
           error_message: 'Validation failed'
         )
       end
@@ -58,7 +64,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
 
         expect(presenter).to have_received(:present_config_validation_result).with(
           valid: false,
-          errors: ['Missing required field: environments']
+          errors: ['Missing required field: stacks']
         )
       end
     end
@@ -119,127 +125,100 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   end
 
   describe '#test_service_configuration' do
-    let(:config) { build(:workflow_config) }
-    let(:service_name) { 'test-service' }
-    let(:environment) { 'develop' }
-
-    context 'with valid service and environment' do
-      before do
-        allow(config_client).to receive(:load_workflow_config).and_return(config)
-        allow(config).to receive_message_chain(:services, :key?).with(service_name).and_return(true)
-        allow(config).to receive_message_chain(:environments, :key?).with(environment).and_return(true)
-        allow(config).to receive_message_chain(:services, :[]).with(service_name).and_return({
-          'name' => service_name
-        })
-        allow(config).to receive(:stack_convention_for).with(service_name, 'terragrunt').and_return('services/{service}/terragrunt/envs/{environment}')
-        allow(config).to receive(:stack_convention_for).with(service_name, 'kubernetes').and_return('services/{service}/kubernetes/overlays/{environment}')
-        allow(config).to receive(:stack_conventions_config).and_return([
-          {
-            'root' => '{service}',
-            'stacks' => [
-              { 'name' => 'terragrunt', 'directory' => 'terragrunt/{environment}' },
-              { 'name' => 'kubernetes', 'directory' => 'kubernetes/overlays/{environment}' }
-            ]
-          }
-        ])
-        allow(config).to receive(:stack_attributes_for).with(environment, 'terragrunt').and_return({
-          'aws_region' => 'ap-northeast-1',
-          'iam_role_plan' => 'arn:aws:iam::123:role/plan',
-          'iam_role_apply' => 'arn:aws:iam::123:role/apply'
-        })
-        allow(config).to receive(:stack_attributes_for).with(environment, 'kubernetes').and_return({})
-        allow(presenter).to receive(:present_service_test_result)
+    around do |example|
+      original = ENV['SOURCE_REPO_PATH']
+      Dir.mktmpdir do |root|
+        @root = root
+        FileUtils.mkdir_p(File.join(root, '.git'))
+        ENV['SOURCE_REPO_PATH'] = root
+        example.run
       end
-
-      it 'presents service test result' do
-        controller.test_service_configuration(service_name: service_name, environment: environment)
-
-        expect(presenter).to have_received(:present_service_test_result).with(
-          service_name: service_name,
-          environment: environment,
-          stack_attributes: hash_including('terragrunt' => hash_including('aws_region' => 'ap-northeast-1')),
-          service_config: hash_including('name' => service_name),
-          stack_directories: {
-            'terragrunt' => 'services/test-service/terragrunt/envs/develop',
-            'kubernetes' => 'services/test-service/kubernetes/overlays/develop'
-          }
-        )
-      end
+    ensure
+      ENV['SOURCE_REPO_PATH'] = original
     end
 
-    context 'with stack names other than terragrunt/kubernetes' do
-      before do
-        allow(config_client).to receive(:load_workflow_config).and_return(config)
-        allow(config).to receive_message_chain(:services, :key?).with(service_name).and_return(true)
-        allow(config).to receive_message_chain(:environments, :key?).with(environment).and_return(true)
-        allow(config).to receive_message_chain(:services, :[]).with(service_name).and_return({
-          'name' => service_name
-        })
-        allow(config).to receive(:stack_convention_for).with(service_name, 'aws').and_return('services/{service}/terragrunt/envs/{environment}')
-        allow(config).to receive(:stack_convention_for).with(service_name, 'docker').and_return('services/{service}/workspace')
-        allow(config).to receive(:stack_conventions_config).and_return([
-          {
-            'root' => 'services/{service}',
-            'stacks' => [
-              { 'name' => 'aws', 'directory' => 'terragrunt/envs/{environment}' },
-              { 'name' => 'docker', 'directory' => 'workspace' }
-            ]
-          }
-        ])
-        allow(config).to receive(:stack_attributes_for).with(environment, 'aws').and_return({
-          'aws_region' => 'ap-northeast-1'
-        })
-        allow(config).to receive(:stack_attributes_for).with(environment, 'docker').and_return({})
-        allow(presenter).to receive(:present_service_test_result)
-      end
-
-      it 'presents directories keyed by stack name from stack_conventions' do
-        controller.test_service_configuration(service_name: service_name, environment: environment)
-
-        expect(presenter).to have_received(:present_service_test_result).with(
-          hash_including(
-            stack_directories: {
-              'aws' => 'services/test-service/terragrunt/envs/develop',
-              'docker' => 'services/test-service/workspace'
-            }
-          )
-        )
-      end
+    def directory(path)
+      FileUtils.mkdir_p(File.join(@root, path))
     end
 
-    context 'with non-existing service' do
-      before do
-        allow(config_client).to receive(:load_workflow_config).and_return(config)
-        allow(config).to receive_message_chain(:services, :key?).with(service_name).and_return(false)
-        allow(presenter).to receive(:present_error)
-      end
-
-      it 'presents service not found error' do
-        controller.test_service_configuration(service_name: service_name, environment: environment)
-
-        expect(presenter).to have_received(:present_error) do |result|
-          expect(result.failure?).to be true
-          expect(result.error_message).to include("Service '#{service_name}' not found")
-        end
-      end
+    def matches(environment: nil, service: 'demo')
+      allow(presenter).to receive(:present_service_test_result)
+      controller.test_service_configuration(service_name: service, environment: environment)
+      expect(presenter).to have_received(:present_service_test_result) { |args| return args.fetch(:matches) }
     end
 
-    context 'with non-existing environment' do
-      before do
-        allow(config_client).to receive(:load_workflow_config).and_return(config)
-        allow(config).to receive_message_chain(:services, :key?).with(service_name).and_return(true)
-        allow(config).to receive_message_chain(:environments, :key?).with(environment).and_return(false)
-        allow(presenter).to receive(:present_error)
-      end
+    it 'diagnoses unregistered services across every shared product path and common stack' do
+      %w[dystopia/demo/aws/develop dystopia/demo/aws/production system-components/demo/infrastructure/aws/develop system-components/demo/infrastructure/aws/production].each { |path| directory(path) }
+      rows = matches
+      expect(rows.length).to eq(6)
+      expect(rows.map { |row| row[:target].working_directory }.uniq.length).to eq(6)
+      expect(rows.count { |row| row[:target].environment.nil? }).to eq(2)
+      expect(rows.map { |row| row[:excluded] }.uniq).to eq([false])
+    end
 
-      it 'presents environment not found error' do
-        controller.test_service_configuration(service_name: service_name, environment: environment)
+    it 'retains environment attributes and includes excluded targets for diagnosis' do
+      config_hash['stacks'].first['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
+      directory('dystopia/demo/aws/production')
+      rows = matches(environment: 'production')
+      aws = rows.find { |row| row[:target].stack_id == 'aws' }
+      expect(aws[:excluded]).to be(true)
+      expect(aws[:target].attributes).to eq('aws_region' => 'us-west-2')
+      expect(rows.find { |row| row[:target].stack_id == 'container' }[:excluded]).to be(false)
+    end
 
-        expect(presenter).to have_received(:present_error) do |result|
-          expect(result.failure?).to be true
-          expect(result.error_message).to include("Environment '#{environment}' not found")
-        end
-      end
+    it 'retains distinct identities and captures at the same directory' do
+      config_hash['stacks'] = [
+        { 'name' => 'terragrunt', 'id' => 'aws', 'paths' => ['teams/{team}/{service}'], 'attributes' => { 'token' => nil } },
+        { 'name' => 'terragrunt', 'id' => 'stripe', 'paths' => ['teams/{team}/{service}'], 'attributes' => { 'repository' => 'registry.example.com' } }
+      ]
+      directory('teams/platform/demo')
+      rows = matches
+      expect(rows.map { |row| row[:target].stack_id }).to eq(%w[aws stripe])
+      expect(rows.map { |row| row[:target].captures }).to eq([{ 'team' => 'platform' }] * 2)
+      expect(rows.first[:target].attributes).to eq('token' => nil)
+    end
+
+    it 'diagnoses dot-prefixed environment and custom placeholder values' do
+      config_hash['stacks'] = [{ 'name' => 'terragrunt', 'paths' => ['teams/{team}/{service}/{environment}'], 'environments' => { '.preview' => {} }, 'exclude' => [{ 'team' => '.platform', 'environment' => '.preview' }] }]
+      directory('teams/.platform/demo/.preview')
+      rows = matches(environment: '.preview')
+      expect(rows.length).to eq(1)
+      expect(rows.first[:target].to_matrix_item).to include(team: '.platform', environment: '.preview')
+      expect(rows.first[:excluded]).to be(true)
+    end
+
+    it 'returns an empty list when no directory matches' do
+      expect(matches(service: 'unregistered')).to eq([])
+    end
+
+    it 'deduplicates identical matches' do
+      config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}', 'dystopia/{service}'] }]
+      directory('dystopia/demo')
+      expect(matches.length).to eq(1)
+    end
+
+    it 'reports unknown environments without presenting partial matches' do
+      allow(presenter).to receive(:present_error)
+      expect(presenter).not_to receive(:present_service_test_result)
+      controller.test_service_configuration(service_name: 'demo', environment: 'preview')
+      expect(presenter).to have_received(:present_error) { |result| expect(result.error_message).to include('preview') }
+    end
+
+    it 'reports conflicting captures before exclusions' do
+      config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['teams/{team}/{service}', 'teams/{product}/{service}'], 'exclude' => [{ 'team' => 'platform' }] }]
+      directory('teams/platform/demo')
+      allow(presenter).to receive(:present_error)
+      expect(presenter).not_to receive(:present_service_test_result)
+      controller.test_service_configuration(service_name: 'demo')
+      expect(presenter).to have_received(:present_error) { |result| expect(result.error_message).to include('Conflicting captures') }
+    end
+
+    it 'reports enumeration errors without presenting partial matches' do
+      allow(file_client).to receive(:resolve_directories).and_raise(Errno::EACCES)
+      allow(presenter).to receive(:present_error)
+      expect(presenter).not_to receive(:present_service_test_result)
+      controller.test_service_configuration(service_name: 'demo')
+      expect(presenter).to have_received(:present_error) { |result| expect(result.error_message).to include('Permission denied') }
     end
   end
 
@@ -301,57 +280,19 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   end
 
   describe '#generate_config_template' do
-    it 'presents generated configuration template' do
+    it 'generates a template accepted by the configuration model' do
       allow(presenter).to receive(:present_config_template)
-
       controller.generate_config_template
-
       expect(presenter).to have_received(:present_config_template) do |args|
-        template = args[:template]
-        expect(template).to be_a(String)
-        expect(template).to include('environments:')
-        expect(template).to include('stack_conventions:')
-        expect(template).to include('services:')
+        config = Entities::WorkflowConfig.new(YAML.safe_load(args.fetch(:template)))
+        expect(config.stacks.map { |stack| stack['id'] }).to include('aws', 'container')
+        expect(config.environment_names).to include('develop', 'production')
       end
     end
 
-    it 'uses aws as the stack name in the template' do
-      allow(presenter).to receive(:present_config_template)
-
-      controller.generate_config_template
-
-      expect(presenter).to have_received(:present_config_template) do |args|
-        template = args[:template]
-        expect(template).to include('aws:')
-        expect(template).to include('name: aws')
-        expect(template).not_to match(/^\s+terragrunt:/)
-        expect(template).not_to include('name: terragrunt')
-      end
-    end
-  end
-  context 'with two stack entries sharing a name but distinct ids' do
-    let(:config) { double('WorkflowConfig') }
-    let(:service_name) { 'monolith' }
-    let(:environment) { 'production' }
-    before do
-      allow(config_client).to receive(:load_workflow_config).and_return(config)
-      allow(config).to receive_message_chain(:services, :key?).with(service_name).and_return(true)
-      allow(config).to receive_message_chain(:environments, :key?).with(environment).and_return(true)
-      allow(config).to receive_message_chain(:services, :[]).with(service_name).and_return({ 'name' => service_name })
-      allow(config).to receive(:stack_convention_for).with(service_name, 'aws').and_return('dystopia/{service}/infrastructure/aws/{environment}')
-      allow(config).to receive(:stack_convention_for).with(service_name, 'stripe').and_return('dystopia/{service}/infrastructure/stripe/{environment}')
-      allow(config).to receive(:stack_conventions_config).and_return([{ 'root'=>'dystopia/{service}', 'stacks'=>[
-        { 'name'=>'terragrunt', 'id'=>'aws', 'directory'=>'infrastructure/aws/{environment}' },
-        { 'name'=>'terragrunt', 'id'=>'stripe', 'directory'=>'infrastructure/stripe/{environment}' }] }])
-      allow(config).to receive(:stack_attributes_for).with(environment, 'aws').and_return({ 'aws_region'=>'ap-northeast-1' })
-      allow(config).to receive(:stack_attributes_for).with(environment, 'stripe').and_return({ 'stripe_secret_ref'=>'/panicboat/stripe/api-key' })
-      allow(presenter).to receive(:present_service_test_result)
-    end
-    it 'keeps both entries distinct instead of the second overwriting the first' do
-      controller.test_service_configuration(service_name: service_name, environment: environment)
-      expect(presenter).to have_received(:present_service_test_result).with(hash_including(
-        stack_directories: { 'aws'=>"dystopia/#{service_name}/infrastructure/aws/#{environment}", 'stripe'=>"dystopia/#{service_name}/infrastructure/stripe/#{environment}" },
-        stack_attributes: { 'aws'=>{ 'aws_region'=>'ap-northeast-1' }, 'stripe'=>{ 'stripe_secret_ref'=>'/panicboat/stripe/api-key' } }))
+    it 'accepts the repository sample with the same model' do
+      config = Entities::WorkflowConfig.new(YAML.safe_load(File.read(File.expand_path('../../../workflow-config.yaml', __dir__))))
+      expect(config.stacks.map { |stack| stack['id'] }).to include('aws', 'container')
     end
   end
 end

@@ -29,6 +29,46 @@ module Infrastructure
       get_current_changes(git_dir)
     end
 
+    def repository_root(start_path: __dir__)
+      source_path = ENV['SOURCE_REPO_PATH']
+      if source_path && !source_path.empty?
+        root = File.expand_path(source_path, start_path)
+        git_path = File.join(root, '.git')
+        return root if File.directory?(root) && (File.directory?(git_path) || File.file?(git_path))
+      end
+
+      # FALLBACK: Local runs may retain SOURCE_REPO_PATH after the source checkout becomes unavailable.
+      current = File.expand_path(start_path)
+      loop do
+        git_path = File.join(current, '.git')
+        return current if File.directory?(git_path) || File.file?(git_path)
+        parent = File.dirname(current)
+        break if parent == current
+        current = parent
+      end
+      raise "Could not find repository root starting from #{start_path}"
+    end
+
+    def resolve_directories(pattern:, values: {})
+      root = repository_root
+      candidates = [{ working_directory: '', captures: {} }]
+      parts = pattern.split('/')
+      parts.each_index do |index|
+        prefix = parts[0..index].join('/')
+        candidates = candidates.flat_map do |parent|
+          Dir.children(File.join(root, parent.fetch(:working_directory))).sort.filter_map do |name|
+            path = [parent.fetch(:working_directory), name].reject(&:empty?).join('/')
+            captures = Entities::PatternMatcher.extract(prefix, path)
+            next unless captures && captures.all? { |key, value| !values.key?(key) || value == values[key] }
+            next if captures['service']&.start_with?('.')
+            next unless directory_exists?(File.join(root, path))
+            { working_directory: path, captures: captures }
+          end
+        end
+      end
+      candidates.sort_by { |match| match.fetch(:working_directory) }
+    end
+
     private
 
     # Get the source repository path for composite actions
@@ -72,21 +112,17 @@ module Infrastructure
       (staged_files + unstaged_files).uniq
     end
 
-    # Check if directory exists
     def directory_exists?(path)
-      File.directory?(path)
+      File.stat(path).directory?
+    rescue Errno::ENOENT, Errno::ENOTDIR
+      # SILENT: Absent paths are valid even when entries disappear or symlinks lose their targets.
+      false
     end
 
     # Check if file exists
     def file_exists?(path)
       File.exist?(path)
     end
-
-    # Get all directories matching a pattern
-    def find_directories(pattern)
-      Dir.glob(pattern).select { |path| File.directory?(path) }
-    end
-
 
     # Check if git repository is clean
     def git_clean?

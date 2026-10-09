@@ -6,226 +6,82 @@ GitHub Actions デプロイメント自動化のための Ruby ベース設定�
 
 ## 概要
 
-Config Manager は、デプロイメント環境、サービス、自動化ルールを定義するワークフロー設定ファイルを検証・管理します。トランクベース開発に最適化されたデプロイメント自動化セットアップのための包括的な設定検証、診断ツール、テンプレートを提供します。
+stack 定義の読み込みと検証、設定表示、サービスの実在ディレクトリ診断を提供します。設定仕様は [設定](../../README-ja.md#設定)、出力形式は [matrix 出力](../../README-ja.md#matrix-出力) を参照してください。
 
-## 機能
+## 使い方
 
-- **設定検証**: 詳細なエラーレポートを伴う `workflow-config.yaml` ファイルの検証
-- **環境管理**: AWS IAM ロールを使用した設定済み環境の一覧表示とテスト
-- **サービス設定**: サービス固有のデプロイメント設定と除外の管理
-- **ディレクトリ規約**: 階層ディレクトリ構造設定の検証
-- **テンプレート生成**: 最適化された設定テンプレートの生成
-- **診断ツール**: デプロイメントセットアップの包括的ヘルスチェック
+Config Manager は `config-manager/bin/config-manager` を通じて CLI インターフェースを提供します。
 
-## 使用方法
+### コマンド
 
-Config Manager は `bin/config-manager` を通じて CLI インターフェースを提供します：
+`action-scripts` を作業ディレクトリとして実行します。
 
-### 基本コマンド
+| コマンド | 結果 |
+|---|---|
+| `bundle exec ruby config-manager/bin/config-manager validate` | 設定の検証結果と stack・環境数 |
+| `bundle exec ruby config-manager/bin/config-manager show` | 各 stack ID の全パス、環境属性または共通属性、除外条件 |
+| `bundle exec ruby config-manager/bin/config-manager environments` | 定義した環境名の和集合 |
+| `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | 実在する全一致対象と除外状態 |
+| `bundle exec ruby config-manager/bin/config-manager diagnostics` | 設定、環境変数、Git 状態、設定ファイルの診断 |
+| `bundle exec ruby config-manager/bin/config-manager template` | 新しい設定を作るための YAML の表示 |
+| `bundle exec ruby config-manager/bin/config-manager check_file` | 既定ファイルの存在、読み取り、YAML 構文の確認 |
 
-```bash
-# 設定ファイルの検証
-bundle exec ruby config-manager/bin/config-manager validate
+### サービス診断
 
-# パース済み設定の表示
-bundle exec ruby config-manager/bin/config-manager show
+環境を省略すると、そのサービスの全定義環境と共通対象を調べます。環境を指定すると、指定環境と共通対象を調べます。サービスの登録は不要です。パスに一致しないサービスは空の結果になります。
 
-# 全環境の一覧
-bundle exec ruby config-manager/bin/config-manager environments
-
-# 全サービスの一覧
-bundle exec ruby config-manager/bin/config-manager services
-
-# 自動化から除外されたサービスの一覧
-bundle exec ruby config-manager/bin/config-manager excluded_services
-
-# 特定のサービス設定のテスト
-bundle exec ruby config-manager/bin/config-manager test サービス名 環境名
-
-# 診断チェックの実行
-bundle exec ruby config-manager/bin/config-manager diagnostics
-
-# 設定テンプレートの生成
-bundle exec ruby config-manager/bin/config-manager template
-```
-
-### 使用例
+一致する全ディレクトリを stack ID ごとに表示し、属性と任意 placeholder の抽出値を保持します。除外された対象も `excluded: true` として表示するため、実行対象から外れる条件を確認できます。
 
 ```bash
-# 現在の設定の検証
-./bin/config-manager validate
-
-# develop 環境での auth サービスのテスト
-./bin/config-manager test auth develop
-
-# 全設定詳細の表示
-./bin/config-manager show
-
-# 新しい設定テンプレートの生成
-./bin/config-manager template > new-workflow-config.yaml
+bundle exec ruby config-manager/bin/config-manager test demo
+bundle exec ruby config-manager/bin/config-manager test demo production
 ```
 
-## 設定構造
-
-Config Manager は以下の構造の `workflow-config.yaml` ファイルを管理します：
-
-### 環境
-
-ブランチ依存なしのデプロイメント環境を定義：
-
-```yaml
-environments:
-  - environment: develop
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-  - environment: staging
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/staging-plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/staging-apply-role
-
-  - environment: production
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
-```
-
-### ディレクトリ規約
-
-サービス発見のための階層ディレクトリ構造：
-
-```yaml
-stack_conventions:
-  - root: "{service}"
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-        targets: ["develop", "staging", "production"]
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-        targets: ["develop", "staging", "production"]
-```
-
-各 stack エントリには、インスタンスを識別するオプションの `id` を指定できます。
-識別子は `id || name` で決まり、1つの convention 内で一意でなければなりません。
-識別子が重複している場合、設定の読み込み時に拒否されます。
-
-### サービス
-
-サービス固有の設定と除外：
-
-```yaml
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "特別な要件により手動デプロイメントが必要"
-      type: "permanent"
-
-  - name: special-service
-    stack_conventions:
-      aws: "custom/{service}/infra/{environment}"
-```
-
-## 検証ルール
-
-Config Manager は包括的な検証を実施します：
-
-### 環境検証
-- 全環境に `environment`、`aws_region`、`iam_role_plan`、`iam_role_apply` が必要
-- AWS リージョンは標準形式に従う必要（`us-west-2`、`ap-northeast-1` など）
-- IAM ロール ARN は有効な AWS ARN 形式である必要
-- 必須環境：`develop`、`staging`、`production`
-
-### ディレクトリ規約検証
-- ルートパターンには `{service}` プレースホルダーが必要（空の場合を除く）
-- スタックディレクトリには `{environment}` プレースホルダーが必要
-- 必須スタック：`aws`（最低限）
-- ディレクトリ規約は配列である必要
-
-### サービス検証
-- サービス名はドット（`.`）で始まることはできない
-- サービス固有のディレクトリ規約には `{service}` プレースホルダーが必要
-- 除外されたサービスには理由付きの `exclusion_config` が必要
-
-## テンプレート生成
-
-最適化された設定テンプレートを生成：
-
-```bash
-./bin/config-manager template
-```
-
-生成されるテンプレートには以下が含まれます：
-- ブランチフィールドのない環境設定
-- モダンなディレクトリ規約
-- サービス除外の例
-- 包括的なドキュメント
-
-## 診断ツール
-
-デプロイメント自動化の包括的ヘルスチェック：
-
-```bash
-./bin/config-manager diagnostics
-```
-
-チェック項目：
-- 設定ファイル検証
-- 環境変数の可用性
-- Git リポジトリ状態
-- 設定ファイルの場所
-- ディレクトリ構造の整合性
+未知の環境、設定の不正、ディレクトリ列挙の失敗、同じ対象の抽出値の矛盾はエラーとして表示します。
 
 ## アーキテクチャ
 
-### コンポーネント
+### 構成要素
 
 - **ConfigManagerController**: メインオーケストレーションと CLI インターフェース
 - **ValidateConfig**: 包括的設定検証
 - **ConfigClient**: 設定読み込みとパース
 - **ConsolePresenter**: 人間が読める出力フォーマット
 
-### 検証フロー
+### 検証の流れ
 
-1. **構造検証**: YAML 構造と必須セクション
-2. **環境検証**: AWS 認証情報とリージョン検証
-3. **サービス検証**: サービス設定と除外
-4. **ディレクトリ検証**: ディレクトリ規約とプレースホルダー
-5. **サマリー生成**: 検証結果と統計
+YAML を読み込み、設定モデルで構造と整合性を検証し、検証結果と stack・環境数を表示します。検証規則の詳細は [設定](../../README-ja.md#設定) を参照してください。
 
-## エラーハンドリング
+## エラー処理
 
 以下を含む詳細なエラーレポート：
+
 - **具体的なエラーメッセージ**: 設定問題の特定
 - **検証コンテキスト**: 問題のあるセクションの明確な指示
 - **提案**: 一般的な設定問題の修正ガイダンス
 - **サマリー統計**: 設定ヘルスの概要
 
-## 統合
+## 連携
 
 Config Manager は以下と統合されます：
+
 - **Label Resolver**: デプロイメント指定のための設定提供
 - **Label Dispatcher**: サービスとディレクトリ設定の検証
 - **GitHub Actions**: CI/CD ワークフローの環境検証
 
 ## 開発
 
-### テスト実行
+### テストの実行
 
 ```bash
 cd action-scripts
 bundle exec rspec spec/config-manager/
 ```
 
-### ローカルテスト
+### ローカルでの動作確認
 
 ```bash
-# カスタム設定でのテスト
 cp workflow-config.yaml test-config.yaml
-./bin/config-manager validate
-
-# サービス設定のテスト
-./bin/config-manager test myservice develop
+WORKFLOW_CONFIG_PATH=test-config.yaml bundle exec ruby config-manager/bin/config-manager validate
+bundle exec ruby config-manager/bin/config-manager test myservice develop
 ```

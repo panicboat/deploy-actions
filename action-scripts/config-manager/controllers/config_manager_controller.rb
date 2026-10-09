@@ -7,10 +7,12 @@ module Interfaces
       def initialize(
         validate_config_use_case:,
         config_client:,
+        file_client:,
         presenter:
       )
         @validate_config = validate_config_use_case
         @config_client = config_client
+        @file_client = file_client
         @presenter = presenter
       end
 
@@ -44,53 +46,43 @@ module Interfaces
         end
       end
 
-      # Test service configuration for specific service and environment
-      def test_service_configuration(service_name:, environment:)
-        begin
-          config = @config_client.load_workflow_config
-
-          # Validate service exists
-          unless config.services.key?(service_name)
-            return @presenter.present_error(
-              Entities::Result.failure(error_message: "Service '#{service_name}' not found in configuration")
-            )
-          end
-
-          # Validate environment exists
-          unless config.environments.key?(environment)
-            return @presenter.present_error(
-              Entities::Result.failure(error_message: "Environment '#{environment}' not found in configuration")
-            )
-          end
-
-          # Get service configurations
-          service_config = config.services[service_name]
-
-          # Collect directories and attributes per stack declared in stack_conventions
-          stack_directories = {}
-          stack_attributes = {}
-          config.stack_conventions_config.each do |convention|
-            (convention['stacks'] || []).each do |stack_def|
-              stack_key = stack_def['id'] || stack_def['name']
-              stack_directories[stack_key] = config.stack_convention_for(service_name, stack_key)
-                &.gsub('{service}', service_name)
-                &.gsub('{environment}', environment)
-              stack_attributes[stack_key] = config.stack_attributes_for(environment, stack_key)
+      def test_service_configuration(service_name:, environment: nil)
+        config = @config_client.load_workflow_config
+        if environment && !config.environment_names.include?(environment)
+          return @presenter.present_error(Entities::Result.failure(error_message: "Environment '#{environment}' not found in configuration"))
+        end
+        candidates = {}
+        config.stacks.each do |stack|
+          environments = stack.key?('environments') ? stack['environments'].keys : [nil]
+          environments &= [environment] if environment && stack.key?('environments')
+          environments.each do |selected|
+            values = { 'service' => service_name, 'environment' => selected }
+            stack['paths'].each do |pattern|
+              @file_client.resolve_directories(pattern: pattern, values: values).each do |match|
+                captures = match.fetch(:captures)
+                next if captures.fetch('service').start_with?('.')
+                directory = match.fetch(:working_directory)
+                custom = captures.reject { |key, _| %w[service environment].include?(key) }
+                identity = [service_name, stack['id'], selected, directory]
+                if candidates.key?(identity) && candidates[identity][:captures] != custom
+                  raise "Conflicting captures for stack '#{stack['id']}' at '#{directory}'"
+                end
+                candidates[identity] = { stack: stack, environment: selected, working_directory: directory, captures: custom }
+              end
             end
           end
-
-          @presenter.present_service_test_result(
-            service_name: service_name,
-            environment: environment,
-            stack_attributes: stack_attributes,
-            service_config: service_config,
-            stack_directories: stack_directories
-          )
-        rescue => error
-          @presenter.present_error(
-            Entities::Result.failure(error_message: "Failed to test service configuration: #{error.message}")
-          )
         end
+        matches = candidates.values.map do |candidate|
+          stack = candidate.fetch(:stack)
+          selected = candidate.fetch(:environment)
+          captures = candidate.fetch(:captures)
+          attributes = stack.key?('environments') ? stack['environments'].fetch(selected) : stack['attributes']
+          target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack['name'], stack_id: stack['id'], working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
+          { target: target, excluded: config.excluded?(stack, captures.merge('service' => service_name, 'environment' => selected)) }
+        end
+        @presenter.present_service_test_result(service_name: service_name, matches: matches)
+      rescue => error
+        @presenter.present_error(Entities::Result.failure(error_message: "Failed to test service configuration: #{error.message}"))
       end
 
       # Diagnostic check for configuration and environment
@@ -160,63 +152,28 @@ module Interfaces
 
       private
 
-      # Build a configuration template with examples
       def build_config_template
         <<~YAML
-          # Workflow Automation Configuration Template
-          # Generated by config-manager
-
-          environments:
-            - environment: develop
-              stacks:
-                aws:
+          stacks:
+            - name: terragrunt
+              id: aws
+              paths:
+                - "dystopia/{service}/aws/{environment}"
+                - "system-components/{service}/infrastructure/aws/{environment}"
+              environments:
+                develop:
                   aws_region: ap-northeast-1
-                  iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-plan-role
-                  iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-develop-apply-role
-                docker:
-                  repository: AWS_ACCOUNT_ID.dkr.ecr.AWS_REGION.amazonaws.com/REPOSITORY_NAME
-                kubernetes:
-                  namespace: default
-
-            - environment: staging
-              stacks:
-                aws:
-                  aws_region: ap-northeast-1
-                  iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-plan-role
-                  iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-staging-apply-role
-                docker:
-                  repository: AWS_ACCOUNT_ID.dkr.ecr.AWS_REGION.amazonaws.com/REPOSITORY_NAME
-                kubernetes:
-                  namespace: default
-
-            - environment: production
-              stacks:
-                aws:
-                  aws_region: ap-northeast-1
-                  iam_role_plan: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-plan-role
-                  iam_role_apply: arn:aws:iam::ACCOUNT_ID:role/github-oidc-auth-production-apply-role
-                docker:
-                  repository: AWS_ACCOUNT_ID.dkr.ecr.AWS_REGION.amazonaws.com/REPOSITORY_NAME
-                kubernetes:
-                  namespace: default
-
-          stack_conventions:
-            - root: "{service}"
-              stacks:
-                - name: aws
-                  directory: "aws/{environment}"
-                  required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-                - name: docker
-                  directory: ""
-                - name: kubernetes
-                  directory: "kubernetes/overlays/{environment}"
-
-          services:
-            - name: excluded-service
-              exclude_from_automation: true
-              exclusion_config:
-                reason: "Manual deployment required due to special requirements"
-                type: "permanent"
+                production:
+                  aws_region: us-west-2
+              exclude:
+                - service: demo
+                  environment: production
+            - name: container
+              paths:
+                - "dystopia/{service}"
+                - "system-components/{service}"
+              attributes:
+                repository: registry.example.com/app
         YAML
       end
     end

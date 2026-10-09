@@ -50,8 +50,7 @@ module Interfaces
           deploy_labels: detection_result.deploy_labels,
           labels_added: labels_added,
           labels_removed: labels_removed,
-          changed_files: detection_result.changed_files,
-          excluded_services: detection_result.excluded_services || []
+          changed_files: detection_result.changed_files
         )
       end
 
@@ -66,8 +65,7 @@ module Interfaces
           deploy_labels: detection_result.deploy_labels,
           labels_added: [],
           labels_removed: [],
-          changed_files: detection_result.changed_files,
-          excluded_services: detection_result.excluded_services || []
+          changed_files: detection_result.changed_files
         )
       end
 

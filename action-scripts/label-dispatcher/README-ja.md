@@ -13,43 +13,61 @@ Label Dispatcherはプルリクエストのファイル変更を分析し、影�
 - **変更検出**: Gitの差分を分析して変更されたファイルを識別
 - **サービスマッピング**: ファイル変更をサービスデプロイにマッピング
 - **ラベル管理**: PRのデプロイラベルを自動的に追加/削除
-- **除外サポート**: 自動化から除外されたサービスの処理
+- **除外条件**: stack ごとの照合条件で除外
 - **GitHub統合**: シームレスなPRラベル管理
 - **ディレクトリ規則**: 柔軟なサービスディレクトリ検出
 - **デプロイメント戦略非依存**: 任意のブランチ戦略や開発ワークフローに対応
 
-## 使用方法
+## 使い方
 
-Label Dispatcherは`bin/dispatcher`を通じてCLIインターフェースを提供します：
+`action-scripts` を作業ディレクトリとして実行します。
 
-### 基本コマンド
+Label Dispatcherは`label-dispatcher/bin/dispatcher`を通じてCLIインターフェースを提供します：
+
+### コマンド
+
+PR の変更に基づいてラベルを更新します。
 
 ```bash
-# PRのラベル配信（自動モード）
 bundle exec ruby label-dispatcher/bin/dispatcher dispatch PR_NUMBER
+```
 
-# PRとのやり取りなしで変更検出をテスト
+PR を操作せずに変更検出を確認します。
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher test
+```
 
-# 特定のgitリファレンスでテスト
+比較する Git リファレンスを指定します。
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=feature/auth
+```
 
-# GitHub Actions環境のシミュレーション
+GitHub Actions の実行環境をシミュレートします。
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher simulate PR_NUMBER
+```
 
-# 環境設定の検証
+実行環境の設定を検証します。
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher validate_env
+```
 
-# 使用例とヒントの表示
+使用例と実行方法を表示します。
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher help_usage
 ```
 
-### ワークフロー統合
+### ワークフローへの組み込み
 
 ディスパッチャーは通常GitHub Actionsワークフローから呼び出されます：
 
 ```yaml
-- name: ラベル配信
+- name: Dispatch labels
   uses: panicboat/deploy-actions/label-dispatcher@v1
   with:
     pr-number: ${{ github.event.pull_request.number }}
@@ -66,110 +84,47 @@ bundle exec ruby label-dispatcher/bin/dispatcher help_usage
 - `LABELS_REMOVED`: 削除されたラベルの JSON 配列
 - `HAS_CHANGES`: 変更が検出されたかを示すブール値
 
-## 核心ロジック
+## 変更パスの照合
 
-### 1. 変更検出
+変更ファイルを定義された stack のパスに照合し、サービス・環境・任意 placeholder を抽出します。パスに環境名がない場合は、その stack の定義環境ごとに評価します。環境共通の stack は environment が null の照合として扱います。
 
-Git差分を分析して変更されたファイルを識別：
-- ベースコミットとヘッドコミットを比較
-- 追加、変更、削除されたファイルを識別
-- デプロイに関連しない変更を除外
-- APIベースとGitベースの両方の検出をサポート
-
-### 2. サービスマッピング
-
-ファイル変更をサービスデプロイにマッピング：
-- ディレクトリ規則を使用してサービスを識別
-- デフォルトとカスタムディレクトリパターンの両方をサポート
-- 複数のデプロイスタック（Terragrunt、Kubernetes）を処理
-- サービス固有の設定オーバーライドを適用
-
-### 3. ラベル管理
-
-PRラベルを自動的に管理：
-- 変更されたサービスに`deploy:service-name`ラベルを追加
-- 変更されなくなったサービスのラベルを削除
-- PR更新全体でラベルの一貫性を維持
-- バッチラベル操作をサポート
-
-### 4. 除外処理
-
-自動化から除外されたサービスを管理：
-- 設定から除外されたサービスを識別
-- 除外理由とタイプ情報を提供
-- 一時的と永続的な除外をサポート
+各照合に除外条件を適用し、除外されない照合が一つでもあるサービスを一度だけラベル対象にします。サービス全体のディレクトリを検出対象にする場合は、そのパスも stack に定義します。削除されたファイルも照合するため、ディレクトリの存在は要求しません。
 
 ## 設定
 
-ディスパッチャーは設定に`workflow-config.yaml`を使用します：
-
-```yaml
-# サービス検出用のディレクトリ規則（階層構造）
-stack_conventions:
-  - root: "{service}"
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-
-# サービス固有の設定
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "特別な要件により手動デプロイが必要"
-      type: "permanent"
-
-  - name: legacy-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "移行進行中"
-      type: "temporary"
-```
+設定仕様はルートの [設定](../../README-ja.md#設定) を参照してください。
 
 ## アーキテクチャ
 
 Label Dispatcherはクリーンアーキテクチャパターンに従います：
 
-### Controllers
+### コントローラー
+
 - `LabelDispatcherController`: 配信プロセスの調整
 
-### Use Cases
+### ユースケース
+
 - `DetectChangedServices`: ファイル変更を分析してサービスにマッピング
 - `ManageLabels`: PRラベル操作を処理
 
-### Infrastructure
+### インフラストラクチャ
+
 - `GitHubClient`: GitHub APIとのやり取り
 - `FileSystemClient`: Git操作とファイル分析
 - `ConfigClient`: 設定管理
 
-## 必要な環境変数
+## 実行環境の設定
 
 - `GITHUB_TOKEN`: GitHub API アクセスに必要
 - `GITHUB_REPOSITORY`: リポジトリ名（owner/repo 形式）
 - `GITHUB_ACTIONS`: GitHub Actions 出力フォーマットを有効化
 - `WORKFLOW_CONFIG_PATH`: 設定ファイルのパス（オプション、デフォルトは workflow-config.yaml）
 
-## サービス検出ロジック
+## 検出結果
 
-ディスパッチャーは以下のロジックを使用してサービスを検出します：
+検出結果にはラベル、変更ファイル、対象サービスを含みます。GitHub Actions では `deploy-labels`、`labels-added`、`labels-removed`、`services-detected`、`has-changes` を出力します。除外状態の確認には [サービス診断](../config-manager/README-ja.md#サービス診断) を使います。
 
-1. **ファイル分析**: PRで変更されたファイルを調査
-2. **パターンマッチング**: ファイルパスをディレクトリ規則と照合
-3. **サービス抽出**: マッチしたパターンからサービス名を抽出
-4. **設定検索**: サービス固有の設定を適用
-5. **除外フィルタリング**: 除外されたサービスを結果から削除
-
-### 検出例
-
-`services/auth/aws/develop/main.tf`でのファイル変更の場合：
-- パターンマッチ: `services/{service}/aws/{environment}`
-- サービス抽出: `auth`
-- `auth`サービスの設定を適用
-- ラベル追加: `deploy:auth`
-
-## エラーハンドリング
+## エラー処理
 
 ディスパッチャーは包括的なエラーハンドリングを提供します：
 
@@ -182,26 +137,33 @@ Label Dispatcherはクリーンアーキテクチャパターンに従います�
 
 ### 依存関係
 
-- Ruby 3.4+
+- Ruby ([.ruby-version](../.ruby-version))
 - Bundler
 - Thor (CLIフレームワーク)
 - Octokit (GitHub API)
 - Git (システム依存関係)
 
-### テスト
+### 動作確認
+
+現在の作業ディレクトリで変更検出を確認します。
 
 ```bash
-# 現在の作業ディレクトリでテスト
 bundle exec ruby label-dispatcher/bin/dispatcher test
+```
 
-# 特定のリファレンスでテスト
+比較する Git リファレンスを指定して変更検出を確認します。
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=HEAD
+```
 
-# 環境の検証
+実行環境を検証します。
+
+```bash
 bundle exec ruby label-dispatcher/bin/dispatcher validate_env
 ```
 
-## 統合ポイント
+## 連携先
 
 Label Dispatcherは以下と統合します：
 
@@ -210,7 +172,7 @@ Label Dispatcherは以下と統合します：
 3. **GitHub Actions**: PRイベントでトリガーされ更新
 4. **Gitリポジトリ**: ファイル変更と履歴を分析
 
-## ラベル規則
+## ラベルの規約
 
 ディスパッチャーは標準化されたラベル形式を使用します：
 
@@ -218,10 +180,10 @@ Label Dispatcherは以下と統合します：
 - `deploy:all` - 全サービスのデプロイ（特殊ケース）
 - ラベルは自動的に管理・同期される
 
-## 安全性機能
+## 安全性に関する機能
 
 - **変更検証**: 関連する変更のみがデプロイをトリガーすることを確保
 - **設定検証**: 処理前の設定検証
 - **権限チェック**: GitHubトークンの権限を確認
-- **除外の尊重**: サービス除外設定を遵守
+- **除外条件の適用**: 各照合の除外条件を適用
 - **監査証跡**: トラブルシューティング用のすべてのラベル操作をログ記録
