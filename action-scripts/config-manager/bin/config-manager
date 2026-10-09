@@ -77,8 +77,9 @@ class ConfigManagerCLI < Thor
     begin
       config_client = ConfigManagerContainer.resolve(:config_client)
       config = config_client.load_workflow_config
+      file_client = ConfigManagerContainer.resolve(:file_client)
       puts "Configured Environments:"
-      config.environment_names.each { |name| puts "  #{name}" }
+      file_client.environment_names(config: config).each { |name| puts "  #{name}" }
     rescue => error
       puts "❌ Failed to load environments: #{error.message}"
       exit 1

@@ -24,7 +24,7 @@ stacks:
       - "dystopia/{service}"
       - "system-components/{service}"
     attributes:
-      repository: registry.example.com/app
+      repository: registry.example.com/{service}
     exclude:
       - service: demo
   - name: kubernetes

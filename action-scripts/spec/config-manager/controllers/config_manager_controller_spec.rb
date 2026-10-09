@@ -187,12 +187,28 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       expect(rows.first[:excluded]).to be(true)
     end
 
+    it 'diagnoses inferred environments and renders common attribute templates' do
+      config_hash['stacks'] = [
+        { 'name' => 'kubernetes', 'paths' => ['teams/{team}/{service}/{environment}'], 'exclude' => [{ 'environment' => 'production' }] },
+        { 'name' => 'container', 'paths' => ['teams/{team}/{service}'], 'attributes' => { 'repository' => 'ghcr.io/{team}/{service}' } }
+      ]
+      %w[teams/payments/demo/production teams/payments/demo/preview].each { |path| directory(path) }
+      rows = matches(environment: 'production')
+      expect(rows.length).to eq(2)
+      expect(rows.find { |row| row[:target].stack == 'kubernetes' }).to include(excluded: true)
+      expect(rows.find { |row| row[:target].stack == 'container' }[:target].attributes).to eq('repository' => 'ghcr.io/payments/demo')
+      expect(presenter).to receive(:present_service_test_result) do |args|
+        expect(args[:matches].map { |row| row[:target].environment }).to contain_exactly('production', 'preview', nil)
+      end
+      controller.test_service_configuration(service_name: 'demo')
+    end
+
     it 'returns an empty list when no directory matches' do
       expect(matches(service: 'unregistered')).to eq([])
     end
 
     it 'deduplicates identical matches' do
-      config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}', 'dystopia/{service}'] }]
+      config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}', 'dystopia/{service}'], 'attributes' => {} }]
       directory('dystopia/demo')
       expect(matches.length).to eq(1)
     end
@@ -205,7 +221,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'reports conflicting captures before exclusions' do
-      config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['teams/{team}/{service}', 'teams/{product}/{service}'], 'exclude' => [{ 'team' => 'platform' }] }]
+      config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['teams/{team}/{service}', 'teams/{product}/{service}'], 'attributes' => {}, 'exclude' => [{ 'team' => 'platform' }] }]
       directory('teams/platform/demo')
       allow(presenter).to receive(:present_error)
       expect(presenter).not_to receive(:present_service_test_result)

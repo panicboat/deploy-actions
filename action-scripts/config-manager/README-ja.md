@@ -18,9 +18,9 @@ Config Manager は `config-manager/bin/config-manager` を通じて CLI イン�
 
 | コマンド | 結果 |
 |---|---|
-| `bundle exec ruby config-manager/bin/config-manager validate` | 設定の検証結果と stack・環境数 |
+| `bundle exec ruby config-manager/bin/config-manager validate` | 設定の検証結果と stack・定義環境数 |
 | `bundle exec ruby config-manager/bin/config-manager show` | 各 stack ID の全パス、環境属性または共通属性、除外条件 |
-| `bundle exec ruby config-manager/bin/config-manager environments` | 定義した環境名の和集合 |
+| `bundle exec ruby config-manager/bin/config-manager environments` | 定義環境と探索した環境名の和集合 |
 | `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | 実在する全一致対象と除外状態 |
 | `bundle exec ruby config-manager/bin/config-manager diagnostics` | 設定、環境変数、Git 状態、設定ファイルの診断 |
 | `bundle exec ruby config-manager/bin/config-manager template` | 新しい設定を作るための YAML の表示 |
@@ -28,9 +28,9 @@ Config Manager は `config-manager/bin/config-manager` を通じて CLI イン�
 
 ### サービス診断
 
-環境を省略すると、そのサービスの全定義環境と共通対象を調べます。環境を指定すると、指定環境と共通対象を調べます。サービスの登録は不要です。パスに一致しないサービスは空の結果になります。
+環境を省略すると、そのサービスの定義環境・探索した環境・共通対象をすべて調べます。環境を指定すると、指定環境と共通対象を調べます。サービスの登録は不要です。パスに一致しないサービスは空の結果になります。
 
-一致する全ディレクトリを stack ID ごとに表示し、属性と任意 placeholder の抽出値を保持します。除外された対象も `excluded: true` として表示するため、実行対象から外れる条件を確認できます。
+一致する全ディレクトリを stack ID ごとに表示し、展開後の属性値と任意 placeholder の抽出値を出力します。除外された対象も `excluded: true` として表示するため、実行対象から外れる条件を確認できます。
 
 ```bash
 bundle exec ruby config-manager/bin/config-manager test demo
@@ -50,7 +50,7 @@ bundle exec ruby config-manager/bin/config-manager test demo production
 
 ### 検証の流れ
 
-YAML を読み込み、設定モデルで構造と整合性を検証し、検証結果と stack・環境数を表示します。検証規則の詳細は [設定](../../README-ja.md#設定) を参照してください。
+YAML を読み込み、設定モデルで構造と整合性を検証し、検証結果と stack・定義環境数を表示します。検証と設定表示ではディレクトリを列挙しません。実在ディレクトリの環境名は `environments` またはサービス診断で取得します。検証規則の詳細は [設定](../../README-ja.md#設定) を参照してください。
 
 ## エラー処理
 

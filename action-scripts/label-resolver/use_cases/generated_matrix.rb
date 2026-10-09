@@ -8,15 +8,22 @@ module UseCases
 
       def execute(deploy_labels:, target_environments:)
         config = @config_client.load_workflow_config
-        environments = target_environments.nil? || target_environments.empty? ? config.environment_names : target_environments.uniq
-        unknown = environments - config.environment_names
+        available = @file_client.environment_names(config: config)
+        environments = target_environments.nil? || target_environments.empty? ? available : target_environments.uniq
+        unknown = environments - available
         return Entities::Result.failure(error_message: "Target environments not found in configuration: #{unknown.join(', ')}") unless unknown.empty?
 
         labels = deploy_labels.select(&:valid?)
         services = labels.any?(&:deploy_all?) ? [nil] : labels.map(&:service).uniq
         candidates = {}
         config.stacks.each do |stack|
-          selected = stack.key?('environments') ? environments & stack['environments'].keys : [nil]
+          selected = if stack.key?('environments')
+            environments & stack['environments'].keys
+          elsif stack.key?('attributes')
+            [nil]
+          else
+            environments
+          end
           selected.each do |environment|
             services.each do |service|
               values = { 'environment' => environment }
@@ -44,7 +51,7 @@ module UseCases
           environment = candidate.fetch(:environment)
           values = candidate.fetch(:captures).merge('service' => candidate.fetch(:service), 'environment' => environment)
           next if config.excluded?(stack, values)
-          attributes = stack.key?('environments') ? stack['environments'].fetch(environment) : stack['attributes']
+          attributes = stack.key?('environments') ? stack['environments'].fetch(environment) : stack.fetch('attributes', {})
           Entities::DeploymentTarget.new(
             service: candidate.fetch(:service), environment: environment, stack: stack['name'], stack_id: stack['id'],
             working_directory: candidate.fetch(:working_directory), captures: candidate.fetch(:captures), attributes: attributes

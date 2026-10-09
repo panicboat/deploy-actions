@@ -18,9 +18,9 @@ Run commands from the `action-scripts` directory.
 
 | Command | Result |
 |---|---|
-| `bundle exec ruby config-manager/bin/config-manager validate` | Validation result and stack/environment counts |
+| `bundle exec ruby config-manager/bin/config-manager validate` | Validation result and stack/declared environment counts |
 | `bundle exec ruby config-manager/bin/config-manager show` | All paths, environment or shared attributes, and exclusions for each stack ID |
-| `bundle exec ruby config-manager/bin/config-manager environments` | Union of configured environment names |
+| `bundle exec ruby config-manager/bin/config-manager environments` | Union of declared and discovered environment names |
 | `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | All existing matching targets and their exclusion status |
 | `bundle exec ruby config-manager/bin/config-manager diagnostics` | Diagnostics for configuration, environment variables, Git state, and the configuration file |
 | `bundle exec ruby config-manager/bin/config-manager template` | Display of YAML for creating a configuration |
@@ -28,9 +28,9 @@ Run commands from the `action-scripts` directory.
 
 ### Service Diagnosis
 
-Omitting the environment inspects all configured environments and shared targets for the service. Selecting an environment inspects that environment and shared targets. Services do not require registration. A service that matches no paths produces an empty result.
+Omitting the environment inspects all declared and discovered environments and shared targets for the service. Selecting an environment inspects that environment and shared targets. Services do not require registration. A service that matches no paths produces an empty result.
 
-All matching directories are displayed by stack ID, preserving attributes and captured arbitrary placeholders. Excluded targets are also displayed with `excluded: true`, so you can inspect why they are omitted from deployment.
+All matching directories are displayed by stack ID, with expanded attribute values and captured arbitrary placeholders. Excluded targets are also displayed with `excluded: true`, so you can inspect why they are omitted from deployment.
 
 ```bash
 bundle exec ruby config-manager/bin/config-manager test demo
@@ -50,7 +50,7 @@ Unknown environments, invalid configuration, directory enumeration failures, and
 
 ### Validation Flow
 
-Loads YAML, validates structure and consistency through the configuration model, and displays the validation result with stack/environment counts. See [Configuration](../../README.md#configuration) for the validation rules.
+Loads YAML, validates structure and consistency through the configuration model, and displays the validation result with stack/declared environment counts. Validation and configuration display do not enumerate directories; use `environments` or service diagnosis to discover environment names from existing directories. See [Configuration](../../README.md#configuration) for the validation rules.
 
 ## Error Handling
 

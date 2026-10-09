@@ -19,9 +19,17 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
   end
 
   it 'accepts configurations with only common stacks' do
-    file.write({ 'stacks' => [{ 'name' => 'container', 'paths' => ['apps/{service}'] }] }.to_yaml)
+    file.write({ 'stacks' => [{ 'name' => 'container', 'paths' => ['apps/{service}'], 'attributes' => {} }] }.to_yaml)
     file.flush
     expect(use_case.execute).to be_success
+  end
+
+  it 'validates inferred environments without requiring matching directories' do
+    file.write({ 'stacks' => [{ 'name' => 'kubernetes', 'paths' => ['absent/{service}/{environment}'] }] }.to_yaml)
+    file.flush
+    result = use_case.execute
+    expect(result).to be_success
+    expect(result.validation_summary).to include('environments: 0')
   end
 
   it 'returns the original configuration error in validation errors' do

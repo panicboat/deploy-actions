@@ -80,7 +80,7 @@ bundle exec ruby label-resolver/bin/resolver test 456 develop,staging
 bundle exec ruby label-resolver/bin/resolver debug 789 production
 ```
 
-定義された全環境のデプロイ対象を解決します。
+定義環境と探索した環境すべてのデプロイ対象を解決します。
 
 ```bash
 bundle exec ruby label-resolver/bin/resolver resolve 123
@@ -169,12 +169,12 @@ bundle exec ruby label-resolver/bin/resolver resolve 123
 
 - 環境はパラメータとして直接指定
 - 環境決定にブランチ名への依存なし
-- 設定で定義された任意のデプロイメント環境をサポート
+- 設定で定義した環境と stack のパスから探索した環境をサポート
 - 複数環境への同時デプロイメントが可能
 
 ## デプロイ対象の解決
 
-指定環境を各 stack の定義環境に絞り、全パスの実在ディレクトリを列挙します。環境指定の省略または空白入力は全定義環境を選択します。環境共通の対象は各ディレクトリにつき一度だけ生成します。
+指定環境を各 stack の定義環境または探索した環境から選び、全パスの実在ディレクトリを列挙します。環境指定の省略または空白入力は定義環境と探索した環境の和集合を選択します。`attributes` を持つ環境共通の対象は各ディレクトリにつき一度だけ生成します。
 
 `deploy:all` は設定したパスから全サービスを探索します。除外条件に一致する対象は matrix に含めません。存在しないパスは正常な空の結果になり、未知環境・列挙エラー・抽出値の矛盾は失敗になります。
 

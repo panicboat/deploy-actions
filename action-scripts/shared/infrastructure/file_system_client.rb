@@ -69,6 +69,16 @@ module Infrastructure
       candidates.sort_by { |match| match.fetch(:working_directory) }
     end
 
+    def environment_names(config:)
+      discovered = config.stacks.flat_map do |stack|
+        next [] if stack.key?('environments') || stack.key?('attributes')
+        stack['paths'].flat_map do |pattern|
+          resolve_directories(pattern: pattern).map { |match| match.fetch(:captures).fetch('environment') }
+        end
+      end
+      (config.environment_names + discovered).uniq
+    end
+
     private
 
     # Get the source repository path for composite actions

@@ -57,6 +57,33 @@ RSpec.describe Infrastructure::FileSystemClient do
     expect(client.resolve_directories(pattern: 'dystopia/{service}/aws')).to eq([])
   end
 
+  it 'combines declared and discovered environments without applying exclusions' do
+    %w[teams/platform/demo/production teams/platform/demo/.preview teams/sandbox/api/production teams/platform/.hidden/hidden].each { |path| directory(path) }
+    config = Entities::WorkflowConfig.new('stacks' => [
+      { 'name' => 'aws', 'paths' => ['{service}/aws'], 'environments' => { 'production' => {}, 'develop' => {} } },
+      { 'name' => 'kubernetes', 'paths' => ['teams/{team}/{service}/{environment}'], 'exclude' => [{ 'environment' => '.preview' }] },
+      { 'name' => 'container', 'paths' => ['{service}'], 'attributes' => {} }
+    ])
+    expect(client.environment_names(config: config)).to eq(%w[production develop .preview])
+    directory('teams/platform/demo/sandbox')
+    expect(client.environment_names(config: config)).to eq(%w[production develop .preview sandbox])
+  end
+
+  it 'returns no environments when inferred directories are absent' do
+    config = Entities::WorkflowConfig.new('stacks' => [{ 'name' => 'kubernetes', 'paths' => ['apps/{service}/{environment}'] }])
+    expect(client.environment_names(config: config)).to eq([])
+  end
+
+  it 'propagates permission errors during environment discovery' do
+    directory('blocked/demo/production')
+    path = File.join(@root, 'blocked')
+    File.chmod(0, path)
+    config = Entities::WorkflowConfig.new('stacks' => [{ 'name' => 'kubernetes', 'paths' => ['blocked/{service}/{environment}'] }])
+    expect { client.environment_names(config: config) }.to raise_error(Errno::EACCES)
+  ensure
+    File.chmod(0o755, path) if path
+  end
+
   it 'propagates actual permission errors for literal and placeholder directories' do
     directory('blocked/demo')
     path = File.join(@root, 'blocked')

@@ -47,7 +47,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   end
 
   it 'keeps services with a non-excluded stack match' do
-    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['teams/{team}/{service}'] }
+    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['teams/{team}/{service}'], 'attributes' => {} }
     expect(services).to eq(['demo'])
   end
 
@@ -58,7 +58,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   end
 
   it 'detects common stacks with null environment' do
-    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}'], 'exclude' => [{ 'service' => 'demo', 'environment' => nil }] }]
+    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => {}, 'exclude' => [{ 'service' => 'demo', 'environment' => nil }] }]
     changed_files.replace(['dystopia/demo/main.rb', 'dystopia/api/main.rb'])
     expect(services).to eq(['api'])
   end
@@ -73,6 +73,14 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     changed_files.replace(['teams/absent/unregistered/aws/develop/deleted.tf'])
     expect(file_client).not_to receive(:resolve_directories)
     expect(services).to eq(['unregistered'])
+  end
+
+  it 'captures inferred environments from changed paths including deleted files' do
+    stack.delete('environments')
+    stack['exclude'] = [{ 'environment' => 'production' }]
+    changed_files.replace(['teams/platform/demo/aws/production/deleted.tf', 'teams/platform/api/aws/preview/deleted.tf'])
+    expect(file_client).not_to receive(:resolve_directories)
+    expect(services).to eq(['api'])
   end
 
   it 'deduplicates matches for files paths and stacks' do
@@ -90,7 +98,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     it "rejects conflicting captures before exclusions with reversed paths #{reverse}" do
       paths = ['teams/{team}/{service}/aws', 'teams/{product}/{service}/aws']
       paths.reverse! if reverse
-      config_hash['stacks'] = [{ 'name' => 'terragrunt', 'paths' => paths, 'exclude' => [{ 'team' => 'platform' }] }]
+      config_hash['stacks'] = [{ 'name' => 'terragrunt', 'paths' => paths, 'attributes' => {}, 'exclude' => [{ 'team' => 'platform' }] }]
       result = use_case.execute
       expect(result).to be_failure
       expect(result.error_message).to include('Conflicting captures', 'teams/platform/demo/aws')
