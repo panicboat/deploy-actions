@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/panicboat/deploy-actions/compare/v1.4.0...v1.4.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* support checking out action ref in composite actions ([#330](https://github.com/panicboat/deploy-actions/issues/330)) ([8c93063](https://github.com/panicboat/deploy-actions/commit/8c9306349208086fcfcb7592a3fd164d1c9b2612))
+
 ## [1.4.0](https://github.com/panicboat/deploy-actions/compare/v1.3.0...v1.4.0) (2026-10-09)
 
 
