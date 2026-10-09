@@ -68,12 +68,6 @@ RSpec.configure do |config|
     FactoryBot.find_definitions
   end
 
-  # Mock File.directory? globally for tests that check directory existence
-  config.before(:each) do
-    allow(File).to receive(:directory?).and_call_original
-    allow(File).to receive(:directory?).with(/test-service|demo/).and_return(true)
-  end
-
   # Clean up environment variables after each test
   config.after(:each) do
     # Restore original environment variables if modified

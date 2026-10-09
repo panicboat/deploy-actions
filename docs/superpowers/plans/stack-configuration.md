@@ -204,7 +204,7 @@ Run: `git commit -s -m 'feat: define stack configuration and exclusion condition
 - Produces: `FileSystemClient#resolve_directories(pattern:, values: {})` → `Array<Hash>`。各要素は `{ working_directory: String, captures: Hash<String, String> }`。相対パスを昇順で返す。`values` はパターンに現れるキーだけを照合し、その placeholder の値を完全一致させる。
 - Preserves: `FileSystemClient#get_changed_files(base_ref: nil, head_ref: nil)` の既存 signature と Git diff 処理。
 
-- [ ] **Step 1: Write directory and root tests using temporary repositories**
+- [x] **Step 1: Write directory and root tests using temporary repositories**
 
 `tmpdir` と `fileutils` を spec で読み、ブロック内で `.git` とディレクトリを作る。以下を assertion にする。
 
@@ -224,23 +224,23 @@ expect(client.resolve_directories(
 
 追加 example は `matches repeated placeholders`、`treats glob characters as literals`、`ignores context keys absent from the pattern`、`returns no matches for absent directories`、`uses the source repository root`、`accepts git marker files`、`fails when no repository root exists` とする。繰り返しは `teams/{team}/{service}/{team}` で同じ team だけが一致し、リテラルは `literal[1]/{service}` で `literal1` を返さないことを確認する。`dystopia/{service}/aws` に environment=production の既知値を渡しても実在するパスを返すことを確認する。`Dir.glob` が `Errno::EACCES` を返した場合は、そのエラーが呼び出し側へ届くことを確認する。
 
-- [ ] **Step 2: Confirm the directory tests fail**
+- [x] **Step 2: Confirm the directory tests fail**
 
 Run: `bundle exec rspec spec/shared/infrastructure/file_system_client_spec.rb`
 
 Expected: `resolve_directories` と `repository_root` の未実装による FAIL。
 
-- [ ] **Step 3: Implement exact directory resolution**
+- [x] **Step 3: Implement exact directory resolution**
 
 既存の未使用 `find_directories(pattern)` を置き換え、上記2メソッドを公開する。glob はリテラルを escape し、placeholder だけを候補列挙用の `*` にする。`Dir.glob(..., base: repository_root)` の結果を、実在ディレクトリ・`PatternMatcher.extract`・既知値の一致で絞る。繰り返した placeholder の一致は `PatternMatcher` に任せる。
 
 `spec_helper` の全 example に対する test-service/demo の `File.directory?` mock を削除する。各 spec に必要なディレクトリを作り、通常ファイルがディレクトリとして誤認されないことをテストする。Git diff の既存処理は変更しない。
 
-- [ ] **Step 4: Confirm the directory tests pass**
+- [x] **Step 4: Confirm the directory tests pass**
 
 Step 2 と同じコマンドを実行する。Expected: exit 0、`0 failures`。実在しないディレクトリの戻り値が `[]`、列挙エラーが例外であることを確認して完了とする。
 
-- [ ] **Step 5: Commit directory resolution**
+- [x] **Step 5: Commit directory resolution**
 
 Files の変更を stage して `git diff --cached --check` を実行する。
 

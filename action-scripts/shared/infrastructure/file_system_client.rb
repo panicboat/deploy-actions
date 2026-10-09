@@ -29,6 +29,40 @@ module Infrastructure
       get_current_changes(git_dir)
     end
 
+    def repository_root(start_path: __dir__)
+      source_path = ENV['SOURCE_REPO_PATH']
+      if source_path && !source_path.empty?
+        root = File.expand_path(source_path, start_path)
+        git_path = File.join(root, '.git')
+        return root if File.directory?(root) && (File.directory?(git_path) || File.file?(git_path))
+      end
+
+      # FALLBACK: Local commands use the enclosing checkout when SOURCE_REPO_PATH does not identify a repository.
+      current = File.expand_path(start_path)
+      loop do
+        git_path = File.join(current, '.git')
+        return current if File.directory?(git_path) || File.file?(git_path)
+        parent = File.dirname(current)
+        break if parent == current
+        current = parent
+      end
+      raise "Could not find repository root starting from #{start_path}"
+    end
+
+    def resolve_directories(pattern:, values: {})
+      root = repository_root
+      placeholders = Entities::PatternMatcher.placeholders(pattern)
+      glob = pattern.gsub(/#{Entities::PatternMatcher::PLACEHOLDER_REGEX.source}|[\\*?\[\]{}]/) do |token|
+        token.match?(/\A#{Entities::PatternMatcher::PLACEHOLDER_REGEX.source}\z/) ? '*' : "\\#{token}"
+      end
+      Dir.glob(glob, base: root).sort.filter_map do |path|
+        next unless File.directory?(File.join(root, path))
+        captures = Entities::PatternMatcher.extract(pattern, path)
+        next unless captures && placeholders.all? { |key| !values.key?(key) || captures[key] == values[key] }
+        { working_directory: path, captures: captures }
+      end
+    end
+
     private
 
     # Get the source repository path for composite actions
@@ -81,12 +115,6 @@ module Infrastructure
     def file_exists?(path)
       File.exist?(path)
     end
-
-    # Get all directories matching a pattern
-    def find_directories(pattern)
-      Dir.glob(pattern).select { |path| File.directory?(path) }
-    end
-
 
     # Check if git repository is clean
     def git_clean?
