@@ -470,7 +470,7 @@ Files の変更を指定して stage し、`git diff --cached --check` を実行
 
 Run: `git commit -s -m 'feat: expose stack configuration through config commands'`
 
-- [ ] **Step 11: Publish the branch as a Draft PR**
+- [x] **Step 11: Publish the branch as a Draft PR**
 
 `superpowers:verification-before-completion` を適用して、コミット内容と検証結果を確認する。新規ブランチなら `git push -u origin HEAD`、追跡済みなら `git push` を実行する。既存 Draft PR を継続する場合は設計と実装をレビューできる説明へ更新し、新規 PR なら `gh pr create --draft` を使う。PR が Draft、タイトルが英語、変更ファイルと検証結果が確認できる時点で完了とする。
 
