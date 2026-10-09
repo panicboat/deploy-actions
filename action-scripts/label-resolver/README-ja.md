@@ -4,11 +4,11 @@
 
 PR ラベルを明示的な環境指定を使って GitHub Actions 自動化のためのデプロイメントターゲットに変換する Ruby ベースのデプロイメント解決ツールです。
 
-## 概要
+## Overview
 
 Label Resolver は PR ラベルを分析し、指定された環境に対するデプロイメントターゲットを生成します。デプロイメントの安全性を検証し、マルチサービスデプロイメント用のデプロイメントマトリクスを作成し、デプロイメント自動化の意思決定の中心的なオーケストレーターとして機能します。
 
-## 機能
+## Features
 
 - **ラベル解決**: PR 情報からデプロイメントラベルを抽出
 - **明示的環境指定**: ブランチ依存なしの直接的な環境指定
@@ -16,11 +16,11 @@ Label Resolver は PR ラベルを分析し、指定された環境に対する�
 - **マトリクス生成**: 並列実行用のデプロイメントマトリクス作成
 - **GitHub Actions 統合**: GitHub Actions ワークフローとのシームレスな統合
 
-## 使用方法
+## Usage
 
 Label Resolver は `bin/resolver` を通じて CLI インターフェースを提供します：
 
-### 基本コマンド
+### Commands
 
 ```bash
 # 特定の環境に対する PR ラベルからのデプロイメント解決
@@ -44,7 +44,7 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 - 複数環境: `develop,staging` (カンマ区切り)
 - 全環境: 環境一覧パラメータを省略
 
-### 使用例
+### Examples
 
 ```bash
 # develop 環境のデプロイメント解決
@@ -60,7 +60,7 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 ./bin/resolver resolve 123
 ```
 
-### ワークフロー統合
+### Workflow Integration
 
 リゾルバーは通常 GitHub Actions ワークフローから呼び出されます：
 
@@ -69,18 +69,18 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 - name: デプロイメントターゲットの解決
   uses: panicboat/deploy-actions/label-resolver@v1
   with:
-    pr_number: ${{ github.event.pull_request.number }}
-    target_environments: ${{ inputs.target_environment }}
+    pr-number: ${{ github.event.pull_request.number }}
+    environments: ${{ inputs.target_environment }}
 
 # 複数環境デプロイメント
 - name: デプロイメントターゲットの解決
   uses: panicboat/deploy-actions/label-resolver@v1
   with:
-    pr_number: ${{ github.event.pull_request.number }}
-    target_environments: "develop,staging"
+    pr-number: ${{ github.event.pull_request.number }}
+    environments: "develop,staging"
 ```
 
-### 環境変数
+### Environment Variables
 
 リゾルバーは GitHub Actions 用に以下の環境変数を設定します：
 
@@ -90,7 +90,7 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 - `SAFETY_STATUS`: 安全性検証の結果
 - `MERGED_PR_NUMBER`: デプロイメント追跡用の PR 番号
 
-### Action 出力
+### Action Outputs
 
 リゾルバーは以下の GitHub Actions 出力を提供します：
 
@@ -98,9 +98,9 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 - `has-targets`: ターゲットが存在するかを示すブール値 (`true`/`false`)
 - `safety-status`: 安全性検証の結果 (`passed`/`failed`)
 
-## アーキテクチャ
+## Architecture
 
-### コンポーネント
+### Components
 
 - **LabelResolverController**: メインオーケストレーションロジック
 - **DetermineTargetEnvironment**: 複数環境検証
@@ -108,7 +108,7 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 - **ValidateDeploymentSafety**: 安全性チェック（現在簡素化）
 - **GenerateMatrix**: 複数環境用デプロイメントマトリクス生成
 
-### フロー
+### Flow
 
 1. **ラベル抽出**: PR からデプロイラベルを取得
 2. **環境検証**: 全ての対象環境が存在することを検証
@@ -116,56 +116,20 @@ bundle exec ruby label-resolver/bin/resolver debug PR番号 [環境一覧]
 4. **マトリクス生成**: ディレクトリ構造に基づいて全環境のデプロイメントターゲットを作成
 5. **出力生成**: 簡素化された出力で GitHub Actions 用に結果をフォーマット
 
-## 設定
+## Configuration
 
-リゾルバーは設定に `workflow-config.yaml` を使用します：
+設定仕様と matrix の形式はルートの [Configuration](../../README.md#configuration) と [Matrix Output](../../README.md#matrix-output) を参照してください。
 
-```yaml
-environments:
-  - environment: develop
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-  - environment: staging
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/staging-plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/staging-apply-role
-
-  - environment: production
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
-
-stack_conventions:
-  - root: "{service}"
-    stacks:
-      - name: aws
-        id: primary
-        directory: "aws/{environment}"
-        targets: ["develop", "staging", "production"]
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-        targets: ["develop", "staging", "production"]
-
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "手動デプロイメントが必要"
-      type: "permanent"
-```
-
-## デプロイラベル
+## Deploy Labels
 
 システムは `deploy:service` 形式のラベルを認識します：
 
 - `deploy:auth` - auth サービスをデプロイ
 - `deploy:api` - api サービスをデプロイ
 - `deploy:frontend` - frontend サービスをデプロイ
-- `deploy:all` - 除外されていない全サービスをデプロイ
+- `deploy:all` - 実在する全サービスの対象を解決
 
-## 環境指定
+## Environment Targeting
 
 **トランクベース開発**: リゾルバーはブランチベースマッピングではなく明示的な環境指定を使用：
 
@@ -174,41 +138,29 @@ services:
 - 設定で定義された任意のデプロイメント環境をサポート
 - 複数環境への同時デプロイメントが可能
 
-## ディレクトリ構造検出
+## Target Resolution
 
-リゾルバーはディレクトリの存在確認により利用可能なスタックを自動検出します：
+環境選択、実在ディレクトリの列挙、除外、失敗条件は [Target Resolution](README.md#target-resolution) を参照してください。
 
-```
-{service}/
-├── aws/{environment}/                  # IaC スタック
-└── kubernetes/overlays/{environment}/  # Kubernetes スタック
-```
-
-実際に存在するディレクトリのみがデプロイメントマトリクスに含まれます。
-
-オプションの `id` は stack インスタンスを識別します。識別子は `id || name` で決まり、
-1つの convention 内で一意でなければなりません。同じ `name` でも異なる `id` を持つ
-2つのエントリは、別々のターゲットとして生成されます。
-
-## エラーハンドリング
+## Error Handling
 
 リゾルバーは包括的なエラーハンドリングを提供します：
 
 - **無効な環境**: 対象環境が存在しない場合の明確なエラー
 - **ラベル不足**: デプロイラベルのない PR の適切な処理
 - **設定エラー**: ワークフロー設定の詳細な検証
-- **ディレクトリ検出**: デプロイメントディレクトリ不足の警告
+- **Directory Detection**: 存在しないパスは正常な空の結果
 
-## 開発
+## Development
 
-### テスト実行
+### Running Tests
 
 ```bash
 cd action-scripts
 bundle exec rspec spec/label-resolver/
 ```
 
-### ローカルテスト
+### Local Testing
 
 ```bash
 # 環境設定

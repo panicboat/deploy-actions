@@ -10,4 +10,19 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
   it 'accepts only the dispatch result fields' do
     expect(described_class.instance_method(:present_label_dispatch_result).parameters.map(&:last)).to eq(%i[deploy_labels labels_added labels_removed changed_files])
   end
+  it 'shows each stack identity with all paths generic attributes and exclusion conditions' do
+    config = Entities::WorkflowConfig.new('stacks' => [
+      { 'name' => 'terragrunt', 'id' => 'aws', 'paths' => ['dystopia/{service}/aws', 'system-components/{service}/aws'], 'environments' => { 'develop' => { 'token' => nil } }, 'exclude' => [{ 'service' => 'demo' }] },
+      { 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => { 'repository' => 'registry.example.com' } }
+    ])
+    expect { described_class.new.present_config_details(config: config) }.to output(/Stack 'aws'.*dystopia.*system-components.*develop.*token.*exclude.*demo.*Stack 'container'.*repository.*registry.example.com/m).to_stdout
+  end
+
+  it 'shows complete diagnostic targets and their exclusion status' do
+    target = Entities::DeploymentTarget.new(service: 'demo', stack: 'terragrunt', stack_id: 'aws', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }, attributes: { 'token' => nil })
+    expect do
+      described_class.new.present_service_test_result(service_name: 'demo', matches: [{ target: target, excluded: true }])
+    end.to output(/stack_id: "aws".*working_directory: "teams\/platform\/demo\/aws".*token: nil.*team: "platform".*excluded: true/m).to_stdout
+  end
+
 end

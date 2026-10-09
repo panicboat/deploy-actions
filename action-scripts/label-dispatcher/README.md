@@ -13,7 +13,7 @@ The Label Dispatcher analyzes file changes in pull requests, detects affected se
 - **Change Detection**: Analyze Git diffs to identify modified files
 - **Service Mapping**: Map file changes to service deployments
 - **Label Management**: Automatically add/remove deployment labels on PRs
-- **Exclusion Support**: Handle services excluded from automation
+- **Exclusion Support**: stack ごとの照合条件で除外
 - **GitHub Integration**: Seamless PR label management
 - **Directory Conventions**: Flexible service directory detection
 - **Deployment Strategy Agnostic**: Works with any branching strategy or development workflow
@@ -66,67 +66,15 @@ The dispatcher sets the following environment variables for GitHub Actions:
 - `LABELS_REMOVED`: JSON array of labels that were removed
 - `HAS_CHANGES`: Boolean indicating if changes were detected
 
-## Core Logic
+## Change Matching
 
-### 1. Change Detection
+変更ファイルを定義された stack のパスに照合し、サービス・環境・任意 placeholder を抽出します。パスに環境名がない場合は、その stack の定義環境ごとに評価します。環境共通の stack は environment が null の照合として扱います。
 
-Analyzes Git differences to identify modified files:
-- Compares base and head commits
-- Identifies added, modified, and deleted files
-- Filters out non-deployment relevant changes
-- Supports both API-based and Git-based detection
-
-### 2. Service Mapping
-
-Maps file changes to service deployments:
-- Uses directory conventions to identify services
-- Supports both default and custom directory patterns
-- Handles multiple deployment stacks (Terragrunt, Kubernetes)
-- Applies service-specific configuration overrides
-
-### 3. Label Management
-
-Automatically manages PR labels:
-- Adds `deploy:service-name` labels for changed services
-- Removes labels for services no longer changed
-- Maintains label consistency across PR updates
-- Supports batch label operations
-
-### 4. Exclusion Handling
-
-Manages services excluded from automation:
-- Identifies excluded services from configuration
-- Provides exclusion reason and type information
-- Supports temporary and permanent exclusions
+各照合に除外条件を適用し、除外されない照合が一つでもあるサービスを一度だけラベル対象にします。サービス全体のディレクトリを検出対象にする場合は、そのパスも stack に定義します。削除されたファイルも照合するため、ディレクトリの存在は要求しません。
 
 ## Configuration
 
-The dispatcher uses `workflow-config.yaml` for configuration:
-
-```yaml
-# Directory conventions for service detection (hierarchical structure)
-stack_conventions:
-  - root: "{service}"
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-
-# Service-specific configurations
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "Manual deployment required due to special requirements"
-      type: "permanent"
-
-  - name: legacy-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "Migration in progress"
-      type: "temporary"
-```
+設定仕様はルートの [Configuration](../../README.md#configuration) を参照してください。
 
 ## Architecture
 
@@ -151,23 +99,9 @@ The Label Dispatcher follows a clean architecture pattern:
 - `GITHUB_ACTIONS`: Enables GitHub Actions output format
 - `WORKFLOW_CONFIG_PATH`: Path to configuration file (optional, defaults to workflow-config.yaml)
 
-## Service Detection Logic
+## Detection Results
 
-The dispatcher uses the following logic to detect services:
-
-1. **File Analysis**: Examine changed files in the PR
-2. **Pattern Matching**: Match file paths against directory conventions
-3. **Service Extraction**: Extract service names from matched patterns
-4. **Configuration Lookup**: Apply service-specific configurations
-5. **Exclusion Filtering**: Remove excluded services from results
-
-### Example Detection
-
-For a file change in `services/auth/aws/develop/main.tf`:
-- Matches pattern: `services/{service}/aws/{environment}`
-- Extracts service: `auth`
-- Applies configuration for `auth` service
-- Adds label: `deploy:auth`
+検出結果にはラベル、変更ファイル、対象サービスを含みます。GitHub Actions では `deploy-labels`、`labels-added`、`labels-removed`、`services-detected`、`has-changes` を出力します。除外状態の確認には [Service Diagnosis](../config-manager/README.md#service-diagnosis) を使います。
 
 ## Error Handling
 
@@ -223,5 +157,5 @@ The dispatcher uses standardized label formats:
 - **Change Validation**: Ensures only relevant changes trigger deployments
 - **Configuration Validation**: Validates configuration before processing
 - **Permission Checks**: Verifies GitHub token permissions
-- **Exclusion Respect**: Honors service exclusion configurations
+- **Exclusion Respect**: 各照合の除外条件を適用
 - **Audit Trail**: Logs all label operations for troubleshooting

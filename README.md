@@ -12,14 +12,7 @@ Deploy Actions converts file changes into deployment labels and converts those l
 
 ### 1. Config Manager (`action-scripts/config-manager/`)
 
-Validates and manages the `workflow-config.yaml` that defines environments, services, and directory conventions.
-
-**Highlights:**
-
-- Configuration validation with detailed error reporting
-- Environment and service management
-- Directory-convention validation
-- Template generation
+`workflow-config.yaml` の stack 定義を検証し、設定表示・環境一覧・実在ディレクトリのサービス診断・テンプレート生成を提供します。
 
 ### 2. Label Dispatcher (`label-dispatcher/`)
 
@@ -34,12 +27,12 @@ Detects file changes from a PR and creates `deploy:<service>` labels for affecte
 
 ### 3. Label Resolver (`label-resolver/`)
 
-Translates `deploy:<service>` labels and branch context into a deployment-target matrix that downstream actions consume.
+`deploy:<service>` ラベルと指定環境から、後続 Action が使う matrix を生成します。
 
 **Highlights:**
 
 - Label-to-target resolution
-- Environment detection from branch
+- 定義された環境からの対象選択
 - Deployment-matrix generation
 - Safety validation
 
@@ -68,58 +61,65 @@ Translates `deploy:<service>` labels and branch context into a deployment-target
 
 ## Configuration
 
-The toolkit reads `workflow-config.yaml`:
+`workflow-config.yaml` のトップレベルには、空でない `stacks` 配列を定義します。同じ stack のパス、環境属性、除外条件を一つの定義で管理します。
 
 ```yaml
-environments:
-  - environment: develop
-    stacks:
-      aws:
+stacks:
+  - name: terragrunt
+    id: aws
+    paths:
+      - "dystopia/{service}/aws/{environment}"
+      - "system-components/{service}/infrastructure/aws/{environment}"
+      - "teams/{team}/{service}/aws/{environment}"
+    environments:
+      develop:
         aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-        iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-stack_conventions:
-  - root: "{service}"          # placeholders other than {service}/{environment}
-                               # are also allowed; their values are emitted as
-                               # top-level keys in matrix output (e.g. {team}).
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "Manual deployment required"
-      type: "permanent"
+      production:
+        aws_region: us-west-2
+    exclude:
+      - service: demo
+        environment: production
+      - team: sandbox
+  - name: container
+    paths:
+      - "dystopia/{service}"
+      - "system-components/{service}"
+    attributes:
+      repository: registry.example.com/app
 ```
 
-See `action-scripts/workflow-config.yaml` for a runnable sample.
+### Stack Definitions
 
-### Multiple instances of the same stack name
+| Field | Requirement | Behavior |
+|---|---|---|
+| `name` | 必須 | stack の種類。属性名やプロバイダーを制限しない |
+| `id` | 任意 | インスタンス識別子。省略時は `name`。設定全体で一意 |
+| `paths` | 必須 | 空でない相対パス配列。全パスに `{service}` が必要 |
+| `environments` | 任意 | 環境名をキー、環境属性を値とする空でないマップ |
+| `attributes` | 任意 | 環境共通の属性。`environments` と併用できない |
+| `exclude` | 任意 | 除外条件の配列。省略時は空配列 |
 
-When a service needs two instances of the same stack (e.g. one Terragrunt
-stack for AWS resources and one for Stripe), give each entry a distinct `id`.
+共有するプロダクトは一つの定義の `paths` に追加します。独立させる場合は、同じ `name` に異なる `id` を付けた別定義にし、それぞれにパスと属性を置きます。
 
-```yaml
-# `id` is optional; when omitted it falls back to `name`. Within a single
-# convention, `id || name` must be unique.
-stack_conventions:
-  - root: "dystopia/{service}"
-    stacks:
-      - name: terragrunt
-        id: aws
-        directory: infrastructure/aws/{environment}
-        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-      - name: terragrunt
-        id: stripe
-        directory: infrastructure/stripe/{environment}
-        required_attributes: [aws_region, iam_role_plan, iam_role_apply]
-```
+`environments` のキーがその stack の環境名です。環境一覧は全 stack の和集合になり、環境指定を省略すると全定義環境が対象になります。各 stack は自身の定義環境だけを生成し、未知の環境指定はエラーになります。属性の値と型はそのまま出力され、環境間の属性キーを揃える必要はありません。
+
+パスに `{environment}` がなくても、`environments` があれば環境ごとの対象になります。同じディレクトリを異なる環境属性で使えます。`environments` がなければ環境共通で、`environment: null` の対象を各ディレクトリにつき一度だけ生成します。この場合の属性は `attributes` から取得し、パスに `{environment}` は指定できません。
+
+### Path Matching
+
+パスはリポジトリルートからの完全な相対パターンです。絶対パスと `..` 要素は拒否し、先頭の `./`、余分な `/`、`.` 要素は正規化します。すべてのパターンに一致する実在ディレクトリを列挙し、存在しないパスは対象を生成しません。サービスの登録は不要です。ドットで始まるサービスは対象外です。
+
+`{team}` などの任意 placeholder を使えます。名前は `[a-z_][a-z0-9_]*`、値はパスの一要素です。同じ名前を繰り返した場合は、すべて同じ値に一致する必要があります。glob の記号はリテラルとして扱います。任意 placeholder と matrix の固定キー、または同じ stack のいずれかの環境属性・共通属性キーが衝突する定義は拒否します。
+
+### Exclusion Conditions
+
+`exclude` の各要素は空でない条件マップです。`service`、`environment`、その stack のいずれかのパスにある任意 placeholder を条件にできます。属性名は条件キーとして使えません。
+
+一つのマップ内は AND、配列内は OR で完全一致を判定します。省略したキーは制約になりません。service のみ、environment のみ、任意 placeholder のみでも指定できます。照合したパスにない抽出値を要求する条件は一致しません。
+
+条件値は空でない文字列で、`/`、`.`、`..` は使えません。service はドットで始められません。環境条件は自身の定義環境だけを指定できます。環境共通 stack では environment の省略または `null` を受け付け、environment 以外の条件値に `null` は使えません。
+
+実行可能な設定例は [workflow-config.yaml](action-scripts/workflow-config.yaml) を参照してください。
 
 ## Workflow integration
 
@@ -169,55 +169,33 @@ The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of thi
 
 ## Matrix Output
 
-`label-resolver` produces a JSON array on `outputs.targets` (and the `DEPLOYMENT_TARGETS` env var). Each matrix item is flat:
+`label-resolver` は `outputs.targets` と環境変数 `DEPLOYMENT_TARGETS` に JSON 配列を出力します。固定キーは次の5個で、属性と任意 placeholder の抽出値を同じ階層に展開します。
 
-| Key | Source | Notes |
-|---|---|---|
-| `service` | Fixed | `deploy:<service>` label |
-| `environment` | Fixed | `null` for environment-agnostic stacks |
-| `stack` | Fixed | e.g. `aws`, `kubernetes` |
-| `stack_id` | Fixed | Instance identity (`id \|\| name`). Equals `stack` when `id` is not set. |
-| `working_directory` | Fixed | Resolved deploy directory |
-| `stack_convention_root` | Fixed | `root` portion of the matched pattern, expanded |
-| (attributes keys) | Dynamic | Everything under `environments[].stacks[stack].*` |
-| (captures keys) | Dynamic | Values of arbitrary `{placeholder}` segments in the matched pattern, excluding `service` / `environment` |
+| Key | Source |
+|---|---|
+| `service` | ラベルまたは `deploy:all` で探索したサービス名 |
+| `environment` | 定義した環境名。環境共通なら `null` |
+| `stack` | stack の `name` |
+| `stack_id` | 確定した `id` |
+| `working_directory` | 実在する対象ディレクトリの相対パス |
+| 属性のキー | 当該環境属性、または共通 `attributes` |
+| 任意 placeholder のキー | 一致したパスの抽出値 |
 
-Example. Given this `workflow-config.yaml`:
-
-```yaml
-environments:
-  - environment: develop
-    stacks:
-      aws:
-        aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-        iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-stack_conventions:
-  - root: "{team}/{service}"
-    stacks:
-      - name: aws
-        directory: "aws/{environment}"
-```
-
-a working directory at `payments/api/aws/develop` resolves to:
+Configuration の例で `teams/payments/api/aws/develop` が存在する場合、次の行を生成します。
 
 ```json
 {
   "service": "api",
   "environment": "develop",
-  "stack": "aws",
+  "stack": "terragrunt",
   "stack_id": "aws",
-  "working_directory": "payments/api/aws/develop",
-  "stack_convention_root": "payments/api",
+  "working_directory": "teams/payments/api/aws/develop",
   "aws_region": "ap-northeast-1",
-  "iam_role_plan": "arn:aws:iam::ACCOUNT:role/plan-role",
-  "iam_role_apply": "arn:aws:iam::ACCOUNT:role/apply-role",
   "team": "payments"
 }
 ```
 
-`aws_region` / `iam_role_plan` / `iam_role_apply` come from `environments[0].stacks.aws` (attributes); `team` comes from the `{team}` placeholder in `root` (captures). Downstream composite actions can reference any key directly, e.g. `${{ matrix.team }}`. Placeholder names that would collide with a fixed key or with any attribute key are rejected at `config-manager validate` time.
+対象の同一性は service・stack_id・environment・working_directory で決まります。同じ対象の重複は一行にまとめます。同じ対象を異なる抽出値マップで解釈するパスは、除外条件や記載順にかかわらずエラーになります。下流では `${{ matrix.team }}` のように任意のキーを参照できます。
 
 ## Development
 

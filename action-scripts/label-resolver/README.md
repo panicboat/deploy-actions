@@ -69,15 +69,15 @@ The resolver is typically called from GitHub Actions workflows:
 - name: Resolve deployment targets
   uses: panicboat/deploy-actions/label-resolver@v1
   with:
-    pr_number: ${{ github.event.pull_request.number }}
-    target_environments: ${{ inputs.target_environment }}
+    pr-number: ${{ github.event.pull_request.number }}
+    environments: ${{ inputs.target_environment }}
 
 # Multiple environment deployment
 - name: Resolve deployment targets
   uses: panicboat/deploy-actions/label-resolver@v1
   with:
-    pr_number: ${{ github.event.pull_request.number }}
-    target_environments: "develop,staging"
+    pr-number: ${{ github.event.pull_request.number }}
+    environments: "develop,staging"
 ```
 
 ### Environment Variables
@@ -118,43 +118,7 @@ The resolver provides the following GitHub Actions outputs:
 
 ## Configuration
 
-The resolver uses `workflow-config.yaml` for configuration:
-
-```yaml
-environments:
-  - environment: develop
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/apply-role
-
-  - environment: staging
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/staging-plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/staging-apply-role
-
-  - environment: production
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::ACCOUNT:role/production-plan-role
-    iam_role_apply: arn:aws:iam::ACCOUNT:role/production-apply-role
-
-stack_conventions:
-  - root: "{service}"
-    stacks:
-      - name: aws
-        id: primary
-        directory: "aws/{environment}"
-        targets: ["develop", "staging", "production"]
-      - name: kubernetes
-        directory: "kubernetes/overlays/{environment}"
-        targets: ["develop", "staging", "production"]
-
-services:
-  - name: excluded-service
-    exclude_from_automation: true
-    exclusion_config:
-      reason: "Manual deployment required"
-      type: "permanent"
-```
+設定仕様と matrix の形式はルートの [Configuration](../../README.md#configuration) と [Matrix Output](../../README.md#matrix-output) を参照してください。
 
 ## Deploy Labels
 
@@ -163,7 +127,7 @@ The system recognizes labels in the format `deploy:service`:
 - `deploy:auth` - Deploy auth service
 - `deploy:api` - Deploy api service
 - `deploy:frontend` - Deploy frontend service
-- `deploy:all` - Deploy all non-excluded services
+- `deploy:all` - 実在する全サービスの対象を解決
 
 ## Environment Targeting
 
@@ -173,21 +137,11 @@ The system recognizes labels in the format `deploy:service`:
 - No dependency on branch names for environment determination
 - Supports any deployment environment defined in configuration
 
-## Directory Structure Detection
+## Target Resolution
 
-The resolver automatically detects available stacks by checking directory existence:
+指定環境を各 stack の定義環境に絞り、全パスの実在ディレクトリを列挙します。環境指定の省略または空白入力は全定義環境を選択します。環境共通の対象は各ディレクトリにつき一度だけ生成します。
 
-```
-{service}/
-├── aws/{environment}/                  # IaC stack
-└── kubernetes/overlays/{environment}/  # Kubernetes stack
-```
-
-Only directories that actually exist will be included in the deployment matrix.
-
-The optional `id` identifies a stack instance; identity is `id || name` and
-must be unique within a convention. Two entries with the same `name` but
-different `id` values produce two separate targets.
+`deploy:all` は設定したパスから全サービスを探索します。除外条件に一致する対象は matrix に含めません。存在しないパスは正常な空の結果になり、未知環境・列挙エラー・抽出値の矛盾は失敗になります。
 
 ## Error Handling
 
@@ -196,7 +150,7 @@ The resolver provides comprehensive error handling:
 - **Invalid Environment**: Clear error when target environment doesn't exist
 - **Missing Labels**: Graceful handling of PRs without deploy labels
 - **Configuration Errors**: Detailed validation of workflow configuration
-- **Directory Detection**: Warnings for missing deployment directories
+- **Directory Detection**: 存在しないパスは正常な空の結果
 
 ## Development
 

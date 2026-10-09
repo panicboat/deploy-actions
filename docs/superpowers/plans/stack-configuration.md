@@ -396,7 +396,7 @@ Run: `git commit -s -m 'feat: apply stack exclusions to changed service matches'
 - Preserves: `#validate_configuration`・`#show_configuration`・`#run_diagnostics`・`#generate_config_template`、presenter の `#present_config_details(config:)` と `#present_config_template(template:)`。
 - Produces: `ConfigManagerCLI#test(service_name, environment = nil)` と `#environments`。`services` と `excluded_services` のコマンドは削除する。
 
-- [ ] **Step 1: Write configuration display and diagnostic tests**
+- [x] **Step 1: Write configuration display and diagnostic tests**
 
 `show_configuration` がそのまま検証済みモデルを presenter へ渡すこと、両 presenter が stack_id ごとに全パス・各環境属性または共通属性・除外条件を表示することをテストする。非 AWS 属性 `repository` と `token` が表示されることを assertion にする。
 
@@ -414,13 +414,13 @@ end
 
 CLI の spec は require 時の自動起動がないこと、environments が和集合を表示すること、削除した2コマンドが Thor の登録コマンドにないことを確認する。テンプレートとリポジトリの sample YAML が同じモデルで検証できるテストを追加する。
 
-- [ ] **Step 2: Confirm the configuration command tests fail**
+- [x] **Step 2: Confirm the configuration command tests fail**
 
 Run: `bundle exec rspec spec/config-manager spec/shared/interfaces/presenters`
 
 Expected: 新しい診断引数、汎用属性の表示、旧コマンドの削除、新形式のテンプレートで FAIL。
 
-- [ ] **Step 3: Implement configuration commands and update their documentation**
+- [x] **Step 3: Implement configuration commands and update their documentation**
 
 Config manager にファイルクライアントを注入する。診断は stack ごとに環境を選択し、各パスを Task 2 のメソッドで解決する。属性・capture を持つ `DeploymentTarget` と Task 1 の除外判定を組にして presenter へ渡す。未知の環境・設定・列挙・capture の矛盾は `present_error` へ伝える。
 
@@ -428,31 +428,31 @@ Config manager にファイルクライアントを注入する。診断は stac
 
 sample と README の設定例・matrix 出力・除外説明・コマンド例を変更する。設定スキーマと matrix の説明は root README を参照先とし、各 component README には担当するコマンドとその結果を記載する。本文を同じ媒体間で複製せず、新しい見出しを英語・新しい本文を日本語にする。現在の仕様として示す旧形式の例、旧コマンド、旧 root 出力を残さない。履歴文書は変更しない。
 
-- [ ] **Step 4: Confirm configuration command tests pass**
+- [x] **Step 4: Confirm configuration command tests pass**
 
 Run: `bundle exec rspec spec/config-manager spec/shared/interfaces/presenters`
 
 Expected: exit 0、`0 failures`。
 
-- [ ] **Step 5: Confirm the complete suite passes**
+- [x] **Step 5: Confirm the complete suite passes**
 
 Run: `bundle exec rspec`
 
 Expected: exit 0、`0 failures`。
 
-- [ ] **Step 6: Validate the sample configuration through the CLI**
+- [x] **Step 6: Validate the sample configuration through the CLI**
 
 Run: `bundle exec ruby config-manager/bin/config-manager validate`
 
 Expected: exit 0、`Configuration is valid` と新モデルの stack・環境数のサマリー。
 
-- [ ] **Step 7: Confirm stack configuration display through the CLI**
+- [x] **Step 7: Confirm stack configuration display through the CLI**
 
 Run: `bundle exec ruby config-manager/bin/config-manager show`
 
 Expected: exit 0、各 stack のパス・属性・除外条件を表示する。
 
-- [ ] **Step 8: Review removal scope and added comments**
+- [x] **Step 8: Review removal scope and added comments**
 
 リポジトリルートで次を実行し、旧モデルに依存する製品コード・fixture・現在の設定例が検索結果に残っていないことを確認する。旧形式を拒否するテスト入力は残してよい。`rg` の exit 1 は該当なしを表す。
 
@@ -460,7 +460,7 @@ Run: `rg -n 'stack_conventions|stack_convention_root|directory_stacks|required_a
 
 `git diff` に現れた追加・変更コメントをすべて AGENTS.md の Content Rules と照合し、複数行・自明な説明・タスクへの言及を削除する。Files 外の変更がないことを確認し、`git diff --check` が exit 0 であることを完了条件にする。
 
-- [ ] **Step 9: Review the implementation**
+- [x] **Step 9: Review the implementation**
 
 `superpowers:requesting-code-review` を適用し、計画と設計書の要件、除外判定、全利用側の旧モデル削除をレビューする。指摘を解消し、変更した箇所に必要な検証を再実行した時点で完了とする。
 

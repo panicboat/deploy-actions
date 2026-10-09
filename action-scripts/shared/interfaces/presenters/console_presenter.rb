@@ -83,30 +83,22 @@ module Interfaces
         end
       end
 
-      # Present configuration details
       def present_config_details(config:)
-        puts "📋 Workflow Configuration".colorize(:blue)
-        puts "Environments: #{config.environments.keys.join(', ')}"
-        puts "Services: #{config.services.keys.join(', ')}"
-
-        puts "\nDirectory Conventions:"
-        config.stack_conventions.each do |convention|
-          root = convention['root']
-          (convention['stacks'] || []).each do |stack|
-            puts "  #{stack['name']}: #{root}/#{stack['directory']}"
-          end
+        puts "Workflow Configuration"
+        puts "Environments: #{config.environment_names.join(', ')}"
+        config.stacks.each do |stack|
+          puts "Stack '#{stack['id']}' (#{stack['name']}):"
+          puts stack.to_yaml
         end
       end
 
-      # Present service test results
-      def present_service_test_result(service_name:, environment:, stack_attributes:, service_config:, stack_directories:)
-        puts "🔧 Service Configuration Test".colorize(:blue)
+      def present_service_test_result(service_name:, matches:)
+        puts "Service Configuration Test"
         puts "Service: #{service_name}"
-        puts "Environment: #{environment}"
-        stack_directories.each do |stack_name, directory|
-          puts "Stack '#{stack_name}':"
-          puts "  directory: #{directory}"
-          (stack_attributes[stack_name] || {}).each { |key, value| puts "  #{key}: #{value}" }
+        matches.each do |match|
+          puts "Target:"
+          match.fetch(:target).to_matrix_item.each { |key, value| puts "  #{key}: #{value.inspect}" }
+          puts "  excluded: #{match.fetch(:excluded)}"
         end
       end
 
