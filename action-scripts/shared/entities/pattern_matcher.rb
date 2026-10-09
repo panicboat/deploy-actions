@@ -41,11 +41,10 @@ module Entities
       match_to_hash(regex.match(path), pattern)
     end
 
-    # Like extract, but only requires the pattern to match the prefix of path.
-    # Path may carry additional "/"-separated segments after the pattern.
+    # Like extract, but path must carry at least one "/"-separated segment after the pattern.
     def self.extract_prefix(pattern, path)
       return nil if pattern.nil? || path.nil?
-      regex = Regexp.new("\\A#{compile_regex_body(pattern)}(?:/.*)?\\z")
+      regex = Regexp.new("\\A#{compile_regex_body(pattern)}/.+\\z")
       match_to_hash(regex.match(path), pattern)
     end
 

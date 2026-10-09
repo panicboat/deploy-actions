@@ -86,7 +86,7 @@ The dispatcher sets the following environment variables for GitHub Actions:
 
 ## Change Matching
 
-Matches changed files against configured stack paths and extracts services, environments, and arbitrary placeholders. A stack with `environments` accepts only its declared names; a path without an environment name is evaluated for each declared environment. A stack with neither attribute map uses the environment captured from the changed path. A stack with `attributes` is evaluated with `environment: null`.
+Matches changed files against configured stack paths and extracts services, environments, and arbitrary placeholders. A stack path resolves to a directory, so a changed file matches only when it is located under that directory; a file whose own path equals the resolved path is ignored. A stack with `environments` accepts only its declared names; a path without an environment name is evaluated for each declared environment. A stack with neither attribute map uses the environment captured from the changed path. A stack with `attributes` is evaluated with `environment: null`.
 
 Applies exclusion conditions to each match. A service receives one label if at least one match is not excluded. To detect changes throughout a service directory, include that path in a stack definition. Directories need not exist because deleted files are also matched.
 
