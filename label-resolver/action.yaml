@@ -77,35 +77,22 @@ runs:
         WORKFLOW_CONFIG_PATH: ${{ github.workspace }}/source-repo/${{ inputs.config-path }}
         SOURCE_REPO_PATH: ${{ github.workspace }}/source-repo
 
-    - name: Parse deployment outputs
-      id: parse
+    - name: Report results
+      if: always()
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       env:
+        REPOSITORY: ${{ inputs.repository }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        TARGET_ENVIRONMENTS: ${{ inputs.environments }}
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
         HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
         SAFETY_STATUS: ${{ steps.extract.outputs.safety-status }}
       with:
         script: |
-          const path = require('path');
-          const parseOutputs = require(path.join(process.env.GITHUB_ACTION_PATH, 'parse-deployment-outputs.js'));
-          await parseOutputs({ core, context });
-
-    - name: Report results
-      if: always()
-      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-      with:
-        script: |
-          const path = require('path');
-          const reportResults = require(path.join(process.env.GITHUB_ACTION_PATH, 'report-results.js'));
-          await reportResults({
-            core,
-            inputs: ${{ toJSON(inputs) }},
-            steps: {
-              extract: {
-                outputs: {
-                  'has-targets': '${{ steps.extract.outputs.has-targets }}',
-                  'safety-status': '${{ steps.extract.outputs.safety-status }}'
-                }
-              }
-            }
-          });
+          core.info('📊 Label Resolver completed');
+          core.info(`Repository: ${process.env.REPOSITORY}`);
+          core.info(`PR Number: ${process.env.PR_NUMBER}`);
+          core.info(`Target Environments: ${process.env.TARGET_ENVIRONMENTS || 'all'}`);
+          core.info(`Deployment Targets: ${process.env.DEPLOYMENT_TARGETS || '[]'}`);
+          core.info(`Has Targets: ${process.env.HAS_TARGETS || 'false'}`);
+          core.info(`Safety Status: ${process.env.SAFETY_STATUS || 'unknown'}`);

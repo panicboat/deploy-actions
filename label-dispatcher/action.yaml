@@ -79,8 +79,12 @@ runs:
     - name: Report results
       if: always()
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        REPOSITORY: ${{ inputs.repository }}
+        PR_NUMBER: ${{ inputs.pr-number }}
       with:
         script: |
-          const path = require('path');
-          const reportResults = require(path.join(process.env.GITHUB_ACTION_PATH, 'report-results.js'));
-          await reportResults({ core, context, inputs: ${{ toJSON(inputs) }} });
+          core.info('📊 Label dispatch completed');
+          core.info(`Repository: ${process.env.REPOSITORY}`);
+          core.info(`PR Number: ${process.env.PR_NUMBER}`);
+          core.info(`Status: ${context.job.status || 'unknown'}`);
