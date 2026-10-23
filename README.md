@@ -186,7 +186,7 @@ jobs:
 
 Pass `${{ steps.resolve.outputs.targets }}` to your deployment step.
 
-The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of this repository — the maintainer's personal wrappers live at [`panicboat/panicboat-actions`](https://github.com/panicboat/panicboat-actions).
+The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of this repository.
 
 ## Matrix Output
 
