@@ -186,7 +186,7 @@ jobs:
 
 `${{ steps.resolve.outputs.targets }}` を利用側のデプロイ処理に渡します。
 
-実行レイヤ（`aws`, `kubernetes` など）は意図的に本リポジトリから除外しています。メンテナーの個人用 wrapper は [`panicboat/panicboat-actions`](https://github.com/panicboat/panicboat-actions) にあります。
+実行レイヤ（`aws`, `kubernetes` など）は意図的に本リポジトリから除外しています。
 
 ## matrix 出力
 
