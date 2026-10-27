@@ -163,6 +163,8 @@ bundle exec ruby label-resolver/bin/resolver resolve 123
 - `deploy:frontend` - frontend サービスをデプロイ
 - `deploy:all` - 実在する全サービスの対象を解決
 
+prefix と追加の prefix は設定で変更できます。ルートの [Labels](../../README-ja.md#labels) を参照してください。
+
 ## 環境の指定
 
 **トランクベース開発**: リゾルバーはブランチベースマッピングではなく明示的な環境指定を使用：

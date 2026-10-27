@@ -1,12 +1,16 @@
 # Deploy label entity representing deployment target information
-# Simplified to service-only labels (deploy:service)
+# Service-only labels in the form <prefix><service>
 
 module Entities
   class DeployLabel
-    attr_reader :service
+    DEFAULT_PREFIX = 'deploy:'.freeze
+    SERVICE_PATTERN = /\A[a-zA-Z0-9\-_]+\z/
 
-    def initialize(label_string)
+    attr_reader :service, :prefix
+
+    def initialize(label_string, prefixes: [DEFAULT_PREFIX])
       @raw_label = label_string
+      @prefixes = prefixes
       parse_label!
     end
 
@@ -26,14 +30,14 @@ module Entities
     end
 
     # Factory method to create deploy label from service name
-    def self.from_service(service:)
-      new("deploy:#{service}")
+    def self.from_service(service:, prefix: DEFAULT_PREFIX)
+      new("#{prefix}#{service}", prefixes: [prefix])
     end
 
     # Convert to string representation
     def to_s
       if service
-        "deploy:#{service}"
+        "#{prefix}#{service}"
       else
         @raw_label
       end
@@ -41,7 +45,7 @@ module Entities
 
     # Check if the deploy label is valid
     def valid?
-      !service.nil? && service.match?(/\A[a-zA-Z0-9\-_]+\z/)
+      !service.nil? && service.match?(SERVICE_PATTERN)
     end
 
     # Equality comparison
@@ -64,11 +68,10 @@ module Entities
     def parse_label!
       return unless @raw_label
 
-      parts = @raw_label.split(':')
-
-      return unless parts.length == 2 && parts[0] == 'deploy'
-
-      @service = parts[1] if parts[1].match?(/\A[a-zA-Z0-9\-_]+\z/)
+      @prefix = @prefixes.find do |prefix|
+        @raw_label.start_with?(prefix) && @raw_label.delete_prefix(prefix).match?(SERVICE_PATTERN)
+      end
+      @service = @raw_label.delete_prefix(@prefix) if @prefix
     end
   end
 end

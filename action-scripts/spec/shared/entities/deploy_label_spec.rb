@@ -307,4 +307,33 @@ RSpec.describe Entities::DeployLabel do
       end
     end
   end
+
+  describe 'prefixes' do
+    let(:prefixes) { ['env:prod:', 'manual/'] }
+
+    it 'extracts the service after any configured prefix' do
+      expect(described_class.new('env:prod:api', prefixes: prefixes).service).to eq('api')
+      expect(described_class.new('manual/all', prefixes: prefixes)).to be_deploy_all
+    end
+
+    it 'keeps the matched prefix in its string representation' do
+      label = described_class.new('manual/api', prefixes: prefixes)
+      expect(label.prefix).to eq('manual/')
+      expect(label.to_s).to eq('manual/api')
+    end
+
+    it 'treats labels with the same service and different prefixes as equal' do
+      expect(described_class.new('env:prod:api', prefixes: prefixes)).to eq(described_class.new('manual/api', prefixes: prefixes))
+    end
+
+    ['deploy:api', 'manual/', 'manual/a/b', 'env:prod:a:b'].each do |label_string|
+      it "rejects #{label_string.inspect}" do
+        expect(described_class.new(label_string, prefixes: prefixes)).not_to be_valid
+      end
+    end
+
+    it 'builds a label from a service with the given prefix' do
+      expect(described_class.from_service(service: 'api', prefix: 'release-').to_s).to eq('release-api')
+    end
+  end
 end

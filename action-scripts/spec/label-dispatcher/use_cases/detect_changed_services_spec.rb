@@ -127,4 +127,10 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     allow(file_client).to receive(:get_changed_files).and_raise('git error')
     expect(use_case.execute.error_message).to include('git error')
   end
+
+  it 'builds labels with the configured prefix' do
+    config_hash['labels'] = { 'prefix' => 'release/' }
+    changed_files.replace(['teams/platform/demo/aws/develop/main.tf'])
+    expect(use_case.execute.deploy_labels.map(&:to_s)).to eq(['release/demo'])
+  end
 end
