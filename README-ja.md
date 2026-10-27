@@ -23,7 +23,7 @@
 
 ### 2. Label Dispatcher (`label-dispatcher/`)
 
-PR の変更ファイルを検出し、変更があったサービスに対して `deploy:<service>` ラベルを付与します。
+PR の変更ファイルを検出し、変更があったサービスに対して `<prefix><service>` ラベル（既定は `deploy:<service>`）を付与します。
 
 **特徴:**
 
@@ -34,7 +34,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 
 ### 3. Label Resolver (`label-resolver/`)
 
-`deploy:<service>` ラベルと指定環境を、後続 Action が利用する matrix に変換します。
+`<prefix><service>` ラベルと指定環境を、後続 Action が利用する matrix に変換します。
 
 **特徴:**
 
@@ -70,7 +70,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 
 ## 設定
 
-`workflow-config.yaml` のトップレベルには、空でない `stacks` 配列を定義します。同じ stack のパス、環境属性、除外条件を一つの定義で管理します。
+`workflow-config.yaml` のトップレベルには、空でない `stacks` 配列を定義します。同じ stack のパス、環境属性、除外条件を一つの定義で管理します。トップレベルの `labels` は省略可能で、ラベルの prefix を指定します。
 
 ```yaml
 stacks:
@@ -140,6 +140,25 @@ stacks:
 
 条件値は空でない文字列で、`/`、`.`、`..` は使えません。service はドットで始められません。`environments` を指定した stack の環境条件は自身の定義環境だけを指定できます。環境を探索する stack では、まだ存在しないディレクトリの環境値も条件にできます。環境共通 stack では environment の省略または `null` を受け付け、environment 以外の条件値に `null` は使えません。条件値はリテラルで、placeholder は展開しません。
 
+### Labels
+
+prefix は区切り文字を含めた文字列をそのまま使います。
+
+```yaml
+labels:
+  prefix: "deploy:"
+  extra_prefixes: ["manual/"]
+```
+
+| フィールド | 指定 | 動作 |
+|---|---|---|
+| `prefix` | 任意 | Label Dispatcher が管理するラベルの prefix。既定は `deploy:` |
+| `extra_prefixes` | 任意 | Label Resolver が追加で読むラベルの prefix の配列。既定は空配列 |
+
+Label Dispatcher は `<prefix><service>` ラベルを付与し、変更に一致しなくなった `prefix` で始まるラベルを外します。`extra_prefixes` で始まるラベルには触れないため、これらの prefix で手動付与したラベルは以降の push でも残ります。Label Resolver は設定したいずれかの prefix で始まるラベルを読み、残りの文字列をサービス名として扱います。異なる prefix で同じサービスが付与されていても一つのサービスとして扱い、どの prefix の `all` も全サービスを対象にします。残りの文字列がサービス名の形式（`[a-zA-Z0-9_-]+`）に一致しないラベルは無視します。
+
+prefix は空でない文字列です。Label Dispatcher が重なった prefix のラベルまで外してしまうため、どの prefix も他の prefix で始まってはいけません。`:` で終わる prefix は YAML で引用符を付けて記述します。
+
 実行可能な設定例は [workflow-config.yaml](action-scripts/workflow-config.yaml) を参照してください。
 
 ## ワークフローへの組み込み
@@ -186,6 +205,8 @@ jobs:
 
 `${{ steps.resolve.outputs.targets }}` を利用側のデプロイ処理に渡します。
 
+`prefix` を変更する場合や `extra_prefixes` を追加する場合は、`if` 条件を設定したすべての prefix に一致するよう更新します（例: `startsWith(github.event.label.name, 'deploy:') || startsWith(github.event.label.name, 'manual/')`）。
+
 実行レイヤ（`aws`, `kubernetes` など）は意図的に本リポジトリから除外しています。
 
 ## matrix 出力
@@ -194,7 +215,7 @@ jobs:
 
 | キー | 出力元 |
 |---|---|
-| `service` | ラベルまたは `deploy:all` で探索したサービス名 |
+| `service` | ラベルまたは `<prefix>all` で探索したサービス名 |
 | `environment` | 定義または探索した環境名。環境共通なら `null` |
 | `stack` | stack の `name` |
 | `stack_id` | 確定した `id` |

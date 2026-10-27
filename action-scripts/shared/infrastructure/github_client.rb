@@ -9,9 +9,9 @@ module Infrastructure
     end
 
     # Get all deploy labels from a PR
-    def get_deploy_labels(pr_number)
+    def get_deploy_labels(pr_number, prefix:)
       labels = @client.labels_for_issue(@repository, pr_number)
-      labels.map(&:name).select { |name| name.start_with?('deploy:') }
+      labels.map(&:name).select { |name| name.start_with?(prefix) }
     rescue Octokit::Error => error
       raise "Failed to get PR labels: #{error.message}"
     end
@@ -21,10 +21,8 @@ module Infrastructure
       pr = @client.pull_request(@repository, pr_number)
       labels = @client.labels_for_issue(@repository, pr_number)
 
-      deploy_labels = labels.map(&:name).select { |name| name.start_with?('deploy:') }
-
       {
-        labels: deploy_labels,
+        labels: labels.map(&:name),
         head_ref: pr.head.ref,
         base_ref: pr.base.ref,
         head_sha: pr.head.sha,
@@ -71,12 +69,8 @@ module Infrastructure
 
     # Determine label color based on environment
     def determine_label_color(label_name)
-      if label_name.include?(':production')
+      if label_name.include?('production')
         'ff0000'  # Red for production
-      elsif label_name.include?(':staging')
-        'ffaa00'  # Orange for staging
-      elsif label_name.include?(':develop')
-        '00aa00'  # Green for develop
       else
         '0052cc'  # Blue for others
       end

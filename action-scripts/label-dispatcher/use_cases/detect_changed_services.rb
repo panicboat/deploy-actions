@@ -42,7 +42,7 @@ module UseCases
           values = candidate.fetch(:captures).merge('service' => candidate.fetch(:service), 'environment' => candidate.fetch(:environment))
           candidate.fetch(:service) unless config.excluded?(candidate.fetch(:stack), values)
         end.uniq
-        labels = services.map { |service| Entities::DeployLabel.from_service(service: service) }
+        labels = services.map { |service| Entities::DeployLabel.from_service(service: service, prefix: config.label_prefix) }
         Entities::Result.success(deploy_labels: labels, changed_files: changed_files, services_detected: services)
       rescue => error
         Entities::Result.failure(error_message: error.message)

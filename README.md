@@ -23,7 +23,7 @@ Validates stack definitions in `workflow-config.yaml` and provides configuration
 
 ### 2. Label Dispatcher (`label-dispatcher/`)
 
-Detects file changes from a PR and creates `deploy:<service>` labels for affected services.
+Detects file changes from a PR and creates `<prefix><service>` labels (`deploy:<service>` by default) for affected services.
 
 **Highlights:**
 
@@ -34,7 +34,7 @@ Detects file changes from a PR and creates `deploy:<service>` labels for affecte
 
 ### 3. Label Resolver (`label-resolver/`)
 
-Generates a matrix for downstream Actions from `deploy:<service>` labels and the selected environments.
+Generates a matrix for downstream Actions from `<prefix><service>` labels and the selected environments.
 
 **Highlights:**
 
@@ -70,7 +70,7 @@ Generates a matrix for downstream Actions from `deploy:<service>` labels and the
 
 ## Configuration
 
-Define a nonempty `stacks` array at the top level of `workflow-config.yaml`. Each stack definition contains its paths, environment attributes, and exclusion conditions.
+Define a nonempty `stacks` array at the top level of `workflow-config.yaml`. Each stack definition contains its paths, environment attributes, and exclusion conditions. The optional top-level `labels` map sets the label prefixes.
 
 ```yaml
 stacks:
@@ -140,6 +140,25 @@ Conditions use exact matching: keys within a map are combined with AND, and entr
 
 Condition values must be nonempty strings representing one path segment; `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. When `environments` is specified, environment conditions can name only the stack's declared environments. For stacks that discover environments, an environment condition may name a directory value that does not yet exist. For stacks shared across environments, `environment` can be omitted or set to `null`; other condition values cannot be `null`. Condition values are literal and do not expand placeholders.
 
+### Labels
+
+Each prefix is used as-is, including its separator.
+
+```yaml
+labels:
+  prefix: "deploy:"
+  extra_prefixes: ["manual/"]
+```
+
+| Field | Requirement | Behavior |
+|---|---|---|
+| `prefix` | Optional | Prefix of the labels managed by Label Dispatcher; defaults to `deploy:` |
+| `extra_prefixes` | Optional | Array of additional prefixes read by Label Resolver; defaults to an empty array |
+
+Label Dispatcher adds `<prefix><service>` labels and removes labels starting with `prefix` that no longer match the changes. It never touches labels starting with an `extra_prefixes` entry, so labels added by hand with those prefixes survive later pushes. Label Resolver reads labels starting with any configured prefix and treats the rest of the label as the service name. The same service labeled with different prefixes yields one service, and `all` with any prefix targets all services. Labels whose remaining text is not a valid service name (`[a-zA-Z0-9_-]+`) are ignored.
+
+Prefixes must be nonempty strings. No prefix may start with another prefix, because Label Dispatcher would remove the labels of the overlapping prefix. Quote prefixes ending with `:` in YAML.
+
 See [workflow-config.yaml](action-scripts/workflow-config.yaml) for a working configuration example.
 
 ## Workflow Integration
@@ -186,6 +205,8 @@ jobs:
 
 Pass `${{ steps.resolve.outputs.targets }}` to your deployment step.
 
+When you change `prefix` or add `extra_prefixes`, update the `if` condition to match every configured prefix, for example `startsWith(github.event.label.name, 'deploy:') || startsWith(github.event.label.name, 'manual/')`.
+
 The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of this repository.
 
 ## Matrix Output
@@ -194,7 +215,7 @@ The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of thi
 
 | Key | Source |
 |---|---|
-| `service` | Service name from a label or discovered through `deploy:all` |
+| `service` | Service name from a label or discovered through `<prefix>all` |
 | `environment` | Declared or discovered environment name, or `null` for a target shared across environments |
 | `stack` | Stack `name` |
 | `stack_id` | Resolved `id` |

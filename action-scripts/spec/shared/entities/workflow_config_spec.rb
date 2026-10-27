@@ -274,4 +274,57 @@ RSpec.describe Entities::WorkflowConfig do
     stack['environments']['production'] = { 'team' => 'platform' }
     expect { config }.to raise_error(ArgumentError, /stacks\[0\].paths\[0\]/)
   end
+
+  describe 'labels' do
+    it 'defaults to the deploy prefix without extra prefixes' do
+      expect(config.label_prefix).to eq('deploy:')
+      expect(config.extra_label_prefixes).to eq([])
+      expect(config.label_prefixes).to eq(['deploy:'])
+    end
+
+    it 'reads the prefix and extra prefixes including their separators' do
+      config_hash['labels'] = { 'prefix' => 'env:prod:', 'extra_prefixes' => ['manual/', 'hotfix-'] }
+      expect(config.label_prefix).to eq('env:prod:')
+      expect(config.extra_label_prefixes).to eq(['manual/', 'hotfix-'])
+      expect(config.label_prefixes).to eq(['env:prod:', 'manual/', 'hotfix-'])
+    end
+
+    it 'rejects the unknown labels field' do
+      config_hash['labels'] = { 'unknown' => 'value' }
+      expect { config }.to raise_error(ArgumentError, /labels.unknown/)
+    end
+
+    [nil, [], 'deploy:'].each do |value|
+      it "rejects invalid labels structure #{value.inspect}" do
+        config_hash['labels'] = value
+        expect { config }.to raise_error(ArgumentError, /labels/)
+      end
+    end
+
+    [nil, '', 1].each do |value|
+      it "rejects invalid prefix #{value.inspect}" do
+        config_hash['labels'] = { 'prefix' => value }
+        expect { config }.to raise_error(ArgumentError, /labels.prefix/)
+      end
+    end
+
+    [nil, 'manual/', {}, [nil], [''], [1]].each do |value|
+      it "rejects invalid extra prefixes #{value.inspect}" do
+        config_hash['labels'] = { 'extra_prefixes' => value }
+        expect { config }.to raise_error(ArgumentError, /labels.extra_prefixes/)
+      end
+    end
+
+    {
+      'a duplicate of the prefix' => { 'extra_prefixes' => ['deploy:'] },
+      'duplicate extra prefixes' => { 'extra_prefixes' => ['manual/', 'manual/'] },
+      'an extra prefix starting with the prefix' => { 'extra_prefixes' => ['deploy:manual:'] },
+      'a prefix starting with an extra prefix' => { 'prefix' => 'deploy-manual-', 'extra_prefixes' => ['deploy-'] }
+    }.each do |description, labels|
+      it "rejects #{description}" do
+        config_hash['labels'] = labels
+        expect { config }.to raise_error(ArgumentError, /labels: .*overlaps/)
+      end
+    end
+  end
 end

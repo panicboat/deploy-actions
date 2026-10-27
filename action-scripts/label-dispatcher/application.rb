@@ -49,7 +49,8 @@ class LabelDispatcherContainer
 
     if container[:github_client]
       container[:manage_labels] = UseCases::LabelManagement::ManageLabels.new(
-        github_client: container[:github_client]
+        github_client: container[:github_client],
+        config_client: container[:config_client]
       )
     end
 

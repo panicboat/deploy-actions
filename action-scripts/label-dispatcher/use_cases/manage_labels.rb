@@ -6,20 +6,23 @@ module UseCases
     class ManageLabels
       attr_reader :github_client
 
-      def initialize(github_client:)
+      def initialize(github_client:, config_client:)
         @github_client = github_client
+        @config_client = config_client
       end
 
       # Execute label management for a PR
       def execute(pr_number:, required_labels:)
+        prefix = @config_client.load_workflow_config.label_prefix
+
         # Initial cleanup: Remove all existing deploy labels
-        current_deploy_labels = @github_client.get_deploy_labels(pr_number)
+        current_deploy_labels = @github_client.get_deploy_labels(pr_number, prefix: prefix)
         current_deploy_labels.each do |label|
           @github_client.remove_label_from_pr(pr_number, label)
         end
 
         # Get updated labels (should be empty after cleanup)
-        current_deploy_labels = @github_client.get_deploy_labels(pr_number)
+        current_deploy_labels = @github_client.get_deploy_labels(pr_number, prefix: prefix)
 
         labels_to_add = required_labels - current_deploy_labels
         labels_to_remove = current_deploy_labels - required_labels

@@ -26,7 +26,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   end
 
   def generate(labels: ['deploy:demo'], environments: [])
-    use_case.execute(deploy_labels: labels.map { |label| Entities::DeployLabel.new(label) }, target_environments: environments)
+    use_case.execute(deploy_labels: labels.map { |label| Entities::DeployLabel.new(label, prefixes: config.label_prefixes) }, target_environments: environments)
   end
 
   def items(**options)
@@ -136,6 +136,22 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     rows = items(labels: ['deploy:all', 'deploy:demo', 'deploy:all'])
     expect(rows.length).to eq(4)
     expect(rows.map { |row| row[:service] }.uniq).to contain_exactly('demo', 'api')
+  end
+
+  {
+    %w[deploy:all extra:all] => ['deploy:all'],
+    %w[deploy:demo extra:demo] => ['deploy:demo'],
+    %w[deploy:demo extra:all] => ['deploy:all']
+  }.each do |labels, equivalent|
+    it "deduplicates targets of #{labels.join(' and ')} across prefixes" do
+      config_hash['labels'] = { 'extra_prefixes' => ['extra:'] }
+      directory('dystopia/demo/aws/develop'); directory('dystopia/api/aws/develop')
+      expected = items(labels: equivalent)
+      rows = items(labels: labels)
+      expect(rows).to eq(expected)
+      expect(rows.uniq).to eq(rows)
+      expect(items(labels: [labels.last])).to eq(expected)
+    end
   end
 
   it 'resolves every arbitrary placeholder value and exposes captures' do

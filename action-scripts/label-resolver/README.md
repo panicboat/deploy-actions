@@ -163,6 +163,8 @@ The system recognizes labels in the format `deploy:service`:
 - `deploy:frontend` - Deploy frontend service
 - `deploy:all` - Resolve targets for all existing services
 
+The prefix and additional prefixes are configurable; see the root [Labels](../../README.md#labels) section.
+
 ## Environment Targeting
 
 **Trunk-based Development**: The resolver uses explicit environment targeting rather than branch-based mapping:

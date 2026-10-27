@@ -2,11 +2,16 @@ module Entities
   class WorkflowConfig
     STACK_FIELDS = %w[name id paths environments attributes exclude].freeze
     MATRIX_KEYS = %w[service environment stack stack_id working_directory].freeze
+    LABEL_FIELDS = %w[prefix extra_prefixes].freeze
 
-    attr_reader :stacks, :environment_names
+    attr_reader :stacks, :environment_names, :label_prefix, :extra_label_prefixes
 
     def initialize(config_hash)
-      validate_map!(config_hash, 'configuration', allowed: ['stacks'])
+      validate_map!(config_hash, 'configuration', allowed: %w[labels stacks])
+      labels = config_hash.fetch('labels', {})
+      validate_labels!(labels)
+      @label_prefix = labels.fetch('prefix', DeployLabel::DEFAULT_PREFIX)
+      @extra_label_prefixes = labels.fetch('extra_prefixes', []).dup
       validate_array!(config_hash['stacks'], 'stacks')
       identities = []
       @stacks = config_hash['stacks'].each_with_index.map do |stack, index|
@@ -30,6 +35,10 @@ module Entities
       @environment_names = stacks.flat_map { |stack| stack.fetch('environments', {}).keys }.uniq
     end
 
+    def label_prefixes
+      [label_prefix] + extra_label_prefixes
+    end
+
     def excluded?(stack, values)
       stack['exclude'].any? do |rule|
         rule.all? { |key, expected| values.key?(key) && values[key] == expected }
@@ -37,6 +46,18 @@ module Entities
     end
 
     private
+
+    def validate_labels!(labels)
+      validate_map!(labels, 'labels', allowed: LABEL_FIELDS)
+      validate_string!(labels['prefix'], 'labels.prefix') if labels.key?('prefix')
+      extras = labels.fetch('extra_prefixes', [])
+      validate_array!(extras, 'labels.extra_prefixes', allow_empty: true)
+      extras.each_with_index { |prefix, index| validate_string!(prefix, "labels.extra_prefixes[#{index}]") }
+      # The dispatcher removes every label starting with its prefix, so no prefix may start with another.
+      ([labels.fetch('prefix', DeployLabel::DEFAULT_PREFIX)] + extras).combination(2).each do |first, second|
+        invalid!('labels', "prefix '#{first}' overlaps '#{second}'") if first.start_with?(second) || second.start_with?(first)
+      end
+    end
 
     def validate_stack!(stack, position)
       validate_map!(stack, position, allowed: STACK_FIELDS)

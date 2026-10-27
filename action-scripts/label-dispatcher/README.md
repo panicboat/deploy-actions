@@ -180,6 +180,8 @@ The dispatcher uses standardized label formats:
 - `deploy:all` - Deploy all services (special case)
 - Labels are automatically managed and synchronized
 
+The prefix is configurable; see the root [Labels](../../README.md#labels) section.
+
 ## Safety Features
 
 - **Change Validation**: Ensures only relevant changes trigger deployments
