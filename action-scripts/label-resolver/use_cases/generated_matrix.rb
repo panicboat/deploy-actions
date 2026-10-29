@@ -53,7 +53,7 @@ module UseCases
           next if config.excluded?(stack, values)
           attributes = stack.key?('environments') ? stack['environments'].fetch(environment) : stack.fetch('attributes', {})
           Entities::DeploymentTarget.new(
-            service: candidate.fetch(:service), environment: environment, stack: stack['name'], stack_id: stack['id'],
+            service: candidate.fetch(:service), environment: environment, stack: stack['id'],
             working_directory: candidate.fetch(:working_directory), captures: candidate.fetch(:captures), attributes: attributes
           )
         end

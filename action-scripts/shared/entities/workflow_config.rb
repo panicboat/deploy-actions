@@ -1,7 +1,7 @@
 module Entities
   class WorkflowConfig
     STACK_FIELDS = %w[name id paths environments attributes exclude].freeze
-    MATRIX_KEYS = %w[service environment stack stack_id working_directory].freeze
+    MATRIX_KEYS = %w[service environment stack working_directory].freeze
     LABEL_FIELDS = %w[prefix extra_prefixes].freeze
 
     attr_reader :stacks, :environment_names, :label_prefix, :extra_label_prefixes

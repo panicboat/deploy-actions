@@ -30,10 +30,10 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
   end
 
   it 'shows complete diagnostic targets and their exclusion status' do
-    target = Entities::DeploymentTarget.new(service: 'demo', stack: 'terragrunt', stack_id: 'aws', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }, attributes: { 'token' => nil })
+    target = Entities::DeploymentTarget.new(service: 'demo', stack: 'aws', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }, attributes: { 'token' => nil })
     expect do
       described_class.new.present_service_test_result(service_name: 'demo', matches: [{ target: target, excluded: true }])
-    end.to output(/stack_id: "aws".*working_directory: "teams\/platform\/demo\/aws".*token: nil.*team: "platform".*excluded: true/m).to_stdout
+    end.to output(/stack: "aws".*working_directory: "teams\/platform\/demo\/aws".*token: nil.*team: "platform".*excluded: true/m).to_stdout
   end
 
 end

@@ -163,7 +163,7 @@ RSpec.describe Entities::WorkflowConfig do
       expect { config }.to raise_error(ArgumentError, /stacks\[0\].paths\[0\]/)
     end
 
-    [nil, [], 'value', { '' => true }, { 1 => true }, { 'stack_id' => 'other' }].each do |value|
+    [nil, [], 'value', { '' => true }, { 1 => true }, { 'stack' => 'other' }].each do |value|
       it "rejects invalid common attributes #{value.inspect}" do
         stack['attributes'] = value
         expect { config }.to raise_error(ArgumentError, /stacks\[0\].attributes/)
@@ -210,7 +210,7 @@ RSpec.describe Entities::WorkflowConfig do
     '/dystopia/{service}', 'dystopia/../{service}', 'dystopia/aws',
     'dystopia/{Service}', 'dystopia/{service}/{my-team}', 'dystopia/{service}/{team',
     'dystopia/{{service}}', 'dystopia/{service}/{stack}',
-    'dystopia/{service}/{stack_id}', 'dystopia/{service}/{working_directory}'
+    'dystopia/{service}/{working_directory}'
   ].each do |pattern|
     it "rejects invalid path #{pattern}" do
       stack['paths'] = [pattern]
@@ -262,7 +262,7 @@ RSpec.describe Entities::WorkflowConfig do
     expect(config.stacks.map { |entry| entry['id'] }).to eq(%w[aws stripe])
   end
 
-  ['', 1, 'service', 'environment', 'stack', 'stack_id', 'working_directory'].each do |key|
+  ['', 1, 'service', 'environment', 'stack', 'working_directory'].each do |key|
     it "rejects invalid environment attribute keys #{key.inspect}" do
       stack['environments']['production'] = { key => 'value' }
       expect { config }.to raise_error(ArgumentError, /stacks\[0\].environments/)

@@ -39,7 +39,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     %w[dystopia/demo/aws/develop dystopia/demo/aws/production system-components/demo/infrastructure/aws/develop system-components/demo/infrastructure/aws/production].each { |path| directory(path) }
     rows = items
     expect(rows.length).to eq(6)
-    aws = rows.select { |row| row[:stack_id] == 'aws' }
+    aws = rows.select { |row| row[:stack] == 'aws' }
     expect(aws.length).to eq(4)
     expect(aws.map { |row| [row[:environment], row[:aws_region]] }.uniq).to contain_exactly(['develop', 'ap-northeast-1'], ['production', 'us-west-2'])
     expect(rows.select { |row| row[:stack] == 'container' }).to all(include(environment: nil, repository: 'registry.example.com/app'))
@@ -52,7 +52,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       { 'name' => 'terragrunt', 'id' => 'components-aws', 'paths' => ['system-components/{service}/infrastructure/aws/{environment}'], 'environments' => { 'develop' => { 'region' => 'b' } } }
     ]
     directory('dystopia/demo/aws/develop'); directory('system-components/demo/infrastructure/aws/develop')
-    expect(items.map { |row| [row[:stack_id], row[:region]] }).to contain_exactly(['dystopia-aws', 'a'], ['components-aws', 'b'])
+    expect(items.map { |row| [row[:stack], row[:region]] }).to contain_exactly(['dystopia-aws', 'a'], ['components-aws', 'b'])
   end
 
   it 'limits each stack to its declared environments' do
@@ -73,7 +73,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       ['production', 'teams/payments/demo/k8s/production'], ['preview', 'teams/payments/demo/k8s/preview'], ['staging', 'components/demo/overlays/staging']
     )
     expect(items(environments: ['preview'])).to eq([
-      { service: 'demo', environment: 'preview', stack: 'kubernetes', stack_id: 'kubernetes', working_directory: 'teams/payments/demo/k8s/preview', team: 'payments' }
+      { service: 'demo', environment: 'preview', stack: 'kubernetes', working_directory: 'teams/payments/demo/k8s/preview', team: 'payments' }
     ])
   end
 
@@ -101,7 +101,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['teams/{team}/{service}'], 'attributes' => { 'repository' => 'ghcr.io/{team}/{service}' } }]
     directory('teams/payments/demo')
     expect(items).to eq([
-      { service: 'demo', environment: nil, stack: 'container', stack_id: 'container', working_directory: 'teams/payments/demo', repository: 'ghcr.io/payments/demo', team: 'payments' }
+      { service: 'demo', environment: nil, stack: 'container', working_directory: 'teams/payments/demo', repository: 'ghcr.io/payments/demo', team: 'payments' }
     ])
   end
 
@@ -121,14 +121,14 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   it 'reuses an environment-less directory across its declared environments' do
     config_hash['stacks'].first['paths'] = ['dystopia/{service}/aws']
     directory('dystopia/demo/aws')
-    rows = items.select { |row| row[:stack_id] == 'aws' }
+    rows = items.select { |row| row[:stack] == 'aws' }
     expect(rows.map { |row| [row[:working_directory], row[:environment], row[:aws_region]] }).to contain_exactly(['dystopia/demo/aws', 'develop', 'ap-northeast-1'], ['dystopia/demo/aws', 'production', 'us-west-2'])
   end
 
   it 'generates common targets once in a common-only configuration' do
     config_hash['stacks'] = [config_hash['stacks'].last]
     directory('dystopia/demo')
-    expect(items(environments: nil)).to eq([{ service: 'demo', environment: nil, stack: 'container', stack_id: 'container', working_directory: 'dystopia/demo', repository: 'registry.example.com/app' }])
+    expect(items(environments: nil)).to eq([{ service: 'demo', environment: nil, stack: 'container', working_directory: 'dystopia/demo', repository: 'registry.example.com/app' }])
   end
 
   it 'discovers unregistered services for all labels and deduplicates overlapping labels' do
@@ -229,7 +229,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
   it 'deduplicates requested environments' do
     directory('dystopia/demo/aws/production')
-    expect(items(environments: %w[production production]).count { |row| row[:stack_id] == 'aws' }).to eq(1)
+    expect(items(environments: %w[production production]).count { |row| row[:stack] == 'aws' }).to eq(1)
   end
 
   it 'returns successful empty targets when directories are absent' do
@@ -264,7 +264,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     detection = detector.execute
     expect(detection.services_detected).to eq(['demo'])
     expect(items(labels: detection.deploy_labels.map(&:to_s))).to eq([
-      { service: 'demo', stack: 'terragrunt', stack_id: 'terragrunt', environment: '.preview', working_directory: 'teams/.platform/demo/.preview', team: '.platform', token: nil }
+      { service: 'demo', stack: 'terragrunt', environment: '.preview', working_directory: 'teams/.platform/demo/.preview', team: '.platform', token: nil }
     ])
   end
 

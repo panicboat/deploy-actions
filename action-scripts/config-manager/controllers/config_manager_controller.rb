@@ -84,7 +84,7 @@ module Interfaces
           selected = candidate.fetch(:environment)
           captures = candidate.fetch(:captures)
           attributes = stack.key?('environments') ? stack['environments'].fetch(selected) : stack.fetch('attributes', {})
-          target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack['name'], stack_id: stack['id'], working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
+          target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack['id'], working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
           { target: target, excluded: config.excluded?(stack, captures.merge('service' => service_name, 'environment' => selected)) }
         end
         @presenter.present_service_test_result(service_name: service_name, matches: matches)

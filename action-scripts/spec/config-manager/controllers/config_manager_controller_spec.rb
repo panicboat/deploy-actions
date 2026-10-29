@@ -160,10 +160,10 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       config_hash['stacks'].first['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
       directory('dystopia/demo/aws/production')
       rows = matches(environment: 'production')
-      aws = rows.find { |row| row[:target].stack_id == 'aws' }
+      aws = rows.find { |row| row[:target].stack == 'aws' }
       expect(aws[:excluded]).to be(true)
       expect(aws[:target].attributes).to eq('aws_region' => 'us-west-2')
-      expect(rows.find { |row| row[:target].stack_id == 'container' }[:excluded]).to be(false)
+      expect(rows.find { |row| row[:target].stack == 'container' }[:excluded]).to be(false)
     end
 
     it 'retains distinct identities and captures at the same directory' do
@@ -173,7 +173,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       ]
       directory('teams/platform/demo')
       rows = matches
-      expect(rows.map { |row| row[:target].stack_id }).to eq(%w[aws stripe])
+      expect(rows.map { |row| row[:target].stack }).to eq(%w[aws stripe])
       expect(rows.map { |row| row[:target].captures }).to eq([{ 'team' => 'platform' }] * 2)
       expect(rows.first[:target].attributes).to eq('token' => nil)
     end
