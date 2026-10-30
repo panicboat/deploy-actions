@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.0.0](https://github.com/panicboat/deploy-actions/compare/v2.1.0...v3.0.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* restructure action-scripts along clean architecture layers ([#372](https://github.com/panicboat/deploy-actions/issues/372))
+* restructure workflow-config into services with roots and stacks ([#371](https://github.com/panicboat/deploy-actions/issues/371))
+
+### Features
+
+* restructure workflow-config into services with roots and stacks ([#371](https://github.com/panicboat/deploy-actions/issues/371)) ([2f5a93c](https://github.com/panicboat/deploy-actions/commit/2f5a93c05eba8f4c3888f34e852d5a588c7efc88))
+
+
+### Bug Fixes
+
+* report label changes against the labels the PR had before the sync ([#374](https://github.com/panicboat/deploy-actions/issues/374)) ([5785e38](https://github.com/panicboat/deploy-actions/commit/5785e38653259c9019fc040acb6a6421fc913927))
+
+
+### Code Refactoring
+
+* restructure action-scripts along clean architecture layers ([#372](https://github.com/panicboat/deploy-actions/issues/372)) ([4a89f64](https://github.com/panicboat/deploy-actions/commit/4a89f6412c48e20518ee7ebd375ab12e8dd75c18))
+
 ## [2.1.0](https://github.com/panicboat/deploy-actions/compare/v2.0.1...v2.1.0) (2026-10-29)
 
 
