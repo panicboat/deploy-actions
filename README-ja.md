@@ -131,6 +131,7 @@ services:
 |---|---|---|
 | `id` | 必須 | 設定全体で一意な識別子。エラーメッセージと表示に使う |
 | `roots` | 必須 | リポジトリルートからの相対パターンの空でない配列。すべての root に `{service}` が必要 |
+| `attributes` | 任意 | その service のすべての stack のすべての対象に付く属性 |
 | `ignore` | 任意 | root からの相対 glob の配列。変更検知にだけ効く |
 | `stacks` | 必須 | stack の空でない配列 |
 
@@ -160,7 +161,7 @@ stack は各 root に `path` を連結したディレクトリで実行します
 2. `environments` がなく `path` に `{environment}` があれば、その位置にある実在ディレクトリから環境名を探索します。その位置にある環境ではないディレクトリ（`modules/` など）も環境として探索するため、環境ディレクトリの隣にそうしたディレクトリがある場合は `environments` を宣言します。
 3. どちらもなければ、環境選択にかかわらず、ディレクトリごとに `environment: null` の対象を 1 つ作ります。
 
-`attributes` は、どの作り方でも、その stack のすべての対象に付きます。3 の対象では `{environment}` を参照できません。
+`attributes` は、どの作り方でも、その stack のすべての対象に付きます。3 の対象では `{environment}` を参照できません。service の `attributes` も同じように、その service のすべての stack の対象に付きます。
 
 選択できる環境一覧は、全 stack の定義環境と実行時に探索した環境名の和集合です。除外された環境名も選択できます。環境指定を省略するとこの和集合を対象にします。各 stack は自身の定義環境または探索した環境だけを生成し、和集合にない環境指定はエラーになります。
 
@@ -168,24 +169,24 @@ stack は各 root に `path` を連結したディレクトリで実行します
 
 profile は、トップレベルの `profiles` に置く名前付きの属性マップです。stack は `environments.<name>` の中の `use` で profile を参照します。
 
-`environments` の各エントリは属性のマップで、予約キー `use` を 1 つ持てます。`use` は profile 名の空でない配列で、省略できます。対象の属性は、stack の `attributes`、`use` に並べた profile の属性、エントリのそれ以外のキー（インラインの属性）を合わせたものです。上の例の `gcp` stack は、`aws-develop` の AWS の role で実行し、`gcp_project` でリソースを作る project を足しています。
+`environments` の各エントリは属性のマップで、予約キー `use` を 1 つ持てます。`use` は profile 名の空でない配列で、省略できます。対象の属性は、service の `attributes`、stack の `attributes`、`use` に並べた profile の属性、エントリのそれ以外のキー（インラインの属性）を合わせたものです。上の例の `gcp` stack は、`aws-develop` の AWS の role で実行し、`gcp_project` でリソースを作る project を足しています。
 
 - 同じ属性名がこれらの 2 か所以上にあれば設定エラーになり、stack・環境・ぶつかった元を示します。
 - `use` に存在しない profile 名があれば設定エラーになり、`services[i].stacks[j].environments.<name>.use[k]` の位置を示します。使われていない profile はエラーになりません。
-- `use` は `environments.<name>` の中だけで使えます。stack の `attributes` と profile の中では拒否します。
+- `use` は `environments.<name>` の中だけで使えます。service と stack の `attributes`、profile の中では拒否します。
 - profile の属性には環境属性と同じ規則を適用します。キーは matrix の固定キーにできず、placeholder はその profile を使うすべての stack で解決できる必要があります。
 
 ### Attribute Values
 
-`attributes`、profile、環境エントリの文字列値では、`{service}` と、root や `path` から抽出した `{project}` などの任意 placeholder を使えます。環境のある対象（定義または探索した環境）では、`path` に含まれない場合も `{environment}` を使えます。マップや配列に入れ子になった文字列にも同じ規則を適用します。マップのキーはリテラルのままで、文字列以外の値は型を保持します。環境間で属性キーを揃える必要はありません。
+service と stack の `attributes`、profile、環境エントリの文字列値では、`{service}` と、root や `path` から抽出した `{project}` などの任意 placeholder を使えます。環境のある対象（定義または探索した環境）では、`path` に含まれない場合も `{environment}` を使えます。マップや配列に入れ子になった文字列にも同じ規則を適用します。マップのキーはリテラルのままで、文字列以外の値は型を保持します。環境間で属性キーを揃える必要はありません。
 
-属性が参照する placeholder は、その service のすべての root に stack の `path` を連結したパターンで取得できる必要があり、解決できない参照は設定エラーになります。例えば `roots: ["teams/{team}/{service}"]` と `attributes: {repository: "ghcr.io/{team}/{service}"}` の組み合わせは、`teams/payments/api` に対して `ghcr.io/payments/api` を出力します。`{team}` を含まない root が同じ service にあれば、この参照は拒否されるため、抽出する placeholder が異なる root は別の service に分けます。
+属性が参照する placeholder は、その service のすべての root に stack の `path` を連結したパターンで取得できる必要があります。service の属性では、その service のすべての stack について取得できる必要があり、解決できない参照は設定エラーになります。例えば `roots: ["teams/{team}/{service}"]` と `attributes: {repository: "ghcr.io/{team}/{service}"}` の組み合わせは、`teams/payments/api` に対して `ghcr.io/payments/api` を出力します。`{team}` を含まない root が同じ service にあれば、この参照は拒否されるため、抽出する placeholder が異なる root は別の service に分けます。
 
 ### パスの照合
 
 root と path は相対パターンです。絶対パスと `..` 要素は拒否し、先頭の `./`、余分な `/`、`.` 要素は正規化します。各 root に `path` を連結したパターンに一致する実在ディレクトリをすべて列挙し、存在しないパスは対象を生成しません。サービスの登録は不要です。ドットで始まるサービスは対象外です。
 
-任意 placeholder の名前は `[a-z_][a-z0-9_]*`、値はパスの一要素です。同じ名前を繰り返した場合は、すべて同じ値に一致する必要があります。glob の記号はリテラルとして扱います。placeholder が matrix の固定キー（`stack`、`working_directory`）や、その stack のいずれかの属性キー（`attributes`・profile・環境エントリのどれ由来でも）と衝突する定義は拒否します。属性キーを matrix の固定キー（`service`、`environment`、`stack`、`working_directory`）にすることもできません。
+任意 placeholder の名前は `[a-z_][a-z0-9_]*`、値はパスの一要素です。同じ名前を繰り返した場合は、すべて同じ値に一致する必要があります。glob の記号はリテラルとして扱います。placeholder が matrix の固定キー（`stack`、`working_directory`）や、その stack のいずれかの属性キー（service と stack の `attributes`・profile・環境エントリのどれ由来でも）と衝突する定義は拒否します。属性キーを matrix の固定キー（`service`、`environment`、`stack`、`working_directory`）にすることもできません。
 
 ### 除外条件
 

@@ -1,11 +1,14 @@
 module Entities
   class WorkflowConfig
     CONFIG_FIELDS = %w[labels profiles services].freeze
-    SERVICE_FIELDS = %w[id roots ignore stacks].freeze
+    SERVICE_FIELDS = %w[id roots attributes ignore stacks].freeze
     STACK_FIELDS = %w[id path attributes environments exclude].freeze
     MATRIX_KEYS = %w[service environment stack working_directory].freeze
     LABEL_FIELDS = %w[prefix extra_prefixes].freeze
     REPLACED_FIELDS = { 'stacks' => 'services' }.freeze
+
+    ServiceContext = Struct.new(:id, :position, :roots, :attribute_layer)
+    AttributeLayer = Struct.new(:owner, :position, :values)
 
     attr_reader :services, :stacks, :environment_names, :label_prefix, :extra_label_prefixes
 
@@ -25,15 +28,18 @@ module Entities
         validate_service!(service, position)
         invalid!("#{position}.id", "duplicate identity '#{service['id']}'") if service_identities.include?(service['id'])
         service_identities << service['id']
-        roots = service['roots'].map { |root| normalize_path(root) }
+        context = ServiceContext.new(
+          service['id'], position, service['roots'].map { |root| normalize_path(root) },
+          AttributeLayer.new('service attributes', "#{position}.attributes", service.fetch('attributes', {}))
+        )
         service_stacks = service['stacks'].each_with_index.map do |stack, stack_index|
           stack_position = "#{position}.stacks[#{stack_index}]"
-          normalized = build_stack(stack, stack_position, service['id'], position, roots, profiles)
+          normalized = build_stack(stack, stack_position, context, profiles)
           invalid!("#{stack_position}.id", "duplicate identity '#{stack['id']}'") if stack_identities.include?(stack['id'])
           stack_identities << stack['id']
           normalized
         end
-        { 'id' => service['id'], 'roots' => roots, 'ignore' => service.fetch('ignore', []).map { |pattern| normalize_path(pattern) }, 'stacks' => service_stacks }
+        { 'id' => service['id'], 'roots' => context.roots, 'ignore' => service.fetch('ignore', []).map { |pattern| normalize_path(pattern) }, 'stacks' => service_stacks }
       end
       @stacks = services.flat_map { |service| service['stacks'] }
       @environment_names = stacks.flat_map { |stack| stack.fetch('environments', {}).keys }.uniq
@@ -90,6 +96,7 @@ module Entities
         invalid!(root_position, 'must include {service}') unless names.include?('service')
         invalid!(root_position, '{environment} cannot be used in roots') if names.include?('environment')
       end
+      validate_attributes!(service.fetch('attributes', {}), "#{position}.attributes", reserve_use: true)
       ignore = service.fetch('ignore', [])
       validate_array!(ignore, "#{position}.ignore", allow_empty: true)
       ignore.each_with_index do |pattern, index|
@@ -100,55 +107,57 @@ module Entities
       validate_array!(service['stacks'], "#{position}.stacks")
     end
 
-    def build_stack(stack, position, service_id, service_position, roots, profiles)
+    def build_stack(stack, position, context, profiles)
       validate_map!(stack, position, allowed: STACK_FIELDS)
       validate_string!(stack['id'], "#{position}.id")
       path_position = "#{position}.path"
       path_names = validate_pattern!(stack['path'], path_position)
       invalid!(path_position, '{service} cannot be used in stack paths') if path_names.include?('service')
-      attributes = stack.fetch('attributes', {})
-      validate_attributes!(attributes, "#{position}.attributes", reserve_use: true)
-      environments = compose_environments(stack, position, attributes, profiles) if stack.key?('environments')
-      common = environments.nil? && !path_names.include?('environment')
+      stack_layer = AttributeLayer.new('stack attributes', "#{position}.attributes", stack.fetch('attributes', {}))
+      validate_attributes!(stack_layer.values, stack_layer.position, reserve_use: true)
+      base_layers = [context.attribute_layer, stack_layer]
+      environment_layers = compose_environment_layers(stack, position, base_layers, profiles) if stack.key?('environments')
+      common = environment_layers.nil? && !path_names.include?('environment')
+      layers = (base_layers + (environment_layers || {}).values.flatten).uniq
 
-      attribute_keys = attributes.keys + (environments || {}).values.flat_map(&:keys)
-      template_sources = [["#{position}.attributes", attributes]]
-      stack.fetch('environments', {}).each do |name, entry|
-        entry.fetch('use', []).each { |profile| template_sources << ["profiles.#{profile}", profiles[profile]] }
-        template_sources << ["#{position}.environments.#{name}", entry.except('use')]
+      placeholders = validate_stack_placeholders!(context, path_names, path_position, layers, common)
+      validate_exclusions!(stack, position, placeholders, common)
+
+      path = normalize_path(stack['path'])
+      normalized = {
+        'id' => stack['id'],
+        'service_id' => context.id,
+        'path' => path,
+        'paths' => context.roots.map { |root| normalize_path("#{root}/#{path}") },
+        'common' => common,
+        'attributes' => merge_layers(base_layers, stack_layer.position),
+        'exclude' => stack.fetch('exclude', []).map(&:dup)
+      }
+      if environment_layers
+        normalized['environments'] = environment_layers.to_h { |name, entry_layers| [name, merge_layers(entry_layers, "#{position}.environments.#{name}")] }
       end
-      placeholders = []
-      roots.each_index do |index|
-        root_position = "#{service_position}.roots[#{index}]"
-        names = PatternMatcher.placeholders(roots[index]) + path_names
+      normalized
+    end
+
+    def validate_stack_placeholders!(context, path_names, path_position, layers, common)
+      attribute_keys = layers.flat_map { |layer| layer.values.keys }
+      context.roots.each_with_index.flat_map do |root, index|
+        root_position = "#{context.position}.roots[#{index}]"
+        names = PatternMatcher.placeholders(root) + path_names
         collision = (names - %w[service environment]).find { |name| attribute_keys.include?(name) }
         if collision
           collision_position = path_names.include?(collision) ? path_position : root_position
           invalid!(collision_position, "placeholder '#{collision}' collides with a matrix or attribute key")
         end
         available = common ? names : names + ['environment']
-        template_sources.uniq.each do |source_position, value|
-          validate_attribute_templates!(value, source_position, available, "#{root_position} and #{path_position}")
+        layers.each do |layer|
+          validate_attribute_templates!(layer.values, layer.position, available, "#{root_position} and #{path_position}")
         end
-        placeholders.concat(names)
+        names
       end
-      validate_exclusions!(stack, position, placeholders, common)
-
-      path = normalize_path(stack['path'])
-      normalized = {
-        'id' => stack['id'],
-        'service_id' => service_id,
-        'path' => path,
-        'paths' => roots.map { |root| normalize_path("#{root}/#{path}") },
-        'common' => common,
-        'attributes' => attributes.dup,
-        'exclude' => stack.fetch('exclude', []).map(&:dup)
-      }
-      normalized['environments'] = environments if environments
-      normalized
     end
 
-    def compose_environments(stack, position, attributes, profiles)
+    def compose_environment_layers(stack, position, base_layers, profiles)
       environments = stack['environments']
       validate_map!(environments, "#{position}.environments")
       invalid!("#{position}.environments", 'must not be empty') if environments.empty?
@@ -158,27 +167,26 @@ module Entities
         validate_map!(entry, environment_position)
         inline = entry.except('use')
         validate_attributes!(inline, environment_position)
-        sources = [['stack attributes', attributes]]
+        profile_layers = []
         if entry.key?('use')
           validate_array!(entry['use'], "#{environment_position}.use")
           entry['use'].each_with_index do |profile, index|
             use_position = "#{environment_position}.use[#{index}]"
             validate_string!(profile, use_position)
             invalid!(use_position, "profile '#{profile}' is not defined") unless profiles.key?(profile)
-            sources << ["profile '#{profile}'", profiles[profile]]
+            profile_layers << AttributeLayer.new("profile '#{profile}'", "profiles.#{profile}", profiles[profile])
           end
         end
-        sources << ['inline attributes', inline]
-        [name, merge_attribute_sources(sources, environment_position)]
+        [name, base_layers + profile_layers + [AttributeLayer.new('inline attributes', environment_position, inline)]]
       end
     end
 
-    def merge_attribute_sources(sources, position)
+    def merge_layers(layers, position)
       owners = {}
-      sources.each_with_object({}) do |(owner, values), merged|
-        values.each do |key, value|
-          invalid!(position, "attribute '#{key}' is defined by both #{owners[key]} and #{owner}") if owners.key?(key)
-          owners[key] = owner
+      layers.each_with_object({}) do |layer, merged|
+        layer.values.each do |key, value|
+          invalid!(position, "attribute '#{key}' is defined by both #{owners[key]} and #{layer.owner}") if owners.key?(key)
+          owners[key] = layer.owner
           merged[key] = value
         end
       end

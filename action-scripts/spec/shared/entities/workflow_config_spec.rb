@@ -69,6 +69,76 @@ RSpec.describe Entities::WorkflowConfig do
     expect { config }.to raise_error(ArgumentError, /profiles\.p\.use: use can only be set in environments/)
   end
 
+  context 'with service attributes' do
+    before { service['attributes'] = { 'owner' => 'platform' } }
+
+    it 'adds service attributes to every target of every stack' do
+      config_hash['profiles'] = { 'aws-develop' => { 'iam_role_plan' => 'plan' } }
+      stack['attributes'] = { 'type' => 'terragrunt' }
+      stack['environments']['develop'] = { 'use' => ['aws-develop'] }
+      service['stacks'] += [
+        { 'id' => 'kustomize', 'path' => 'overlays/{environment}', 'attributes' => { 'type' => 'kustomize' } },
+        { 'id' => 'container', 'path' => '.' }
+      ]
+      aws, kustomize, container = config.stacks
+      expect(config.target_attributes(aws, 'develop')).to eq('owner' => 'platform', 'type' => 'terragrunt', 'iam_role_plan' => 'plan')
+      expect(config.target_attributes(aws, 'production')).to eq('owner' => 'platform', 'type' => 'terragrunt')
+      expect(config.target_attributes(kustomize, 'develop')).to eq('owner' => 'platform', 'type' => 'kustomize')
+      expect(config.target_attributes(container, nil)).to eq('owner' => 'platform')
+    end
+
+    it 'rejects a service attribute that is also a stack attribute' do
+      stack['attributes'] = { 'owner' => 'team' }
+      expect { config }.to raise_error(ArgumentError, /services\[0\]\.stacks\[0\]\.attributes: attribute 'owner' is defined by both service attributes and stack attributes/)
+    end
+
+    it 'rejects a service attribute that is also a profile attribute' do
+      config_hash['profiles'] = { 'p' => { 'owner' => 'team' } }
+      stack['environments']['develop'] = { 'use' => ['p'] }
+      expect { config }.to raise_error(ArgumentError, /services\[0\]\.stacks\[0\]\.environments\.develop: attribute 'owner' is defined by both service attributes and profile 'p'/)
+    end
+
+    it 'rejects a service attribute that is also an inline environment attribute' do
+      stack['environments']['develop'] = { 'owner' => 'team' }
+      expect { config }.to raise_error(ArgumentError, /services\[0\]\.stacks\[0\]\.environments\.develop: attribute 'owner' is defined by both service attributes and inline attributes/)
+    end
+
+    it 'rejects use in service attributes' do
+      config_hash['profiles'] = { 'p' => {} }
+      service['attributes'] = { 'use' => ['p'] }
+      expect { config }.to raise_error(ArgumentError, /services\[0\]\.attributes\.use: use can only be set in environments/)
+    end
+
+    it 'rejects a matrix key in service attributes' do
+      service['attributes'] = { 'stack' => 'x' }
+      expect { config }.to raise_error(ArgumentError, /services\[0\]\.attributes\.stack: collides with a matrix key/)
+    end
+
+    it 'expands placeholders available to every root and stack path' do
+      service['roots'] = ['teams/{team}/{service}']
+      service['attributes'] = { 'repository' => 'ghcr.io/{team}/{service}' }
+      expect { config }.not_to raise_error
+    end
+
+    it 'rejects service attribute templates that cannot be resolved by every root' do
+      service['roots'] << 'teams/{team}/{service}'
+      service['attributes'] = { 'repository' => 'ghcr.io/{team}/{service}' }
+      expect { config }.to raise_error(ArgumentError, /services\[0\]\.attributes\.repository: placeholders team cannot be resolved by services\[0\]\.roots\[0\] and services\[0\]\.stacks\[0\]\.path/)
+    end
+
+    it 'rejects environment templates in service attributes when a stack is common' do
+      service['attributes'] = { 'state' => '{service}-{environment}' }
+      service['stacks'] << { 'id' => 'container', 'path' => '.' }
+      expect { config }.to raise_error(ArgumentError, /services\[0\]\.attributes\.state: placeholders environment cannot be resolved by .*services\[0\]\.stacks\[1\]\.path/)
+    end
+
+    it 'checks path placeholder collisions against service attributes' do
+      service['attributes'] = { 'team' => 'platform' }
+      stack['path'] = '{team}/{environment}'
+      expect { config }.to raise_error(ArgumentError, /services\[0\]\.stacks\[0\]\.path: placeholder 'team' collides/)
+    end
+  end
+
   it 'allows unused profiles' do
     config_hash['profiles'] = { 'unused' => {} }
     expect { config }.not_to raise_error

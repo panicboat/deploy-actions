@@ -60,6 +60,21 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     )
   end
 
+  it 'attaches expanded service attributes to the targets of every stack' do
+    config_hash.replace('services' => [{
+      'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'attributes' => { 'owner' => '{team}' },
+      'stacks' => [
+        { 'id' => 'container', 'path' => '.', 'attributes' => { 'type' => 'container' } },
+        { 'id' => 'aws', 'path' => 'aws/{environment}', 'environments' => { 'develop' => { 'iam_role' => 'arn:aws:iam::123456789012:role/{team}' } } }
+      ]
+    }])
+    directory('teams/payments/demo/aws/develop')
+    expect(items).to contain_exactly(
+      { service: 'demo', environment: nil, stack: 'container', working_directory: 'teams/payments/demo', owner: 'payments', type: 'container', team: 'payments' },
+      { service: 'demo', environment: 'develop', stack: 'aws', working_directory: 'teams/payments/demo/aws/develop', owner: 'payments', iam_role: 'arn:aws:iam::123456789012:role/payments', team: 'payments' }
+    )
+  end
+
   it 'generates every shared product path with attributes from its own environment' do
     %w[dystopia/demo/aws/develop dystopia/demo/aws/production system-components/demo/aws/develop system-components/demo/aws/production].each { |path| directory(path) }
     rows = items

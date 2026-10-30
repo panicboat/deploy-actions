@@ -131,6 +131,7 @@ services:
 |---|---|---|
 | `id` | Required | Identifier unique across the configuration; used in error messages and displays |
 | `roots` | Required | Nonempty array of relative patterns from the repository root; every root must contain `{service}` |
+| `attributes` | Optional | Attributes attached to every target of every stack in the service |
 | `ignore` | Optional | Array of globs relative to the root; affects change detection only |
 | `stacks` | Required | Nonempty array of stacks |
 
@@ -160,7 +161,7 @@ Targets are built in this order:
 2. Without `environments`, when `path` contains `{environment}`, environment names are discovered from existing directories at that position. Directories at that position that are not environments, such as `modules/`, are also discovered as environments, so declare `environments` when such directories sit beside the environment directories.
 3. With neither, one target with `environment: null` is built per directory, regardless of environment selection.
 
-`attributes` attach to every target of the stack, however it was built. In case 3 they cannot reference `{environment}`.
+`attributes` attach to every target of the stack, however it was built. In case 3 they cannot reference `{environment}`. The service's `attributes` attach to the targets of every stack in the same way.
 
 The selectable environment list is the union of all declared names and names discovered at execution time. Excluded environments remain selectable. Omitting the environment selection targets this union. Each stack generates targets only for its own declared or discovered environments. Selecting a name absent from the union is an error.
 
@@ -168,24 +169,24 @@ The selectable environment list is the union of all declared names and names dis
 
 A profile is a named attribute map under the top-level `profiles`. A stack references profiles with `use` inside `environments.<name>`.
 
-An entry in `environments` is a map of attributes with one reserved key, `use`, which is an optional nonempty array of profile names. The attributes of a target are the stack's `attributes`, the attributes of each profile listed in `use`, and the other keys of the entry (inline attributes). In the example above, the `gcp` stack runs with the AWS role of `aws-develop`, and `gcp_project` adds the project it creates resources in.
+An entry in `environments` is a map of attributes with one reserved key, `use`, which is an optional nonempty array of profile names. The attributes of a target are the service's `attributes`, the stack's `attributes`, the attributes of each profile listed in `use`, and the other keys of the entry (inline attributes). In the example above, the `gcp` stack runs with the AWS role of `aws-develop`, and `gcp_project` adds the project it creates resources in.
 
 - The same attribute name in two or more of those places is a configuration error that names the stack, the environment, and the sources.
 - A `use` naming an undefined profile is a configuration error that points at `services[i].stacks[j].environments.<name>.use[k]`. Unused profiles are allowed.
-- `use` is valid only inside `environments.<name>`. It is rejected in a stack's `attributes` and in profiles.
+- `use` is valid only inside `environments.<name>`. It is rejected in a service's or stack's `attributes` and in profiles.
 - Profile attributes follow the rules for environment attributes: keys cannot be fixed matrix keys, and placeholders must resolve for every stack that uses the profile.
 
 ### Attribute Values
 
-String values in `attributes`, profiles, and environment entries support `{service}` and arbitrary placeholders captured from the root or `path`, such as `{project}`. Targets with an environment, declared or discovered, also support `{environment}`, even if `path` does not contain it. The same rules apply to strings nested in maps or arrays. Map keys remain literal, and non-string values retain their types. Environments do not need identical attribute keys.
+String values in service and stack `attributes`, profiles, and environment entries support `{service}` and arbitrary placeholders captured from the root or `path`, such as `{project}`. Targets with an environment, declared or discovered, also support `{environment}`, even if `path` does not contain it. The same rules apply to strings nested in maps or arrays. Map keys remain literal, and non-string values retain their types. Environments do not need identical attribute keys.
 
-Every placeholder referenced by an attribute must be available for every root of the service combined with the stack's `path`; unresolved references are configuration errors. For example, `roots: ["teams/{team}/{service}"]` with `attributes: {repository: "ghcr.io/{team}/{service}"}` produces `ghcr.io/payments/api` for `teams/payments/api`. If the service had another root without `{team}`, the reference would be rejected, so put roots that capture different placeholders in separate services.
+Every placeholder referenced by an attribute must be available for every root of the service combined with the stack's `path`, and for every stack of the service when the attribute is a service attribute; unresolved references are configuration errors. For example, `roots: ["teams/{team}/{service}"]` with `attributes: {repository: "ghcr.io/{team}/{service}"}` produces `ghcr.io/payments/api` for `teams/payments/api`. If the service had another root without `{team}`, the reference would be rejected, so put roots that capture different placeholders in separate services.
 
 ### Path Matching
 
 Roots and paths are relative patterns. Absolute paths and `..` segments are rejected. Leading `./`, extra `/` separators, and `.` segments are normalized. All existing directories matching any root followed by `path` are enumerated; missing paths generate no targets. Services do not require registration. Service names starting with a dot are excluded.
 
-Names of arbitrary placeholders must match `[a-z_][a-z0-9_]*`, and each value occupies one path segment. Repeated occurrences of a placeholder must match the same value. Glob characters are treated literally. Definitions are rejected if a placeholder conflicts with a fixed matrix key (`stack`, `working_directory`) or with any attribute key of the stack, whether it comes from `attributes`, a profile, or an environment entry. Attribute keys cannot be fixed matrix keys (`service`, `environment`, `stack`, `working_directory`).
+Names of arbitrary placeholders must match `[a-z_][a-z0-9_]*`, and each value occupies one path segment. Repeated occurrences of a placeholder must match the same value. Glob characters are treated literally. Definitions are rejected if a placeholder conflicts with a fixed matrix key (`stack`, `working_directory`) or with any attribute key of the stack, whether it comes from the service's or stack's `attributes`, a profile, or an environment entry. Attribute keys cannot be fixed matrix keys (`service`, `environment`, `stack`, `working_directory`).
 
 ### Exclusion Conditions
 
