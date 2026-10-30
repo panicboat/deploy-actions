@@ -1,42 +1,48 @@
-stacks:
-  - name: terragrunt
-    id: aws
-    paths:
-      - "dystopia/{service}/aws/{environment}"
-      - "system-components/{service}/infrastructure/aws/{environment}"
-    environments:
-      develop:
-        aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
-        iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
-      staging:
-        aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-staging-role
-        iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-staging-role
-      production:
-        aws_region: ap-northeast-1
-        iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-production-role
-        iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-production-role
-    exclude:
-      - service: demo
-  - name: container
-    paths:
+profiles:
+  aws-develop:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
+  aws-staging:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-staging-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-staging-role
+  aws-production:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-production-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-production-role
+
+services:
+  - id: app
+    roots:
       - "dystopia/{service}"
       - "system-components/{service}"
-    attributes:
-      repository: registry.example.com/{service}
-    exclude:
-      - service: demo
-  - name: kubernetes
-    paths:
-      - "dystopia/{service}/kubernetes/overlays/{environment}"
-      - "system-components/{service}/kubernetes/overlays/{environment}"
-    environments:
-      develop:
-        namespace: default
-      staging:
-        namespace: default
-      production:
-        namespace: default
-    exclude:
-      - service: demo
+    ignore:
+      - "**/README.md"
+    stacks:
+      - id: dockerfile
+        path: "."
+        attributes:
+          type: container
+          repository: registry.example.com/{service}
+        exclude:
+          - service: demo
+      - id: kustomize
+        path: "kubernetes/overlays/{environment}"
+        attributes:
+          type: kustomize
+        exclude:
+          - service: demo
+      - id: aws
+        path: "infrastructure/aws/{environment}"
+        attributes:
+          type: terragrunt
+        environments:
+          develop:
+            use: [aws-develop]
+          staging:
+            use: [aws-staging]
+          production:
+            use: [aws-production]
+        exclude:
+          - service: demo

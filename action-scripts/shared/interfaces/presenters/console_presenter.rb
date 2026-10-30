@@ -87,7 +87,7 @@ module Interfaces
         puts "Workflow Configuration"
         puts "Environments: #{config.environment_names.join(', ')}"
         config.stacks.each do |stack|
-          puts "Stack '#{stack['id']}' (#{stack['name']}):"
+          puts "Stack '#{stack['id']}':"
           puts stack.to_yaml
         end
       end

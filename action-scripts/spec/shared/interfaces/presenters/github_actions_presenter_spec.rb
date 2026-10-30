@@ -33,11 +33,13 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
     expect(described_class.instance_method(:present_label_dispatch_result).parameters.map(&:last)).to eq(%i[deploy_labels labels_added labels_removed changed_files])
   end
   it 'shows each stack identity with all paths generic attributes and exclusion conditions' do
-    config = Entities::WorkflowConfig.new('stacks' => [
-      { 'name' => 'terragrunt', 'id' => 'aws', 'paths' => ['dystopia/{service}/aws', 'system-components/{service}/aws'], 'environments' => { 'develop' => { 'token' => nil } }, 'exclude' => [{ 'service' => 'demo' }] },
-      { 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => { 'repository' => 'registry.example.com' } }
-    ])
-    expect { described_class.new.present_config_details(config: config) }.to output(/Stack 'aws'.*dystopia.*system-components.*develop.*token.*exclude.*demo.*Stack 'container'.*repository.*registry.example.com/m).to_stdout
+    config = Entities::WorkflowConfig.new('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}', 'system-components/{service}'], 'stacks' => [
+      { 'id' => 'aws', 'path' => 'aws', 'environments' => { 'develop' => { 'token' => nil } }, 'exclude' => [{ 'service' => 'demo' }] },
+      { 'id' => 'container', 'path' => '.', 'attributes' => { 'repository' => 'registry.example.com' } }
+    ] }])
+    expect { described_class.new.present_config_details(config: config) }.to output(
+      match(/Stack 'aws':.*Stack 'container':/m).and(include('dystopia/{service}/aws', 'system-components/{service}/aws', 'develop', 'token', 'demo', 'repository', 'registry.example.com'))
+    ).to_stdout
   end
 
   it 'shows complete diagnostic targets and their exclusion status' do

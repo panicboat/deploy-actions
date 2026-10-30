@@ -19,7 +19,7 @@ module UseCases
         config.stacks.each do |stack|
           selected = if stack.key?('environments')
             environments & stack['environments'].keys
-          elsif stack.key?('attributes')
+          elsif stack['common']
             [nil]
           else
             environments
@@ -51,7 +51,7 @@ module UseCases
           environment = candidate.fetch(:environment)
           values = candidate.fetch(:captures).merge('service' => candidate.fetch(:service), 'environment' => environment)
           next if config.excluded?(stack, values)
-          attributes = stack.key?('environments') ? stack['environments'].fetch(environment) : stack.fetch('attributes', {})
+          attributes = config.target_attributes(stack, environment)
           Entities::DeploymentTarget.new(
             service: candidate.fetch(:service), environment: environment, stack: stack['id'],
             working_directory: candidate.fetch(:working_directory), captures: candidate.fetch(:captures), attributes: attributes

@@ -19,7 +19,7 @@ module UseCases
               next if service.start_with?('.')
               environments = if stack.key?('environments')
                 stack['environments'].keys
-              elsif stack.key?('attributes')
+              elsif stack['common']
                 [nil]
               else
                 [captures.fetch('environment')]

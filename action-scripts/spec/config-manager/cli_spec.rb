@@ -16,10 +16,10 @@ RSpec.describe 'ConfigManagerCLI' do
   end
 
   it 'lists the union of configured environment names' do
-    config = Entities::WorkflowConfig.new('stacks' => [
-      { 'name' => 'aws', 'paths' => ['{service}/aws'], 'environments' => { 'production' => {}, 'preview' => {} } },
-      { 'name' => 'kubernetes', 'paths' => ['{service}/k8s'], 'environments' => { 'preview' => {}, 'sandbox' => {} } }
-    ])
+    config = Entities::WorkflowConfig.new('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [
+      { 'id' => 'aws', 'path' => 'aws', 'environments' => { 'production' => {}, 'preview' => {} } },
+      { 'id' => 'kubernetes', 'path' => 'k8s', 'environments' => { 'preview' => {}, 'sandbox' => {} } }
+    ] }])
     client = instance_double(Infrastructure::ConfigClient, load_workflow_config: config)
     allow(ConfigManagerContainer).to receive(:resolve).with(:config_client).and_return(client)
     allow(ConfigManagerContainer).to receive(:resolve).with(:file_client).and_return(Infrastructure::FileSystemClient.new)
@@ -32,7 +32,7 @@ RSpec.describe 'ConfigManagerCLI' do
       FileUtils.mkdir_p(File.join(root, '.git'))
       FileUtils.mkdir_p(File.join(root, 'apps/demo/preview'))
       ENV['SOURCE_REPO_PATH'] = root
-      config = Entities::WorkflowConfig.new('stacks' => [{ 'name' => 'kubernetes', 'paths' => ['apps/{service}/{environment}'] }])
+      config = Entities::WorkflowConfig.new('services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
       client = instance_double(Infrastructure::ConfigClient, load_workflow_config: config)
       allow(ConfigManagerContainer).to receive(:resolve).with(:config_client).and_return(client)
       allow(ConfigManagerContainer).to receive(:resolve).with(:file_client).and_return(Infrastructure::FileSystemClient.new)

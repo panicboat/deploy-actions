@@ -1,8 +1,9 @@
 require 'spec_helper'
 
 RSpec.describe UseCases::LabelManagement::DetectChangedServices do
-  let(:stack) { { 'name' => 'terragrunt', 'paths' => ['teams/{team}/{service}/aws/{environment}'], 'environments' => { 'develop' => {}, 'production' => {} }, 'exclude' => [{ 'team' => 'platform', 'service' => 'demo', 'environment' => 'production' }] } }
-  let(:config_hash) { { 'stacks' => [stack] } }
+  let(:stack) { { 'id' => 'terragrunt', 'path' => 'aws/{environment}', 'environments' => { 'develop' => {}, 'production' => {} }, 'exclude' => [{ 'team' => 'platform', 'service' => 'demo', 'environment' => 'production' }] } }
+  let(:service) { { 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [stack] } }
+  let(:config_hash) { { 'services' => [service] } }
   let(:config) { Entities::WorkflowConfig.new(config_hash) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
   let(:changed_files) { ['teams/platform/demo/aws/production/main.tf'] }
@@ -39,7 +40,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   end
 
   it 'evaluates every environment for paths without environment' do
-    stack['paths'] = ['teams/{team}/{service}/aws']
+    stack['path'] = 'aws'
     expect(services).to eq(['demo'])
     stack['exclude'] = [{ 'environment' => 'develop' }, { 'environment' => 'production' }]
     allow(config_client).to receive(:load_workflow_config).and_return(Entities::WorkflowConfig.new(config_hash))
@@ -47,30 +48,30 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   end
 
   it 'keeps services with a non-excluded stack match' do
-    config_hash['stacks'] << { 'name' => 'container', 'paths' => ['teams/{team}/{service}'], 'attributes' => {} }
+    service['stacks'] << { 'id' => 'container', 'path' => '.' }
     expect(services).to eq(['demo'])
   end
 
   it 'does not exclude paths missing custom captures' do
-    stack['paths'] << 'dystopia/{service}/aws/{environment}'
+    service['roots'] << 'dystopia/{service}'
     changed_files << 'dystopia/demo/aws/production/main.tf'
     expect(services).to eq(['demo'])
   end
 
   it 'detects common stacks with null environment' do
-    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => {}, 'exclude' => [{ 'service' => 'demo', 'environment' => nil }] }]
+    config_hash['services'] = [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.', 'exclude' => [{ 'service' => 'demo', 'environment' => nil }] }] }]
     changed_files.replace(['dystopia/demo/main.rb', 'dystopia/api/main.rb'])
     expect(services).to eq(['api'])
   end
 
   it 'ignores files placed at the service position' do
-    config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}'], 'attributes' => {} }]
+    config_hash['services'] = [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.' }] }]
     changed_files.replace(['dystopia/README.md', 'dystopia/api/main.rb'])
     expect(services).to eq(['api'])
   end
 
   it 'ignores files placed at the environment position' do
-    config_hash['stacks'] = [{ 'name' => 'kubernetes', 'paths' => ['dystopia/{service}/kubernetes/overlays/{environment}'] }]
+    config_hash['services'] = [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => 'kubernetes/overlays/{environment}' }] }]
     changed_files.replace(['dystopia/web/kubernetes/overlays/README.md', 'dystopia/api/kubernetes/overlays/develop/kustomization.yaml'])
     expect(services).to eq(['api'])
   end
@@ -96,7 +97,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   end
 
   it 'deduplicates matches for files paths and stacks' do
-    stack['paths'] << stack['paths'].first
+    service['roots'] << service['roots'].first
     changed_files.replace(['teams/platform/api/aws/develop/main.tf', 'teams/platform/api/aws/develop/vars.tf'])
     expect(services).to eq(['api'])
   end
@@ -108,9 +109,9 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
 
   [false, true].each do |reverse|
     it "rejects conflicting captures before exclusions with reversed paths #{reverse}" do
-      paths = ['teams/{team}/{service}/aws', 'teams/{product}/{service}/aws']
-      paths.reverse! if reverse
-      config_hash['stacks'] = [{ 'name' => 'terragrunt', 'paths' => paths, 'attributes' => {}, 'exclude' => [{ 'team' => 'platform' }] }]
+      roots = ['teams/{team}/{service}/aws', 'teams/{product}/{service}/aws']
+      roots.reverse! if reverse
+      config_hash['services'] = [{ 'id' => 'app', 'roots' => roots, 'stacks' => [{ 'id' => 'terragrunt', 'path' => '.', 'exclude' => [{ 'team' => 'platform' }] }] }]
       result = use_case.execute
       expect(result).to be_failure
       expect(result.error_message).to include('Conflicting captures', 'teams/platform/demo/aws')
