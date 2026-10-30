@@ -1,5 +1,5 @@
 name: 'Label Resolver'
-description: 'Resolve deployment targets from PR labels and branch information'
+description: 'Resolve deployment targets from PR labels or from a service name'
 author: 'panicboat'
 
 branding:

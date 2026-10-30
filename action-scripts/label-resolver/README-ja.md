@@ -128,14 +128,24 @@ bundle exec ruby label-resolver/bin/resolver targets all
 
 - **LabelResolverController**: メインオーケストレーションロジック
 - **GetLabels**: PR ラベル抽出
-- **GenerateMatrix**: 環境検証と複数環境用デプロイメントマトリクス生成
+- **GenerateMatrix**: PR のデプロイラベルから、除外されていない対象だけのデプロイメントマトリクスを生成
+- **ListServiceTargets**: サービス名の検証と、1 つまたは全サービスの対象の一覧化（除外された対象を含む全 candidate を返す）
+- **ListCandidates**: `GenerateMatrix` と `ListServiceTargets` が共有する、環境検証と candidate の列挙
 
 ### 処理の流れ
 
+`resolve`：
+
 1. **ラベル抽出**: PR からデプロイラベルを取得
-2. **環境検証**: 全ての対象環境が存在することを検証
-3. **マトリクス生成**: ディレクトリ構造に基づいて全環境のデプロイメントターゲットを作成
+2. **candidate の一覧化**: `ListCandidates` が全ての対象環境の存在を検証し、ディレクトリ構造から candidate を列挙
+3. **マトリクス生成**: `GenerateMatrix` が除外されていない candidate をデプロイメントターゲットにする
 4. **出力生成**: 簡素化された出力で GitHub Actions 用に結果をフォーマット
+
+`targets`：
+
+1. **サービス検証**: `ListServiceTargets` が `[a-zA-Z0-9_-]+` に一致しないサービス名を拒否
+2. **candidate の一覧化**: `ListCandidates` が対象環境を検証し、サービス（`all` なら全サービス）の candidate を列挙
+3. **出力生成**: `targets` と `has-targets` は除外されていない candidate から、`candidates` は全 candidate を除外状態と root 付きで出力
 
 ## 設定
 

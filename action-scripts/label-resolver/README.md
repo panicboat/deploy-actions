@@ -128,14 +128,24 @@ An unknown service is not an error: `targets` is `[]`, `has-targets` is `false`,
 
 - **LabelResolverController**: Main orchestration logic
 - **GetLabels**: PR label extraction
-- **GenerateMatrix**: Environment validation and deployment matrix generation for multiple environments
+- **GenerateMatrix**: Deployment matrix generation from the deploy labels of a PR, without the excluded candidates
+- **ListServiceTargets**: Service name validation and the listing of the targets of one service or all, with every candidate including the excluded ones
+- **ListCandidates**: Environment validation and candidate enumeration shared by `GenerateMatrix` and `ListServiceTargets`
 
 ### Flow
 
+`resolve`:
+
 1. **Label Extraction**: Get deploy labels from PR
-2. **Environment Validation**: Validate all target environments exist
-3. **Matrix Generation**: Create deployment targets for all environments based on directory structure
+2. **Candidate Listing**: `ListCandidates` validates that all target environments exist and enumerates the candidates from the directory structure
+3. **Matrix Generation**: `GenerateMatrix` keeps the candidates that are not excluded as deployment targets
 4. **Output Generation**: Format results for GitHub Actions with simplified outputs
+
+`targets`:
+
+1. **Service Validation**: `ListServiceTargets` rejects a service name outside `[a-zA-Z0-9_-]+`
+2. **Candidate Listing**: `ListCandidates` validates the target environments and enumerates the candidates of the service (every service for `all`)
+3. **Output Generation**: `targets` and `has-targets` come from the candidates that are not excluded, and `candidates` lists every candidate with its exclusion and root
 
 ## Configuration
 
