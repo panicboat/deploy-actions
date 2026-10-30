@@ -1,5 +1,5 @@
 name: 'Label Resolver'
-description: 'Resolve deployment targets from PR labels and branch information'
+description: 'Resolve deployment targets from PR labels or from a service name'
 author: 'panicboat'
 
 branding:
@@ -10,15 +10,22 @@ inputs:
   repository:
     description: 'Repository name (owner/repo)'
     required: true
+  ref:
+    description: 'Ref of the source repository to check out; defaults to the event ref for the triggering repository and to the default branch for another repository'
+    required: false
   pr-number:
     description: 'PR number (from prepare job output or event)'
+    required: false
+  service:
+    description: 'Service name or all; when set, resolves its targets without a pull request and ignores pr-number'
     required: false
   environments:
     description: 'Target environments (comma-separated: develop,staging or single: develop)'
     required: false
   github-token:
     description: 'GitHub token with appropriate permissions'
-    required: true
+    required: false
+    default: ${{ github.token }}
   config-path:
     description: 'Path to workflow configuration file'
     required: false
@@ -31,6 +38,9 @@ outputs:
   has-targets:
     description: 'Whether targets found'
     value: ${{ steps.extract.outputs.has-targets }}
+  candidates:
+    description: 'Every candidate target including the excluded ones; set only when service is given'
+    value: ${{ steps.extract.outputs.candidates }}
 
 runs:
   using: 'composite'
@@ -39,6 +49,7 @@ runs:
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         repository: ${{ inputs.repository }}
+        ref: ${{ inputs.ref }}
         token: ${{ inputs.github-token }}
         path: source-repo
 
@@ -65,10 +76,21 @@ runs:
       working-directory: ${{ github.action_path }}/../action-scripts
       run: |
         echo "🚀 Starting deployment target resolution"
-        echo "PR: ${{ inputs.pr-number }}"
-
-        bundle exec ruby label-resolver/bin/resolver resolve ${{ inputs.pr-number }} ${{ inputs.environments }}
+        if [ -n "$SERVICE" ]; then
+          echo "Service: $SERVICE"
+          bundle exec ruby label-resolver/bin/resolver targets "$SERVICE" "$ENVIRONMENTS"
+        else
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error::Set service or pr-number"
+            exit 1
+          fi
+          echo "PR: $PR_NUMBER"
+          bundle exec ruby label-resolver/bin/resolver resolve "$PR_NUMBER" "$ENVIRONMENTS"
+        fi
       env:
+        PR_NUMBER: ${{ inputs.pr-number }}
+        SERVICE: ${{ inputs.service }}
+        ENVIRONMENTS: ${{ inputs.environments }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPOSITORY: ${{ inputs.repository }}
         WORKFLOW_CONFIG_PATH: ${{ github.workspace }}/source-repo/${{ inputs.config-path }}
@@ -80,6 +102,7 @@ runs:
       env:
         REPOSITORY: ${{ inputs.repository }}
         PR_NUMBER: ${{ inputs.pr-number }}
+        SERVICE: ${{ inputs.service }}
         TARGET_ENVIRONMENTS: ${{ inputs.environments }}
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
         HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
@@ -87,7 +110,7 @@ runs:
         script: |
           core.info('📊 Label Resolver completed');
           core.info(`Repository: ${process.env.REPOSITORY}`);
-          core.info(`PR Number: ${process.env.PR_NUMBER}`);
+          core.info(process.env.SERVICE ? `Service: ${process.env.SERVICE}` : `PR Number: ${process.env.PR_NUMBER}`);
           core.info(`Target Environments: ${process.env.TARGET_ENVIRONMENTS || 'all'}`);
           core.info(`Deployment Targets: ${process.env.DEPLOYMENT_TARGETS || '[]'}`);
           core.info(`Has Targets: ${process.env.HAS_TARGETS || 'false'}`);

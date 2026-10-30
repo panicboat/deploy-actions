@@ -3,14 +3,15 @@
 module Interfaces
   module Controllers
     class LabelResolverController
-      def initialize(get_labels:, generate_matrix:, presenter:)
+      def initialize(get_labels:, generate_matrix:, list_service_targets:, presenter:)
         @get_labels = get_labels
         @generate_matrix = generate_matrix
+        @list_service_targets = list_service_targets
         @presenter = presenter
       end
 
       def resolve(pr_number:, environments:)
-        labels_result = @get_labels.execute(pr_number: pr_number)
+        labels_result = @get_labels.call.execute(pr_number: pr_number)
         return failure(labels_result) if labels_result.failure?
 
         matrix_result = @generate_matrix.execute(deploy_labels: labels_result.value, target_environments: environments)
@@ -23,6 +24,19 @@ module Interfaces
           pr_number: pr_number
         )
         matrix_result
+      end
+
+      def targets(service:, environments:)
+        targets_result = @list_service_targets.execute(service: service, environments: environments)
+        return failure(targets_result) if targets_result.failure?
+
+        @presenter.present_service_targets(
+          service: service,
+          target_environments: environments,
+          targets: targets_result.value.targets,
+          candidates: targets_result.value.candidates
+        )
+        targets_result
       end
 
       private

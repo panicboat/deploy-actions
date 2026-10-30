@@ -49,9 +49,40 @@ RSpec.describe Interfaces::Presenters::TextFormat do
   describe '.service_test_result' do
     it 'shows every matrix field of each target and its exclusion status' do
       stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first
-      candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {})
+      candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {})
       lines = described_class.service_test_result(service_name: 'demo', candidates: [candidate])
       expect(lines).to eq(['Service Configuration Test', 'Service: demo', 'Target:', '  service: "demo"', '  environment: nil', '  stack: "aws"', '  working_directory: "demo/aws"', '  excluded: false'])
+    end
+  end
+
+  describe '.service_targets' do
+    let(:config) do
+      Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [
+        { 'id' => 'kustomize', 'path' => 'overlays/{environment}', 'exclude' => [{ 'environment' => 'production' }] },
+        { 'id' => 'container', 'path' => '.' }
+      ] }])
+    end
+    let(:candidates) do
+      [
+        Entities::TargetCandidate.new(stack: config.stacks[0], service: 'demo', environment: 'develop', root: 'demo', working_directory: 'demo/overlays/develop', captures: {}),
+        Entities::TargetCandidate.new(stack: config.stacks[0], service: 'demo', environment: 'production', root: 'demo', working_directory: 'demo/overlays/production', captures: {}),
+        Entities::TargetCandidate.new(stack: config.stacks[1], service: 'demo', environment: nil, root: 'demo', working_directory: 'demo', captures: {})
+      ].map(&:to_listed_target)
+    end
+
+    it 'shows the service, the environments, and each target with its root and exclusion status' do
+      lines = described_class.service_targets(service: 'demo', target_environments: %w[develop production], targets: candidates.reject(&:excluded?).map(&:target), candidates: candidates)
+      expect(lines).to eq([
+        '🎯 Service Targets', 'Service: demo', 'Target Environments: develop, production', 'Targets: 2 of 3 candidates',
+        '', '  demo:kustomize (develop) -> demo/overlays/develop', '    root: demo', '    excluded: false',
+        '', '  demo:kustomize (production) -> demo/overlays/production', '    root: demo', '    excluded: true',
+        '', '  demo:container -> demo', '    root: demo', '    excluded: false'
+      ])
+    end
+
+    it 'names a single target environment and omits the line when none is requested' do
+      expect(described_class.service_targets(service: 'all', target_environments: ['develop'], targets: [], candidates: [])).to include('Target Environment: develop')
+      expect(described_class.service_targets(service: 'all', target_environments: [], targets: [], candidates: [])).to eq(['🎯 Service Targets', 'Service: all', 'Targets: 0 of 0 candidates'])
     end
   end
 end

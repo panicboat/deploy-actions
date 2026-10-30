@@ -36,6 +36,19 @@ bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
 - 複数環境: `develop,staging` (カンマ区切り)
 - 全環境: 環境一覧パラメータを省略
 
+Pull Request なしで、1 つのサービスまたは全サービスのデプロイ対象を解決します。このコマンドは GitHub API を呼ばず、`GITHUB_TOKEN` を必要としません。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]
+```
+
+**サービス指定：**
+
+- 単一サービス: `[a-zA-Z0-9_-]+` に一致するサービス名
+- 全サービス: `all`
+
+ENVIRONMENTS の指定方法は `resolve` と同じです。パターンに合わないサービス名、および定義も探索もされていない環境は終了コード 1 で失敗します。
+
 ### 実行例
 
 `develop` 環境のデプロイ対象を解決します。
@@ -54,6 +67,18 @@ bundle exec ruby label-resolver/bin/resolver resolve 456 develop,staging
 
 ```bash
 bundle exec ruby label-resolver/bin/resolver resolve 123
+```
+
+Pull Request なしで、1 つのサービスの `develop` 環境のデプロイ対象を解決します。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets demo develop
+```
+
+全サービスの全環境のデプロイ対象を解決します。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets all
 ```
 
 ### ワークフローへの組み込み
@@ -91,20 +116,36 @@ bundle exec ruby label-resolver/bin/resolver resolve 123
 - `targets`: マトリクス戦略用のデプロイメントターゲットの JSON 配列
 - `has-targets`: ターゲットが存在するかを示すブール値 (`true`/`false`)
 
+`targets` コマンドは、除外されていない candidate から求めた同じ 2 つの出力に加えて、次の出力を提供します：
+
+- `candidates`: 除外された対象を含む全 candidate の JSON 配列。各要素は `{"target": <matrix 項目>, "excluded": <bool>, "root": "<root>"}` の形式
+
+存在しないサービスはエラーになりません。`targets` は `[]`、`has-targets` は `false`、`candidates` は `[]` になります。
+
 ## アーキテクチャ
 
 ### 構成要素
 
 - **LabelResolverController**: メインオーケストレーションロジック
 - **GetLabels**: PR ラベル抽出
-- **GenerateMatrix**: 環境検証と複数環境用デプロイメントマトリクス生成
+- **GenerateMatrix**: PR のデプロイラベルから、除外されていない対象だけのデプロイメントマトリクスを生成
+- **ListServiceTargets**: サービス名の検証と、1 つまたは全サービスの対象の一覧化（除外された対象を含む全 candidate を返す）
+- **ListCandidates**: `GenerateMatrix` と `ListServiceTargets` が共有する、環境検証と candidate の列挙
 
 ### 処理の流れ
 
+`resolve`：
+
 1. **ラベル抽出**: PR からデプロイラベルを取得
-2. **環境検証**: 全ての対象環境が存在することを検証
-3. **マトリクス生成**: ディレクトリ構造に基づいて全環境のデプロイメントターゲットを作成
+2. **candidate の一覧化**: `ListCandidates` が全ての対象環境の存在を検証し、ディレクトリ構造から candidate を列挙
+3. **マトリクス生成**: `GenerateMatrix` が除外されていない candidate をデプロイメントターゲットにする
 4. **出力生成**: 簡素化された出力で GitHub Actions 用に結果をフォーマット
+
+`targets`：
+
+1. **サービス検証**: `ListServiceTargets` が `[a-zA-Z0-9_-]+` に一致しないサービス名を拒否
+2. **candidate の一覧化**: `ListCandidates` が対象環境を検証し、サービス（`all` なら全サービス）の candidate を列挙
+3. **出力生成**: `targets` と `has-targets` は除外されていない candidate から、`candidates` は全 candidate を除外状態と root 付きで出力
 
 ## 設定
 
@@ -141,6 +182,7 @@ prefix と追加の prefix は設定で変更できます。ルートの [Labels
 リゾルバーは包括的なエラーハンドリングを提供します：
 
 - **無効な環境**: 対象環境が存在しない場合の明確なエラー
+- **無効なサービス名**: `targets` は `[a-zA-Z0-9_-]+` に一致しないサービス名を拒否
 - **ラベル不足**: デプロイラベルのない PR の適切な処理
 - **設定エラー**: ワークフロー設定の詳細な検証
 - **ディレクトリ検出**: 存在しないパスは正常な空の結果

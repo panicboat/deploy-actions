@@ -29,13 +29,14 @@ class ConfigManagerContainer
     when :directory_scanner then Composition.directory_scanner
     when :resolve_environments then UseCases::Shared::ResolveEnvironments.new(directory_scanner: resolve(:directory_scanner))
     when :enumerate_targets then UseCases::Shared::EnumerateTargets.new(directory_scanner: resolve(:directory_scanner))
-    when :validate_config then UseCases::ConfigManagement::ValidateConfig.new(config_client: resolve(:config_client))
-    when :test_service
-      UseCases::ConfigManagement::TestService.new(
+    when :list_candidates
+      UseCases::Shared::ListCandidates.new(
         config_client: resolve(:config_client),
         resolve_environments: resolve(:resolve_environments),
         enumerate_targets: resolve(:enumerate_targets)
       )
+    when :validate_config then UseCases::ConfigManagement::ValidateConfig.new(config_client: resolve(:config_client))
+    when :test_service then UseCases::ConfigManagement::TestService.new(list_candidates: resolve(:list_candidates))
     when :presenter then Composition.presenter
     when :config_manager_controller
       Interfaces::Controllers::ConfigManagerController.new(

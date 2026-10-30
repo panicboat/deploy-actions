@@ -76,12 +76,36 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
     environments: develop
 ```
 
+`service` を指定すると、pull request なしで service（または `all`）の対象を解決します。このとき `pr-number` は無視され、`ref` で checkout する source repository の ref を選べます。
+
+```yaml
+- uses: panicboat/deploy-actions/label-resolver@v1
+  with:
+    repository: ${{ github.repository }}
+    service: api
+    environments: production
+    ref: ${{ github.event.release.tag_name }}
+```
+
+入力:
+
+| 入力 | 必須 | 値 |
+|---|---|---|
+| `repository` | 必須 | source repository（`owner/repo`） |
+| `pr-number` | `service` 未指定なら必須 | ラベルを解決する pull request。`service` を指定すると無視される |
+| `service` | 任意 | service 名または `all`。pull request なしでその対象を解決する |
+| `environments` | 任意 | カンマ区切りの環境。空なら定義環境と探索した環境をすべて対象にする |
+| `ref` | 任意 | checkout する source repository の ref。既定は、ワークフローを起動したリポジトリならイベントの ref、別のリポジトリならそのデフォルトブランチ |
+| `github-token` | 任意 | リポジトリの checkout と PR の読み取りに使う token。既定は `${{ github.token }}` |
+| `config-path` | 任意 | 設定ファイルのパス。既定は `workflow-config.yaml` |
+
 出力:
 
 | 出力 | 値 |
 |---|---|
 | `targets` | デプロイ対象の JSON 配列（[matrix 出力](#matrix-出力) を参照） |
 | `has-targets` | `true` または `false` |
+| `candidates` | `service` を指定した場合に、除外された候補を含むすべての候補の JSON 配列。各要素は `{"target": <matrix item>, "excluded": <bool>, "root": "<root>"}` |
 
 ## 設定
 
@@ -453,6 +477,7 @@ bundle exec rspec
 | `bundle exec ruby label-dispatcher/bin/dispatcher test [--base-ref=REF] [--head-ref=REF]` | 変更に付くラベルを表示する |
 | `bundle exec ruby label-dispatcher/bin/dispatcher dispatch PR_NUMBER` | PR の base と head から変更を検出し、PR のラベルを同期する |
 | `bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]` | PR のラベルを対象に解決する。`ENVIRONMENTS` はカンマ区切りで、空なら全環境 |
+| `bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]` | pull request なしで service（または `all`）の対象を解決する。`ENVIRONMENTS` は `resolve` と同じ |
 
 変更が何をもたらすかをローカルで確かめるには、2 つの `test` を使います。
 
@@ -465,7 +490,7 @@ bundle exec ruby config-manager/bin/config-manager test api develop
 - ref を指定しない `dispatcher test` は、ステージ済みと未ステージの変更を使います。
 - `--base-ref` と `--head-ref` を指定すると 2 つの ref の差分を使います。`--base-ref` だけを指定すると base の ref と作業ツリーの差分を使います。`--head-ref` だけの指定はエラーです。
 - ref を指定して存在しない場合は、作業ツリーの変更に切り替えずにエラーで止まります。
-- `dispatch` は常に PR のラベルを同期します。`dispatch` と `resolve` には `GITHUB_TOKEN` と `GITHUB_REPOSITORY` が必要です。
+- `dispatch` は常に PR のラベルを同期します。`dispatch` と `resolve` には `GITHUB_TOKEN` と `GITHUB_REPOSITORY` が必要ですが、`targets` はどちらも不要です。
 - リポジトリのルートは、`SOURCE_REPO_PATH` が `.git` を持つ場合はそのパスです。それ以外は現在のディレクトリ自身から探し始め、`.git` を持つ最も近いディレクトリです。
 - `WORKFLOW_CONFIG_PATH` で設定ファイルを選びます。現在のディレクトリからの相対パスで、既定は `workflow-config.yaml` です。
 

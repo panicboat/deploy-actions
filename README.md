@@ -76,12 +76,36 @@ Outputs:
     environments: develop
 ```
 
+Set `service` to resolve a service, or `all`, without a pull request. `pr-number` is then ignored, and `ref` selects the ref of the source repository to check out.
+
+```yaml
+- uses: panicboat/deploy-actions/label-resolver@v1
+  with:
+    repository: ${{ github.repository }}
+    service: api
+    environments: production
+    ref: ${{ github.event.release.tag_name }}
+```
+
+Inputs:
+
+| Input | Required | Value |
+|---|---|---|
+| `repository` | Yes | Source repository (`owner/repo`) |
+| `pr-number` | Unless `service` is set | Pull request whose labels are resolved; ignored when `service` is set |
+| `service` | No | Service name or `all`; resolves its targets without a pull request |
+| `environments` | No | Comma-separated environments; empty means all declared and discovered environments |
+| `ref` | No | Ref of the source repository to check out; defaults to the event's ref for the triggering repository and to the default branch for another repository |
+| `github-token` | No | Token for checking out the repository and reading the PR; defaults to `${{ github.token }}` |
+| `config-path` | No | Path to the configuration file; defaults to `workflow-config.yaml` |
+
 Outputs:
 
 | Output | Value |
 |---|---|
 | `targets` | JSON array of deployment targets (see [Matrix Output](#matrix-output)) |
 | `has-targets` | `true` or `false` |
+| `candidates` | When `service` is set, JSON array of every candidate including the excluded ones, each `{"target": <matrix item>, "excluded": <bool>, "root": "<root>"}` |
 
 ## Configuration
 
@@ -453,6 +477,7 @@ Run commands from the `action-scripts` directory. `validate` and both `test` com
 | `bundle exec ruby label-dispatcher/bin/dispatcher test [--base-ref=REF] [--head-ref=REF]` | Prints the labels a change would get |
 | `bundle exec ruby label-dispatcher/bin/dispatcher dispatch PR_NUMBER` | Detects changes from the PR's base and head and syncs the PR labels |
 | `bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]` | Resolves the PR's labels into targets; `ENVIRONMENTS` is comma-separated, and empty means all |
+| `bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]` | Resolves the targets of one service, or `all`, without a PR; `ENVIRONMENTS` is the same as for `resolve` |
 
 To check locally what a change would do, use the two `test` commands:
 
@@ -465,7 +490,7 @@ bundle exec ruby config-manager/bin/config-manager test api develop
 - Without refs, `dispatcher test` uses staged and unstaged changes.
 - With `--base-ref` and `--head-ref`, it diffs the two refs; with `--base-ref` alone, it diffs the base ref against the working tree; `--head-ref` alone is an error.
 - With refs, it stops with an error when a ref does not exist, without falling back to working-tree changes.
-- `dispatch` always syncs the labels of the PR, and `dispatch` and `resolve` need `GITHUB_TOKEN` and `GITHUB_REPOSITORY`.
+- `dispatch` always syncs the labels of the PR, and `dispatch` and `resolve` need `GITHUB_TOKEN` and `GITHUB_REPOSITORY`, while `targets` needs neither.
 - The repository root is `SOURCE_REPO_PATH` when it holds `.git`; otherwise the search starts at the current directory itself and returns the nearest directory that holds `.git`.
 - `WORKFLOW_CONFIG_PATH` selects the configuration file, relative to the current directory, and defaults to `workflow-config.yaml`.
 
