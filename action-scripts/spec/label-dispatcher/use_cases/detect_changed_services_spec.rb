@@ -56,10 +56,38 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     expect(services).to eq([])
   end
 
-  it 'treats files under a dot path as inside the stack' do
+  it 'treats files under an excluded dot path as shared files' do
     service['stacks'] = [{ 'id' => 'container', 'path' => '.', 'exclude' => [{ 'service' => 'demo' }] }]
     changed_files.replace(['teams/platform/demo/Dockerfile'])
+    expect(services).to eq(['demo'])
+  end
+
+  context 'with an excluded dot path beside other stacks' do
+    let(:service) do
+      { 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [
+        { 'id' => 'dockerfile', 'path' => '.', 'exclude' => [{ 'service' => 'demo' }] },
+        { 'id' => 'aws', 'path' => 'infrastructure/aws/{environment}', 'environments' => { 'develop' => {}, 'production' => {} }, 'exclude' => [{ 'service' => 'demo', 'environment' => 'production' }] }
+      ] }
+    end
+
+    it 'detects shared files of the other stacks' do
+      changed_files.replace(['dystopia/demo/infrastructure/aws/modules/main.tf'])
+      expect(services).to eq(['demo'])
+    end
+
+    it 'keeps omitting files inside another stack whose targets are all excluded' do
+      changed_files.replace(['dystopia/demo/infrastructure/aws/production/main.tf'])
+      expect(services).to eq([])
+    end
+  end
+
+  it 'pairs each root with its own stack path' do
+    service['roots'] = ['dystopia/{service}', 'system-components/{service}']
+    stack['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
+    changed_files.replace(['system-components/demo/aws/production/main.tf'])
     expect(services).to eq([])
+    changed_files.replace(['system-components/demo/aws/develop/main.tf'])
+    expect(services).to eq(['demo'])
   end
 
   it 'deduplicates services detected through overlapping roots' do
@@ -93,8 +121,8 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   end
 
   it 'detects common stacks with null environment' do
-    config_hash['services'] = [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.', 'exclude' => [{ 'service' => 'demo', 'environment' => nil }] }] }]
-    changed_files.replace(['dystopia/demo/main.rb', 'dystopia/api/main.rb'])
+    config_hash['services'] = [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => 'app', 'exclude' => [{ 'service' => 'demo', 'environment' => nil }] }] }]
+    changed_files.replace(['dystopia/demo/app/main.rb', 'dystopia/api/app/main.rb'])
     expect(services).to eq(['api'])
   end
 

@@ -34,7 +34,8 @@ module UseCases
                 end
                 environments &= [captures['environment']] if captures.key?('environment')
                 next if environments.empty?
-                in_stack = true
+                # A dot path holds every file under the root, so counting it would stop shared-file detection for the other stacks.
+                in_stack = true unless stack['path'].empty?
                 directory = Entities::PatternMatcher.expand(pattern, captures)
                 custom = captures.reject { |key, _| %w[service environment].include?(key) }
                 environments.each do |environment|
