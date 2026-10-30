@@ -50,7 +50,7 @@ bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref
 
 ```yaml
 - name: Dispatch labels
-  uses: panicboat/deploy-actions/label-dispatcher@v1
+  uses: panicboat/deploy-actions/label-dispatcher@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}

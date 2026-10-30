@@ -89,7 +89,7 @@ bundle exec ruby label-resolver/bin/resolver targets all
 
 ```yaml
 - name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@v1
+  uses: panicboat/deploy-actions/label-resolver@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
@@ -101,7 +101,7 @@ bundle exec ruby label-resolver/bin/resolver targets all
 
 ```yaml
 - name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@v1
+  uses: panicboat/deploy-actions/label-resolver@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
