@@ -30,20 +30,21 @@ class LabelResolverContainer
     container = {}
 
     # Infrastructure clients
-    container[:config_client] = Infrastructure::ConfigClient.new
-    container[:file_client] = Infrastructure::FileSystemClient.new
+    container[:config_client] = Composition.config_client
+    container[:directory_scanner] = Composition.directory_scanner
 
     # GitHub client (only in GitHub Actions or with credentials)
-    if ENV['GITHUB_ACTIONS'] || (ENV['GITHUB_TOKEN'] && ENV['GITHUB_REPOSITORY'])
-      container[:github_client] = Infrastructure::GitHubClient.new(
-        token: ENV['GITHUB_TOKEN'] || raise('GITHUB_TOKEN is required'),
-        repository: ENV['GITHUB_REPOSITORY'] || raise('GITHUB_REPOSITORY is required')
-      )
+    container[:github_client] = begin
+      Composition.github_client
+    rescue RuntimeError
+      raise if Composition.github_actions?
+      # SILENT: Local runs without credentials skip the GitHub-backed use cases.
+      nil
     end
 
     # Use cases
-    container[:resolve_environments] = UseCases::Shared::ResolveEnvironments.new(directory_scanner: container[:file_client])
-    container[:enumerate_targets] = UseCases::Shared::EnumerateTargets.new(directory_scanner: container[:file_client])
+    container[:resolve_environments] = UseCases::Shared::ResolveEnvironments.new(directory_scanner: container[:directory_scanner])
+    container[:enumerate_targets] = UseCases::Shared::EnumerateTargets.new(directory_scanner: container[:directory_scanner])
 
     container[:determine_target_environment] = UseCases::LabelResolver::DetermineTargetEnvironment.new(
       config_client: container[:config_client],
@@ -72,7 +73,7 @@ class LabelResolverContainer
     container[:github_actions_presenter] = Interfaces::Presenters::GitHubActionsPresenter.new
 
     # Controller
-    presenter = ENV['GITHUB_ACTIONS'] ? container[:github_actions_presenter] : container[:console_presenter]
+    presenter = Composition.github_actions? ? container[:github_actions_presenter] : container[:console_presenter]
     container[:label_resolver_controller] = Interfaces::Controllers::LabelResolverController.new(
       determine_target_environment_use_case: container[:determine_target_environment],
       get_labels_use_case: container[:get_labels],

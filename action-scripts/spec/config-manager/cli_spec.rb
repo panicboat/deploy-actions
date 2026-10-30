@@ -22,24 +22,19 @@ RSpec.describe 'ConfigManagerCLI' do
     ] }])
     client = instance_double(Infrastructure::ConfigClient, load_workflow_config: config)
     allow(ConfigManagerContainer).to receive(:resolve).with(:config_client).and_return(client)
-    allow(ConfigManagerContainer).to receive(:resolve).with(:resolve_environments).and_return(UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::FileSystemClient.new))
+    allow(ConfigManagerContainer).to receive(:resolve).with(:resolve_environments).and_return(UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::DirectoryScanner.new(repository_root: Dir.pwd)))
     expect { ConfigManagerCLI.new.environments }.to output(/production.*preview.*sandbox/m).to_stdout
   end
 
   it 'lists environment names discovered from paths' do
-    original = ENV['SOURCE_REPO_PATH']
     Dir.mktmpdir do |root|
-      FileUtils.mkdir_p(File.join(root, '.git'))
       FileUtils.mkdir_p(File.join(root, 'apps/demo/preview'))
-      ENV['SOURCE_REPO_PATH'] = root
       config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
       client = instance_double(Infrastructure::ConfigClient, load_workflow_config: config)
       allow(ConfigManagerContainer).to receive(:resolve).with(:config_client).and_return(client)
-      allow(ConfigManagerContainer).to receive(:resolve).with(:resolve_environments).and_return(UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::FileSystemClient.new))
+      allow(ConfigManagerContainer).to receive(:resolve).with(:resolve_environments).and_return(UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::DirectoryScanner.new(repository_root: root)))
       expect { ConfigManagerCLI.new.environments }.to output(/preview/).to_stdout
     end
-  ensure
-    ENV['SOURCE_REPO_PATH'] = original
   end
 
   it 'accepts a configuration file that uses YAML anchors' do

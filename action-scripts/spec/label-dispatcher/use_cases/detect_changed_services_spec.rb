@@ -4,11 +4,11 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   let(:config_hash) { { 'services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'terragrunt', 'path' => 'aws/{environment}' }] }] } }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: Entities::WorkflowConfigParser.parse(config_hash)) }
   let(:changed_files) { ['teams/platform/demo/aws/develop/main.tf'] }
-  let(:file_client) { instance_double(Infrastructure::FileSystemClient, get_changed_files: changed_files) }
-  subject(:use_case) { described_class.new(config_client: config_client, file_client: file_client) }
+  let(:git_client) { instance_double(Infrastructure::GitClient, changed_files: changed_files) }
+  subject(:use_case) { described_class.new(config_client: config_client, git_client: git_client) }
 
   it 'returns failures for git errors' do
-    allow(file_client).to receive(:get_changed_files).and_raise('git error')
+    allow(git_client).to receive(:changed_files).and_raise('git error')
     expect(use_case.execute.error_message).to include('git error')
   end
 
@@ -18,6 +18,6 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     expect(result.value).to be_a(UseCases::LabelManagement::Detection)
     expect(result.value.deploy_labels.map(&:to_s)).to eq(['release/demo'])
     expect(result.value.changed_files).to eq(changed_files)
-    expect(file_client).to have_received(:get_changed_files).with(base_ref: 'base', head_ref: 'head')
+    expect(git_client).to have_received(:changed_files).with(base_ref: 'base', head_ref: 'head')
   end
 end

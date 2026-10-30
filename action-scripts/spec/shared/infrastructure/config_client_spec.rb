@@ -30,9 +30,8 @@ RSpec.describe Infrastructure::ConfigClient do
     expect(client.load_workflow_config.stacks.first.attributes).to eq('repository' => 'registry.example.com/other')
   end
 
-  it 'uses the environment-specified path when no path is passed' do
-    ENV['WORKFLOW_CONFIG_PATH'] = file.path
-    expect(described_class.new.load_workflow_config.stacks.first.id).to eq('container')
+  it 'requires a configuration path' do
+    expect { described_class.new }.to raise_error(ArgumentError, /config_path/)
   end
 
   it 'loads anchors and merge keys' do

@@ -9,7 +9,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   let(:config_hash) { attributes_for(:workflow_config).fetch(:config_hash) }
   let(:config) { Entities::WorkflowConfigParser.parse(config_hash) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
-  let(:file_client) { Infrastructure::FileSystemClient.new }
+  let(:directory_scanner) { Infrastructure::DirectoryScanner.new(repository_root: @root) }
   let(:presenter) { double('Presenter') }
 
   def use_service(roots:, stacks:)
@@ -19,8 +19,8 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   subject(:controller) do
     described_class.new(
       validate_config_use_case: validate_config_use_case,
-      resolve_environments_use_case: UseCases::Shared::ResolveEnvironments.new(directory_scanner: file_client),
-      enumerate_targets_use_case: UseCases::Shared::EnumerateTargets.new(directory_scanner: file_client),
+      resolve_environments_use_case: UseCases::Shared::ResolveEnvironments.new(directory_scanner: directory_scanner),
+      enumerate_targets_use_case: UseCases::Shared::EnumerateTargets.new(directory_scanner: directory_scanner),
       config_client: config_client,
       presenter: presenter
     )
@@ -95,15 +95,10 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
 
   describe '#test_service_configuration' do
     around do |example|
-      original = ENV['SOURCE_REPO_PATH']
       Dir.mktmpdir do |root|
         @root = root
-        FileUtils.mkdir_p(File.join(root, '.git'))
-        ENV['SOURCE_REPO_PATH'] = root
         example.run
       end
-    ensure
-      ENV['SOURCE_REPO_PATH'] = original
     end
 
     def directory(path)
@@ -199,7 +194,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'reports enumeration errors without presenting partial matches' do
-      allow(file_client).to receive(:resolve_directories).and_raise(Errno::EACCES)
+      allow(directory_scanner).to receive(:resolve).and_raise(Errno::EACCES)
       allow(presenter).to receive(:present_error)
       expect(presenter).not_to receive(:present_service_test_result)
       controller.test_service_configuration(service_name: 'demo')

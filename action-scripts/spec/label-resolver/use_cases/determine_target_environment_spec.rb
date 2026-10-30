@@ -3,7 +3,7 @@ require 'spec_helper'
 RSpec.describe UseCases::LabelResolver::DetermineTargetEnvironment do
   let(:config) { build(:workflow_config) }
   let(:client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
-  let(:resolve_environments) { UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::FileSystemClient.new) }
+  let(:resolve_environments) { UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::DirectoryScanner.new(repository_root: Dir.pwd)) }
   subject(:use_case) { described_class.new(config_client: client, resolve_environments: resolve_environments) }
 
   it 'returns the environments resolved from the loaded configuration' do

@@ -6,25 +6,20 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   let(:config_hash) { attributes_for(:workflow_config).fetch(:config_hash) }
   let(:config) { Entities::WorkflowConfigParser.parse(config_hash) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
-  let(:file_client) { Infrastructure::FileSystemClient.new }
+  let(:directory_scanner) { Infrastructure::DirectoryScanner.new(repository_root: @root) }
   subject(:use_case) do
     described_class.new(
       config_client: config_client,
-      resolve_environments: UseCases::Shared::ResolveEnvironments.new(directory_scanner: file_client),
-      enumerate_targets: UseCases::Shared::EnumerateTargets.new(directory_scanner: file_client)
+      resolve_environments: UseCases::Shared::ResolveEnvironments.new(directory_scanner: directory_scanner),
+      enumerate_targets: UseCases::Shared::EnumerateTargets.new(directory_scanner: directory_scanner)
     )
   end
 
   around do |example|
-    original = ENV['SOURCE_REPO_PATH']
     Dir.mktmpdir do |root|
       @root = root
-      FileUtils.mkdir_p(File.join(root, '.git'))
-      ENV['SOURCE_REPO_PATH'] = root
       example.run
     end
-  ensure
-    ENV['SOURCE_REPO_PATH'] = original
   end
 
   def directory(path)
@@ -277,8 +272,8 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
   it 'returns failures without partial targets for enumeration errors' do
     directory('dystopia/demo/aws/develop')
-    allow(file_client).to receive(:resolve_directories).and_call_original
-    allow(file_client).to receive(:resolve_directories).with(pattern: 'system-components/{service}/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }).and_raise(Errno::EACCES)
+    allow(directory_scanner).to receive(:resolve).and_call_original
+    allow(directory_scanner).to receive(:resolve).with(pattern: 'system-components/{service}/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }).and_raise(Errno::EACCES)
     result = generate
     expect(result).to be_failure
     expect(result.error_message).to include('Permission denied')
@@ -324,8 +319,8 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   it 'agrees with change detection for dot-prefixed environments and custom captures' do
     use_service(roots: ['teams/{team}/{service}'], stacks: [{ 'id' => 'terragrunt', 'path' => '{environment}', 'environments' => { '.preview' => { 'token' => nil } } }])
     directory('teams/.platform/demo/.preview')
-    allow(file_client).to receive(:get_changed_files).and_return(['teams/.platform/demo/.preview/main.tf'])
-    detector = UseCases::LabelManagement::DetectChangedServices.new(config_client: config_client, file_client: file_client)
+    git_client = instance_double(Infrastructure::GitClient, changed_files: ['teams/.platform/demo/.preview/main.tf'])
+    detector = UseCases::LabelManagement::DetectChangedServices.new(config_client: config_client, git_client: git_client)
     detection = detector.execute.value
     expect(detection.deploy_labels.map(&:service)).to eq(['demo'])
     expect(items(labels: detection.deploy_labels.map(&:to_s))).to eq([

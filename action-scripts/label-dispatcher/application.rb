@@ -30,21 +30,22 @@ class LabelDispatcherContainer
     container = {}
 
     # Infrastructure clients
-    container[:file_client] = Infrastructure::FileSystemClient.new
-    container[:config_client] = Infrastructure::ConfigClient.new
+    container[:git_client] = Composition.git_client
+    container[:config_client] = Composition.config_client
 
     # GitHub client (only in GitHub Actions or with credentials)
-    if ENV['GITHUB_ACTIONS'] || (ENV['GITHUB_TOKEN'] && ENV['GITHUB_REPOSITORY'])
-      container[:github_client] = Infrastructure::GitHubClient.new(
-        token: ENV['GITHUB_TOKEN'] || raise('GITHUB_TOKEN is required'),
-        repository: ENV['GITHUB_REPOSITORY'] || raise('GITHUB_REPOSITORY is required')
-      )
+    container[:github_client] = begin
+      Composition.github_client
+    rescue RuntimeError
+      raise if Composition.github_actions?
+      # SILENT: Local runs without credentials skip the GitHub-backed use cases.
+      nil
     end
 
     # Use cases
     container[:detect_changed_services] = UseCases::LabelManagement::DetectChangedServices.new(
-      file_client: container[:file_client],
-      config_client: container[:config_client]
+      config_client: container[:config_client],
+      git_client: container[:git_client]
     )
 
     if container[:github_client]
@@ -59,7 +60,7 @@ class LabelDispatcherContainer
     container[:github_actions_presenter] = Interfaces::Presenters::GitHubActionsPresenter.new
 
     # Controller
-    presenter = ENV['GITHUB_ACTIONS'] ? container[:github_actions_presenter] : container[:console_presenter]
+    presenter = Composition.github_actions? ? container[:github_actions_presenter] : container[:console_presenter]
     container[:label_dispatcher_controller] = Interfaces::Controllers::LabelDispatcherController.new(
       detect_services_use_case: container[:detect_changed_services],
       manage_labels_use_case: container[:manage_labels],

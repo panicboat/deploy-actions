@@ -2,8 +2,8 @@ require 'yaml'
 
 module Infrastructure
   class ConfigClient
-    def initialize(config_path: nil)
-      @config_path = config_path || ENV['WORKFLOW_CONFIG_PATH'] || 'workflow-config.yaml'
+    def initialize(config_path:)
+      @config_path = config_path
       @config_cache = nil
     end
 

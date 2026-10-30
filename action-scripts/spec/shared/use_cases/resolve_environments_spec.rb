@@ -3,20 +3,15 @@ require 'tmpdir'
 require 'fileutils'
 
 RSpec.describe UseCases::Shared::ResolveEnvironments do
-  let(:scanner) { Infrastructure::FileSystemClient.new }
+  let(:scanner) { Infrastructure::DirectoryScanner.new(repository_root: @root) }
   let(:config) { build(:workflow_config) }
   subject(:use_case) { described_class.new(directory_scanner: scanner) }
 
   around do |example|
-    original = ENV['SOURCE_REPO_PATH']
     Dir.mktmpdir do |root|
       @root = root
-      FileUtils.mkdir_p(File.join(root, '.git'))
-      ENV['SOURCE_REPO_PATH'] = root
       example.run
     end
-  ensure
-    ENV['SOURCE_REPO_PATH'] = original
   end
 
   def directory(path)
@@ -78,7 +73,7 @@ RSpec.describe UseCases::Shared::ResolveEnvironments do
 
   it 'ignores environments found only under hidden services' do
     hidden = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'kustomize', 'path' => 'overlays/{environment}' }] }])
-    allow(scanner).to receive(:resolve_directories).and_return([{ working_directory: 'dystopia/.hidden/overlays/qa', captures: { 'service' => '.hidden', 'environment' => 'qa' } }])
+    allow(scanner).to receive(:resolve).and_return([{ working_directory: 'dystopia/.hidden/overlays/qa', captures: { 'service' => '.hidden', 'environment' => 'qa' } }])
     expect(resolve(nil, with: hidden).value).not_to include('qa')
     expect(resolve(['qa'], with: hidden)).to be_failure
   end

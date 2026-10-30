@@ -16,3 +16,5 @@ require 'json'
 ].each do |pattern|
   Dir[File.expand_path("#{pattern}", __dir__)].sort.each { |file| require file }
 end
+
+require_relative 'composition'

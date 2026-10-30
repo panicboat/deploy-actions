@@ -30,12 +30,12 @@ class ConfigManagerContainer
     container = {}
 
     # Infrastructure clients
-    container[:config_client] = Infrastructure::ConfigClient.new
-    container[:file_client] = Infrastructure::FileSystemClient.new
+    container[:config_client] = Composition.config_client
+    container[:directory_scanner] = Composition.directory_scanner
 
     # Use cases
-    container[:resolve_environments] = UseCases::Shared::ResolveEnvironments.new(directory_scanner: container[:file_client])
-    container[:enumerate_targets] = UseCases::Shared::EnumerateTargets.new(directory_scanner: container[:file_client])
+    container[:resolve_environments] = UseCases::Shared::ResolveEnvironments.new(directory_scanner: container[:directory_scanner])
+    container[:enumerate_targets] = UseCases::Shared::EnumerateTargets.new(directory_scanner: container[:directory_scanner])
 
     container[:validate_config] = UseCases::ConfigManagement::ValidateConfig.new(
       config_client: container[:config_client]
@@ -46,7 +46,7 @@ class ConfigManagerContainer
     container[:github_actions_presenter] = Interfaces::Presenters::GitHubActionsPresenter.new
 
     # Controller
-    presenter = ENV['GITHUB_ACTIONS'] ? container[:github_actions_presenter] : container[:console_presenter]
+    presenter = Composition.github_actions? ? container[:github_actions_presenter] : container[:console_presenter]
     container[:config_manager_controller] = Interfaces::Controllers::ConfigManagerController.new(
       validate_config_use_case: container[:validate_config],
       resolve_environments_use_case: container[:resolve_environments],

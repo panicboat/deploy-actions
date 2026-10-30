@@ -3,7 +3,7 @@ require 'tmpdir'
 require 'fileutils'
 
 RSpec.describe UseCases::Shared::EnumerateTargets do
-  let(:scanner) { Infrastructure::FileSystemClient.new }
+  let(:scanner) { Infrastructure::DirectoryScanner.new(repository_root: @root) }
   let(:config) do
     Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [
       { 'id' => 'kustomize', 'path' => 'overlays/{environment}', 'exclude' => [{ 'environment' => 'production' }] },
@@ -13,15 +13,10 @@ RSpec.describe UseCases::Shared::EnumerateTargets do
   subject(:use_case) { described_class.new(directory_scanner: scanner) }
 
   around do |example|
-    original = ENV['SOURCE_REPO_PATH']
     Dir.mktmpdir do |root|
       @root = root
-      FileUtils.mkdir_p(File.join(root, '.git'))
-      ENV['SOURCE_REPO_PATH'] = root
       example.run
     end
-  ensure
-    ENV['SOURCE_REPO_PATH'] = original
   end
 
   def directory(path)
@@ -54,7 +49,7 @@ RSpec.describe UseCases::Shared::EnumerateTargets do
   end
 
   it 'skips hidden services' do
-    allow(scanner).to receive(:resolve_directories).and_return([{ working_directory: 'dystopia/.hidden', captures: { 'service' => '.hidden' } }])
+    allow(scanner).to receive(:resolve).and_return([{ working_directory: 'dystopia/.hidden', captures: { 'service' => '.hidden' } }])
     expect(enumerate).to eq([])
   end
 end
