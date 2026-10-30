@@ -66,6 +66,12 @@ RSpec.describe Entities::Service do
     end
   end
 
+  describe '.invalid_name_message' do
+    it 'quotes the name and states the format' do
+      expect(described_class.invalid_name_message('a.b')).to eq('Invalid service name: "a.b" (use a name matching [a-zA-Z0-9_-]+)')
+    end
+  end
+
   describe '.captures_invalid_name?' do
     it 'is true for captures whose service fails the name definition' do
       expect(described_class.captures_invalid_name?('team' => 'platform', 'service' => '.hidden')).to be(true)

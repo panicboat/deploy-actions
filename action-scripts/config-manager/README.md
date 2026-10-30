@@ -22,7 +22,7 @@ bundle exec ruby config-manager/bin/config-manager test demo
 bundle exec ruby config-manager/bin/config-manager test demo production
 ```
 
-Without an environment it covers all declared and discovered environments plus the targets shared across environments. With an environment it covers that environment plus the shared targets. Services do not need registering, and a name that matches no directory or is not a [valid service name](#service-names) prints an empty result. Each target is printed with its stack `id`, expanded attribute values, and captured placeholders. Excluded targets are printed too, with `excluded: true`, so you can see what is left out of deployment. An unknown environment, an invalid configuration, a directory that cannot be listed, and conflicting captured values for the same target are errors and exit with status 1.
+Without an environment it covers all declared and discovered environments plus the targets shared across environments. With an environment it covers that environment plus the shared targets. Services do not need registering, and a valid name that matches no directory prints an empty result. Each target is printed with its stack `id`, expanded attribute values, and captured placeholders. Excluded targets are printed too, with `excluded: true`, so you can see what is left out of deployment. A name that is not a [valid service name](#service-names), an unknown environment, an invalid configuration, a directory that cannot be listed, and conflicting captured values for the same target are errors and exit with status 1.
 
 To try a configuration change without editing the original, point `WORKFLOW_CONFIG_PATH` at a copy:
 

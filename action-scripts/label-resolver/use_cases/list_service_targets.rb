@@ -6,9 +6,7 @@ module UseCases
       end
 
       def execute(service:, environments:)
-        unless Entities::Service.valid_name?(service)
-          return Entities::Result.failure("Invalid service name: #{service.inspect} (use a name matching #{Entities::Service.name_format})")
-        end
+        return Entities::Result.failure(Entities::Service.invalid_name_message(service)) unless Entities::Service.valid_name?(service)
 
         candidates = @list_candidates.execute(services: [service], environments: environments)
         return candidates if candidates.failure?

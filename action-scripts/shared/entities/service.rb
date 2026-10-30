@@ -8,6 +8,10 @@ module Entities
       /\A#{name_format}\z/.match?(name)
     end
 
+    def self.invalid_name_message(name)
+      "Invalid service name: #{name.inspect} (use a name matching #{name_format})"
+    end
+
     def self.captures_invalid_name?(captures)
       captures.key?('service') && !valid_name?(captures['service'])
     end

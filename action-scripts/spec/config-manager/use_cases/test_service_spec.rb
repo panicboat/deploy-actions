@@ -123,9 +123,19 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     expect(result.error_message).to eq('Failed to test service configuration: Permission denied')
   end
 
-  it 'lists nothing for a directory whose name is not a service' do
-    directory('dystopia/a.b/aws/develop')
-    expect(candidates(service: 'a.b')).to eq([])
+  ['a.b', '.hidden', 'demo/aws', "demo\n"].each do |name|
+    it "fails for the service name #{name.inspect} before loading the configuration" do
+      directory('dystopia/a.b/aws/develop')
+      result = use_case.execute(service_name: name, environment: nil)
+      expect(result).to be_failure
+      expect(result.error_message).to eq("Invalid service name: #{name.inspect} (use a name matching [a-zA-Z0-9_-]+)")
+      expect(config_client).not_to have_received(:load_workflow_config)
+    end
+  end
+
+  it 'lists nothing for a valid name with no matching directory' do
+    directory('dystopia/demo/aws/develop')
+    expect(candidates(service: 'missing')).to eq([])
   end
 
   it 'fails for an attribute that references a placeholder with no value' do
