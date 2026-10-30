@@ -54,8 +54,3 @@ class ConfigManagerContainer
     container
   end
 end
-
-# Loading completion log (development only)
-unless ENV['GITHUB_ACTIONS']
-  puts "✅ Config Manager loaded".colorize(:green)
-end

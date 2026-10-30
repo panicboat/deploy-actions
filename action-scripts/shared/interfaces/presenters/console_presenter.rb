@@ -1,6 +1,8 @@
 # Console presenter for displaying results in terminal output
 # Provides formatted output for development and testing
 
+require 'colorize'
+
 module Interfaces
   module Presenters
     class ConsolePresenter

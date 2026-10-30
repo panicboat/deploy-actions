@@ -200,7 +200,7 @@ RSpec.describe Entities::Result do
       it 'supports configuration validation pattern' do
         expect(result).to be_success
         expect(result.config).to be_a(Entities::WorkflowConfig)
-        expect(result.validation_summary).to be_present
+        expect(result.validation_summary).not_to be_empty
         expect(result.warnings).to be_empty
       end
     end

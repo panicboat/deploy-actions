@@ -1,6 +1,8 @@
 # GitHub API client for interacting with GitHub repositories
 # Handles PR labels and PR information retrieval
 
+require 'octokit'
+
 module Infrastructure
   class GitHubClient
     def initialize(token:, repository:)

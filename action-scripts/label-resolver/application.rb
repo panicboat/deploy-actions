@@ -80,8 +80,3 @@ class LabelResolverContainer
     container
   end
 end
-
-# Loading completion log (development only)
-unless ENV['GITHUB_ACTIONS']
-  puts "✅ Label Resolver loaded".colorize(:green)
-end

@@ -69,8 +69,3 @@ class LabelDispatcherContainer
     container
   end
 end
-
-# Loading completion log (development only)
-unless ENV['GITHUB_ACTIONS']
-  puts "✅ Label Dispatcher loaded".colorize(:green)
-end
