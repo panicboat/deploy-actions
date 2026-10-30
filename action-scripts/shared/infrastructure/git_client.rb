@@ -7,10 +7,12 @@ module Infrastructure
     end
 
     def changed_files(base_ref:, head_ref:)
+      raise ArgumentError, 'head_ref requires base_ref' if head_ref && base_ref.nil?
+
       if base_ref && head_ref
-        diff("#{base_ref}...#{head_ref}")
+        diff('--end-of-options', "#{base_ref}...#{head_ref}", '--')
       elsif base_ref
-        diff(base_ref)
+        diff('--end-of-options', base_ref, '--')
       else
         (diff('--cached') + diff).uniq
       end

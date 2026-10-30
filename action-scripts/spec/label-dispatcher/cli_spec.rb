@@ -73,6 +73,12 @@ RSpec.describe 'LabelDispatcherCLI' do
       expect(stdout).to include('git diff failed')
     end
 
+    it 'exits 1 when test is given a head ref without a base ref' do
+      stdout, _stderr, status = run_dispatcher('test', '--head-ref', 'HEAD')
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include('head_ref requires base_ref')
+    end
+
     it 'exits 1 when dispatch is called without a pull request number' do
       _stdout, _stderr, status = run_dispatcher('dispatch')
       expect(status.exitstatus).to eq(1)

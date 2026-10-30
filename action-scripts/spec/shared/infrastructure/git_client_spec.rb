@@ -21,7 +21,7 @@ RSpec.describe Infrastructure::GitClient do
   end
 
   def git(*args)
-    output, error, status = Open3.capture3('git', '-C', @root, '-c', 'user.name=spec', '-c', 'user.email=spec@example.com', '-c', 'commit.gpgsign=false', *args)
+    output, error, status = Open3.capture3({ 'GIT_CONFIG_GLOBAL' => '/dev/null', 'GIT_CONFIG_NOSYSTEM' => '1' }, 'git', '-C', @root, '-c', 'user.name=spec', '-c', 'user.email=spec@example.com', '-c', 'commit.gpgsign=false', *args)
     raise error unless status.success?
     output
   end
@@ -57,5 +57,22 @@ RSpec.describe Infrastructure::GitClient do
     write('a.txt', 'changed')
     expect { client.changed_files(base_ref: 'missing', head_ref: @second) }.to raise_error(RuntimeError, /git diff failed: .*missing/m)
     expect { client.changed_files(base_ref: 'missing', head_ref: nil) }.to raise_error(RuntimeError, /git diff failed/)
+  end
+
+  it 'reads a ref that names an existing file as a ref, not as a path' do
+    write('a.txt', 'changed')
+    expect { client.changed_files(base_ref: 'a.txt', head_ref: nil) }.to raise_error(RuntimeError, /git diff failed/)
+  end
+
+  it 'reads a ref that starts with a dash as a ref, not as an option' do
+    output_path = File.join(@root, 'diff-output')
+    expect { client.changed_files(base_ref: "--output=#{output_path}", head_ref: nil) }.to raise_error(RuntimeError, /git diff failed/)
+    expect { client.changed_files(base_ref: "--output=#{output_path}", head_ref: @second) }.to raise_error(RuntimeError, /git diff failed/)
+    expect(Dir.glob("#{output_path}*")).to be_empty
+  end
+
+  it 'raises when a head ref is given without a base ref' do
+    write('a.txt', 'changed')
+    expect { client.changed_files(base_ref: nil, head_ref: @second) }.to raise_error(ArgumentError, 'head_ref requires base_ref')
   end
 end
