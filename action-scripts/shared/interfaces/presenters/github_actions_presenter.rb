@@ -111,10 +111,12 @@ module Interfaces
         config.services.each do |service|
           puts "Service '#{service['id']}':"
           puts "  roots: #{service['roots'].join(', ')}"
-          puts "  ignore: #{service['ignore'].join(', ')}"
+          puts "  ignore: #{service['ignore'].join(', ')}" unless service['ignore'].empty?
           service['stacks'].each do |stack|
             puts "  Stack '#{stack['id']}':"
-            puts stack.except('id', 'service_id', 'common').to_yaml.lines.drop(1).map { |line| "    #{line}" }.join
+            # Psych writes the root path as '' and would quote a bare dot, so the line is replaced as text.
+            details = stack.except('id', 'service_id', 'common').to_yaml.sub(/^path: ''$/, 'path: .')
+            puts details.lines.drop(1).map { |line| "    #{line}" }.join
           end
         end
       end

@@ -51,8 +51,13 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
       expect(printed).to include("Service 'app':\n  roots: dystopia/{service}, system-components/{service}\n  ignore: **/README.md\n  Stack 'aws':")
     end
 
-    it 'shows an empty ignore list for a service without ignore patterns' do
-      expect(printed).to include("Service 'tools':\n  roots: tools/{service}\n  ignore: \n  Stack 'scripts':")
+    it 'omits the ignore line for a service without ignore patterns' do
+      expect(printed).to include("Service 'tools':\n  roots: tools/{service}\n  Stack 'scripts':")
+    end
+
+    it 'shows a dot path as a dot' do
+      expect(stack_section('container')).to include("    path: .\n")
+      expect(printed).not_to include("path: ''")
     end
 
     it 'shows the execution path of every root, the exclusion conditions, and the resolved environment attributes under the stack declaring them' do
