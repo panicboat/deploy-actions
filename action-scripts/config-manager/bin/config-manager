@@ -58,7 +58,7 @@ class ConfigManagerCLI < Thor
         puts "✅ File is readable (#{content.length} bytes)"
 
         require 'yaml'
-        YAML.load(content)
+        YAML.safe_load(content, aliases: true)
         puts "✅ File contains valid YAML"
       rescue => error
         puts "❌ File is not valid YAML: #{error.message}"

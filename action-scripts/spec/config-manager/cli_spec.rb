@@ -42,6 +42,20 @@ RSpec.describe 'ConfigManagerCLI' do
     ENV['SOURCE_REPO_PATH'] = original
   end
 
+  it 'accepts a configuration file that uses YAML anchors' do
+    Dir.mktmpdir do |root|
+      File.write(File.join(root, 'workflow-config.yaml'), <<~YAML)
+        profiles:
+          base: &base
+            region: ap-northeast-1
+          copy: *base
+      YAML
+      Dir.chdir(root) do
+        expect { expect { ConfigManagerCLI.new.check_file }.not_to raise_error }.to output(/File contains valid YAML/).to_stdout
+      end
+    end
+  end
+
   it 'passes omitted environments to service diagnosis' do
     controller = instance_double(Interfaces::Controllers::ConfigManagerController)
     allow(ConfigManagerContainer).to receive(:resolve).with(:config_manager_controller).and_return(controller)
