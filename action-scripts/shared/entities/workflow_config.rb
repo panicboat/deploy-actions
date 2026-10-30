@@ -5,11 +5,12 @@ module Entities
     STACK_FIELDS = %w[id path attributes environments exclude].freeze
     MATRIX_KEYS = %w[service environment stack working_directory].freeze
     LABEL_FIELDS = %w[prefix extra_prefixes].freeze
+    REPLACED_FIELDS = { 'stacks' => 'services' }.freeze
 
     attr_reader :services, :stacks, :environment_names, :label_prefix, :extra_label_prefixes
 
     def initialize(config_hash)
-      validate_map!(config_hash, 'configuration', allowed: CONFIG_FIELDS)
+      validate_map!(config_hash, 'configuration', allowed: CONFIG_FIELDS, replaced: REPLACED_FIELDS)
       labels = config_hash.fetch('labels', {})
       validate_labels!(labels)
       @label_prefix = labels.fetch('prefix', DeployLabel::DEFAULT_PREFIX)
@@ -32,7 +33,7 @@ module Entities
           stack_identities << stack['id']
           normalized
         end
-        { 'id' => service['id'], 'roots' => roots, 'ignore' => service.fetch('ignore', []).dup, 'stacks' => service_stacks }
+        { 'id' => service['id'], 'roots' => roots, 'ignore' => service.fetch('ignore', []).map { |pattern| normalize_path(pattern) }, 'stacks' => service_stacks }
       end
       @stacks = services.flat_map { |service| service['stacks'] }
       @environment_names = stacks.flat_map { |stack| stack.fetch('environments', {}).keys }.uniq
@@ -50,7 +51,7 @@ module Entities
 
     def ignored?(service, relative_path)
       service['ignore'].any? do |pattern|
-        # fnmatch reads a trailing ** as one segment, so "docs/**" would skip files nested deeper.
+        # fnmatch reads a trailing ** as one segment, so "docs/**" alone would not match files nested deeper.
         glob = pattern.sub(%r{/\*\*\z}, '/**/*')
         File.fnmatch(glob, relative_path, File::FNM_PATHNAME | File::FNM_DOTMATCH | File::FNM_EXTGLOB)
       end
@@ -91,7 +92,11 @@ module Entities
       end
       ignore = service.fetch('ignore', [])
       validate_array!(ignore, "#{position}.ignore", allow_empty: true)
-      ignore.each_with_index { |pattern, index| validate_string!(pattern, "#{position}.ignore[#{index}]") }
+      ignore.each_with_index do |pattern, index|
+        ignore_position = "#{position}.ignore[#{index}]"
+        validate_string!(pattern, ignore_position)
+        validate_relative!(pattern, ignore_position)
+      end
       validate_array!(service['stacks'], "#{position}.stacks")
     end
 
@@ -181,14 +186,18 @@ module Entities
 
     def validate_pattern!(pattern, position)
       validate_string!(pattern, position)
-      invalid!(position, 'must be relative') if pattern.start_with?('/')
-      invalid!(position, 'must not contain parent-directory segments') if pattern.split('/').include?('..')
+      validate_relative!(pattern, position)
       remaining = pattern.gsub(PatternMatcher::PLACEHOLDER_REGEX, '')
       invalid!(position, 'invalid placeholder syntax') if remaining.include?('{') || remaining.include?('}')
       names = PatternMatcher.placeholders(pattern)
       collision = (names - %w[service environment]).find { |name| MATRIX_KEYS.include?(name) }
       invalid!(position, "placeholder '#{collision}' collides with a matrix or attribute key") if collision
       names
+    end
+
+    def validate_relative!(pattern, position)
+      invalid!(position, 'must be relative') if pattern.start_with?('/')
+      invalid!(position, 'must not contain parent-directory segments') if pattern.split('/').include?('..')
     end
 
     def normalize_path(pattern)
@@ -244,10 +253,11 @@ module Entities
       end
     end
 
-    def validate_map!(value, position, allowed: nil)
+    def validate_map!(value, position, allowed: nil, replaced: {})
       invalid!(position, 'must be a map') unless value.is_a?(Hash)
       value.each_key do |key|
         validate_string!(key, "#{position}.keys")
+        invalid!("#{position}.#{key}", "unknown field; use #{replaced[key]}") if replaced.key?(key)
         invalid!("#{position}.#{key}", 'unknown field') if allowed && !allowed.include?(key)
       end
     end

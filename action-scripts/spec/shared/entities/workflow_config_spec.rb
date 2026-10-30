@@ -121,7 +121,7 @@ RSpec.describe Entities::WorkflowConfig do
   end
 
   it 'rejects the legacy top-level stacks' do
-    expect { described_class.new('stacks' => []) }.to raise_error(ArgumentError, /configuration\.stacks: unknown field/)
+    expect { described_class.new('stacks' => []) }.to raise_error(ArgumentError, /\AConfiguration validation failed: configuration\.stacks: unknown field; use services\z/)
   end
 
   it 'exposes services with normalized roots and ignore patterns' do
@@ -130,6 +130,23 @@ RSpec.describe Entities::WorkflowConfig do
     expect(config.services).to eq([
       { 'id' => 'app', 'roots' => ['dystopia/{service}'], 'ignore' => ['**/README.md'], 'stacks' => config.stacks }
     ])
+  end
+
+  it 'normalizes ignore patterns without changing the input' do
+    service['ignore'] = ['./docs/**', './/**/README.md']
+    expect(config.services.first['ignore']).to eq(['docs/**', '**/README.md'])
+    expect(config.ignored?(config.services.first, 'docs/a/b.md')).to be(true)
+    expect(service['ignore']).to eq(['./docs/**', './/**/README.md'])
+  end
+
+  it 'rejects absolute ignore patterns' do
+    service['ignore'] = ['**/README.md', '/docs/**']
+    expect { config }.to raise_error(ArgumentError, %r{services\[0\]\.ignore\[1\]: must be relative})
+  end
+
+  it 'rejects ignore patterns with parent-directory segments' do
+    service['ignore'] = ['docs/../aws/**']
+    expect { config }.to raise_error(ArgumentError, /services\[0\]\.ignore\[0\]: must not contain parent-directory segments/)
   end
 
   it 'defaults ignore to an empty array and accepts an empty array' do
