@@ -48,6 +48,25 @@ RSpec.describe UseCases::Shared::EnumerateTargets do
     expect(enumerate.map(&:service)).to eq(%w[api demo])
   end
 
+  context 'with team roots' do
+    let(:config) do
+      Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [
+        { 'id' => 'kubernetes', 'path' => '{environment}' },
+        { 'id' => 'terragrunt', 'path' => 'aws/{environment}' },
+        { 'id' => 'container', 'path' => '.' }
+      ] }])
+    end
+
+    it 'records the root directory of each candidate' do
+      %w[teams/payments/api/develop teams/payments/api/aws/develop].each { |path| directory(path) }
+      expect(enumerate(environments: ['develop']).map { |candidate| [candidate.stack.id, candidate.working_directory, candidate.root] }).to contain_exactly(
+        ['kubernetes', 'teams/payments/api/develop', 'teams/payments/api'],
+        ['terragrunt', 'teams/payments/api/aws/develop', 'teams/payments/api'],
+        ['container', 'teams/payments/api', 'teams/payments/api']
+      )
+    end
+  end
+
   it 'skips hidden services' do
     directory('dystopia/.hidden/overlays/develop')
     expect(enumerate).to eq([])

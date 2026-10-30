@@ -1,5 +1,5 @@
 module Entities
-  TargetCandidate = Data.define(:stack, :service, :environment, :working_directory, :captures) do
+  TargetCandidate = Data.define(:stack, :service, :environment, :root, :working_directory, :captures) do
     def exclusion_values
       captures.merge('service' => service, 'environment' => environment)
     end

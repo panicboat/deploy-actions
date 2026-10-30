@@ -14,12 +14,20 @@ module Entities
         raise "Conflicting captures for stack '#{stack.id}' at '#{working_directory}'"
       end
       @candidates[identity] = TargetCandidate.new(
-        stack: stack, service: service, environment: environment, working_directory: working_directory, captures: custom
+        stack: stack, service: service, environment: environment, root: root_of(stack, working_directory),
+        working_directory: working_directory, captures: custom
       )
     end
 
     def to_a
       @candidates.values
+    end
+
+    private
+
+    def root_of(stack, working_directory)
+      parts = working_directory.split('/')
+      parts.first(parts.length - stack.path.split('/').length).join('/')
     end
   end
 end

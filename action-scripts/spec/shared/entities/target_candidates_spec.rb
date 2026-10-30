@@ -43,6 +43,15 @@ RSpec.describe Entities::TargetCandidates do
     expect([sandbox.excluded?, kept.excluded?]).to eq([true, false])
   end
 
+  it 'records the working directory without the stack path as the root' do
+    nested = Entities::Stack.new(id: 'nested', service_id: 'app', path: 'aws/{environment}', paths: ['teams/{team}/{service}/aws/{environment}'], attributes: {}, environments: nil, exclude: [])
+    common = Entities::Stack.new(id: 'common', service_id: 'app', path: '', paths: ['teams/{team}/{service}'], attributes: {}, environments: nil, exclude: [])
+    candidates.add(stack: stack, service: 'demo', environment: 'develop', working_directory: 'teams/a/demo/develop', captures: { 'team' => 'a' })
+    candidates.add(stack: nested, service: 'demo', environment: 'develop', working_directory: 'teams/a/demo/aws/develop', captures: { 'team' => 'a' })
+    candidates.add(stack: common, service: 'demo', environment: nil, working_directory: 'teams/a/demo', captures: { 'team' => 'a' })
+    expect(candidates.to_a.map(&:root)).to eq(%w[teams/a/demo teams/a/demo teams/a/demo])
+  end
+
   it 'builds a deployment target with the attributes of its environment' do
     add({ 'team' => 'a' })
     expect(candidates.to_a.first.to_deployment_target.to_matrix_item).to eq(

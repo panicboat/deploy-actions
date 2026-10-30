@@ -49,7 +49,7 @@ RSpec.describe Interfaces::Presenters::TextFormat do
   describe '.service_test_result' do
     it 'shows every matrix field of each target and its exclusion status' do
       stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first
-      candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {})
+      candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {})
       lines = described_class.service_test_result(service_name: 'demo', candidates: [candidate])
       expect(lines).to eq(['Service Configuration Test', 'Service: demo', 'Target:', '  service: "demo"', '  environment: nil', '  stack: "aws"', '  working_directory: "demo/aws"', '  excluded: false'])
     end

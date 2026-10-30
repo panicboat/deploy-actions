@@ -9,9 +9,11 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   let(:directory_scanner) { Infrastructure::DirectoryScanner.new(repository_root: @root) }
   subject(:use_case) do
     described_class.new(
-      config_client: config_client,
-      resolve_environments: UseCases::Shared::ResolveEnvironments.new(directory_scanner: directory_scanner),
-      enumerate_targets: UseCases::Shared::EnumerateTargets.new(directory_scanner: directory_scanner)
+      list_candidates: UseCases::Shared::ListCandidates.new(
+        config_client: config_client,
+        resolve_environments: UseCases::Shared::ResolveEnvironments.new(directory_scanner: directory_scanner),
+        enumerate_targets: UseCases::Shared::EnumerateTargets.new(directory_scanner: directory_scanner)
+      )
     )
   end
 
