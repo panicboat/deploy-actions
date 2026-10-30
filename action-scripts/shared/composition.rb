@@ -30,4 +30,14 @@ module Composition
   def self.github_output_path
     ENV['GITHUB_OUTPUT']
   end
+
+  def self.presenter
+    return Interfaces::Presenters::ConsolePresenter.new unless github_actions?
+
+    output_path = github_output_path
+    # Checked before the command runs so dispatch cannot change labels and then fail to write outputs.
+    raise 'GITHUB_OUTPUT is not set' if output_path.nil?
+
+    Interfaces::Presenters::GitHubActionsPresenter.new(output_path: output_path)
+  end
 end

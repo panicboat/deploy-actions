@@ -38,7 +38,7 @@ class LabelResolverContainer
         resolve_environments: resolve(:resolve_environments),
         enumerate_targets: resolve(:enumerate_targets)
       )
-    when :presenter then build_presenter
+    when :presenter then Composition.presenter
     when :label_resolver_controller
       Interfaces::Controllers::LabelResolverController.new(
         presenter: resolve(:presenter),
@@ -48,15 +48,5 @@ class LabelResolverContainer
     else
       raise KeyError, "Unknown dependency: #{name}"
     end
-  end
-
-  def self.build_presenter
-    return Interfaces::Presenters::ConsolePresenter.new unless Composition.github_actions?
-
-    output_path = Composition.github_output_path
-    # Checked before the command runs so a missing GITHUB_OUTPUT is reported before any GitHub request.
-    raise 'GITHUB_OUTPUT is not set' if output_path.nil?
-
-    Interfaces::Presenters::GitHubActionsPresenter.new(output_path: output_path)
   end
 end

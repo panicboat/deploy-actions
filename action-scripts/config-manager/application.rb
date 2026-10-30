@@ -36,25 +36,16 @@ class ConfigManagerContainer
         resolve_environments: resolve(:resolve_environments),
         enumerate_targets: resolve(:enumerate_targets)
       )
-    when :presenter then build_presenter
+    when :presenter then Composition.presenter
     when :config_manager_controller
       Interfaces::Controllers::ConfigManagerController.new(
         presenter: resolve(:presenter),
         validate_config: resolve(:validate_config),
-        test_service: resolve(:test_service)
+        # A builder instead of an instance keeps `validate` runnable outside a git checkout.
+        test_service: -> { resolve(:test_service) }
       )
     else
       raise KeyError, "Unknown dependency: #{name}"
     end
-  end
-
-  def self.build_presenter
-    return Interfaces::Presenters::ConsolePresenter.new unless Composition.github_actions?
-
-    output_path = Composition.github_output_path
-    # Checked before the command runs so every CLI rejects a missing GITHUB_OUTPUT before printing any result.
-    raise 'GITHUB_OUTPUT is not set' if output_path.nil?
-
-    Interfaces::Presenters::GitHubActionsPresenter.new(output_path: output_path)
   end
 end

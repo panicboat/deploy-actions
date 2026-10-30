@@ -5,7 +5,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   let(:test_service) { instance_double(UseCases::ConfigManagement::TestService) }
   let(:presenter) { instance_double(Interfaces::Presenters::ConsolePresenter, present_config_validation_result: nil, present_service_test_result: nil, present_error: nil) }
 
-  subject(:controller) { described_class.new(validate_config: validate_config, test_service: test_service, presenter: presenter) }
+  subject(:controller) { described_class.new(validate_config: validate_config, test_service: -> { test_service }, presenter: presenter) }
 
   describe '#validate' do
     it 'presents the summary of a valid configuration and returns the success Result' do
@@ -17,6 +17,12 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       expect(result).to be_success
       expect(result.value).to eq(validation)
       expect(presenter).to have_received(:present_config_validation_result).with(valid: true, summary: 'Configuration validation successful')
+    end
+
+    it 'does not build the test service' do
+      allow(validate_config).to receive(:execute).and_return(Entities::Result.failure('boom'))
+      controller = described_class.new(validate_config: validate_config, test_service: -> { raise 'test service built' }, presenter: presenter)
+      expect(controller.validate).to be_failure
     end
 
     it 'presents the errors of an invalid configuration and returns the failure Result' do

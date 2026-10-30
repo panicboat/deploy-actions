@@ -20,7 +20,7 @@ module Interfaces
       end
 
       def test_service(service_name:, environment:)
-        result = @test_service.execute(service_name: service_name, environment: environment)
+        result = @test_service.call.execute(service_name: service_name, environment: environment)
         return failure(result) if result.failure?
 
         @presenter.present_service_test_result(service_name: service_name, candidates: result.value)

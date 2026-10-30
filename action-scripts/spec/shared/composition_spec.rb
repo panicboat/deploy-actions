@@ -72,4 +72,30 @@ RSpec.describe Composition do
     ENV['GITHUB_OUTPUT'] = File.join(@root, 'output')
     expect(described_class.github_output_path).to eq(File.join(@root, 'output'))
   end
+
+  it 'builds the console presenter outside GitHub Actions' do
+    expect(described_class.presenter).to be_a(Interfaces::Presenters::ConsolePresenter)
+  end
+
+  it 'builds the GitHub Actions presenter on GITHUB_OUTPUT in GitHub Actions' do
+    output_path = File.join(@root, 'output')
+    File.write(output_path, '')
+    ENV['GITHUB_ACTIONS'] = 'true'
+    ENV['GITHUB_OUTPUT'] = output_path
+    presenter = described_class.presenter
+    expect(presenter).to be_a(Interfaces::Presenters::GitHubActionsPresenter)
+    expect { presenter.present_deployment_matrix(deployment_targets: [], deploy_labels: [], target_environments: [], pr_number: 1) }.to output.to_stdout
+    expect(File.read(output_path)).to include('has-targets=false')
+  end
+
+  it 'raises in GitHub Actions when GITHUB_OUTPUT is not set' do
+    ENV['GITHUB_ACTIONS'] = 'true'
+    expect { described_class.presenter }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
+  end
+
+  it 'is the presenter builder of every CLI container' do
+    [ConfigManagerContainer, LabelDispatcherContainer, LabelResolverContainer].each do |container|
+      expect(container).not_to respond_to(:build_presenter)
+    end
+  end
 end

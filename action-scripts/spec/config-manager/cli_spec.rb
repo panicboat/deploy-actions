@@ -102,6 +102,16 @@ RSpec.describe 'ConfigManagerCLI' do
       expect(stdout).not_to include('Configuration is valid')
     end
 
+    it 'validates outside a git checkout' do
+      Dir.mktmpdir do |outside|
+        config_path = File.join(outside, 'workflow-config.yaml')
+        File.write(config_path, valid_config)
+        stdout, stderr, status = Open3.capture3({ 'GITHUB_ACTIONS' => nil, 'GITHUB_OUTPUT' => nil, 'SOURCE_REPO_PATH' => nil, 'WORKFLOW_CONFIG_PATH' => config_path }, RbConfig.ruby, config_manager_path, 'validate', chdir: outside)
+        expect(status.exitstatus).to eq(0), stderr
+        expect(stdout).to include('Configuration is valid')
+      end
+    end
+
     it 'exits 1 when test is called without a service' do
       write_config(valid_config)
       _stdout, _stderr, status = run_config_manager('test')

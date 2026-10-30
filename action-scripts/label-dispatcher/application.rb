@@ -38,7 +38,7 @@ class LabelDispatcherContainer
         detect_changed_services: resolve(:detect_changed_services),
         manage_labels: resolve(:manage_labels)
       )
-    when :presenter then build_presenter
+    when :presenter then Composition.presenter
     when :label_dispatcher_controller
       Interfaces::Controllers::LabelDispatcherController.new(
         presenter: resolve(:presenter),
@@ -49,15 +49,5 @@ class LabelDispatcherContainer
     else
       raise KeyError, "Unknown dependency: #{name}"
     end
-  end
-
-  def self.build_presenter
-    return Interfaces::Presenters::ConsolePresenter.new unless Composition.github_actions?
-
-    output_path = Composition.github_output_path
-    # Checked before the command runs so dispatch cannot change labels and then fail to write outputs.
-    raise 'GITHUB_OUTPUT is not set' if output_path.nil?
-
-    Interfaces::Presenters::GitHubActionsPresenter.new(output_path: output_path)
   end
 end
