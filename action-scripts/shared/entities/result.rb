@@ -1,6 +1,3 @@
-# Result entity for use case operation results
-# Provides consistent success/failure handling across all use cases
-
 module Entities
   class Result
     attr_reader :value, :error_message
@@ -23,12 +20,10 @@ module Entities
       new(success: false, error_message: error_message)
     end
 
-    # Check if operation was successful
     def success?
       @success
     end
 
-    # Check if operation failed
     def failure?
       !@success
     end

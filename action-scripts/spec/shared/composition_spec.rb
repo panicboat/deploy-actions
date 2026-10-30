@@ -93,7 +93,7 @@ RSpec.describe Composition do
     expect { described_class.presenter }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
   end
 
-  it 'is the presenter builder of every CLI container' do
+  it 'defines no presenter builder in any CLI container' do
     [ConfigManagerContainer, LabelDispatcherContainer, LabelResolverContainer].each do |container|
       expect(container).not_to respond_to(:build_presenter)
     end

@@ -1,5 +1,3 @@
-# GitHub Actions presenter for formatting output for GitHub Actions workflows
-
 module Interfaces
   module Presenters
     class GitHubActionsPresenter
@@ -7,7 +5,6 @@ module Interfaces
         @output_path = output_path
       end
 
-      # Present label dispatch results for GitHub Actions
       def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)
         write_outputs(
           'labels-added' => labels_added.to_json,
@@ -19,7 +16,6 @@ module Interfaces
         puts TextFormat.label_dispatch(deploy_labels: deploy_labels, labels_added: labels_added, labels_removed: labels_removed, changed_files: changed_files)
       end
 
-      # Present deployment matrix for GitHub Actions
       def present_deployment_matrix(deployment_targets:, deploy_labels:, target_environments:, pr_number:)
         write_outputs(
           'targets' => deployment_targets.map(&:to_matrix_item).to_json,
@@ -36,7 +32,6 @@ module Interfaces
         puts TextFormat.service_targets(service: service, target_environments: target_environments, targets: targets, candidates: candidates)
       end
 
-      # Present configuration validation results for GitHub Actions
       def present_config_validation_result(valid:, errors: [], summary: nil)
         puts TextFormat.config_validation(valid: valid, errors: errors, summary: summary)
         errors.each { |error| puts "::error::#{error}" } unless valid
@@ -46,7 +41,6 @@ module Interfaces
         puts TextFormat.service_test_result(service_name: service_name, candidates: candidates)
       end
 
-      # Present error results for GitHub Actions
       def present_error(message)
         puts "::error::#{message}"
       end
