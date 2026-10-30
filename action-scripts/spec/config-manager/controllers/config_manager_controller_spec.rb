@@ -331,6 +331,11 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       expect(aws.fetch('environments')).to eq('develop' => { 'use' => ['aws-develop'] }, 'production' => { 'use' => ['aws-production'] })
     end
 
+    it 'uses the placeholder registry' do
+      dockerfile = template_hash.fetch('services').first.fetch('stacks').first
+      expect(dockerfile.dig('attributes', 'repository')).to eq('registry.example.com/{service}')
+    end
+
     it 'uses the placeholder account id' do
       expect(template).to include('arn:aws:iam::123456789012:role/')
       expect(template).not_to match(/arn:aws:iam::(?!123456789012:)/)

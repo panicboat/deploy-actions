@@ -183,7 +183,7 @@ module Interfaces
                   path: "."
                   attributes:
                     type: container
-                    repository: ghcr.io/panicboat/monorepo/{service}
+                    repository: registry.example.com/{service}
                 - id: kustomize
                   path: "kubernetes/overlays/{environment}"
                   attributes:
