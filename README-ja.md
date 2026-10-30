@@ -12,14 +12,13 @@
 
 ### 1. Config Manager (`action-scripts/config-manager/`)
 
-`workflow-config.yaml` の stack 定義を検証し、設定表示・環境一覧・実在ディレクトリのサービス診断・テンプレート生成を提供します。
+`workflow-config.yaml` の stack 定義を検証し、実在ディレクトリにあるサービスの対象を、除外状態とあわせて表示します。
 
 **特徴:**
 
 - 詳細なエラーレポート付きの設定検証
-- 定義環境の一覧とサービス診断
+- サービスの各対象と除外状態を表示するサービス診断
 - stack のパスと除外条件の検証
-- テンプレート生成
 
 ### 2. Label Dispatcher (`label-dispatcher/`)
 
@@ -41,7 +40,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 - ラベルからターゲットへの解決
 - 定義環境と探索した環境からの対象選択
 - デプロイメント matrix 生成
-- 安全性検証
+- stack の `exclude` 条件に一致する対象の除外
 
 ## Composite Actions
 
@@ -55,6 +54,15 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+出力:
+
+| 出力 | 値 |
+|---|---|
+| `labels-added` | PR に追加したラベルの JSON 配列 |
+| `labels-removed` | PR から外したラベルの JSON 配列 |
+| `services-detected` | 変更から検出したサービスの JSON 配列 |
+| `has-changes` | `true` または `false` |
+
 ### Label Resolver
 
 `environments` は任意の入力で、複数環境はカンマ区切りで指定します。省略すると定義環境と探索した環境をすべて対象にします。
@@ -67,6 +75,13 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
     github-token: ${{ secrets.GITHUB_TOKEN }}
     environments: develop
 ```
+
+出力:
+
+| 出力 | 値 |
+|---|---|
+| `targets` | デプロイ対象の JSON 配列（[matrix 出力](#matrix-出力) を参照） |
+| `has-targets` | `true` または `false` |
 
 ## 設定
 
@@ -362,7 +377,7 @@ jobs:
 
 ## matrix 出力
 
-`label-resolver` は `outputs.targets` と環境変数 `DEPLOYMENT_TARGETS` に JSON 配列を出力します。固定キーは次の4個で、属性と任意 placeholder の抽出値を同じ階層に展開します。
+`label-resolver` は `outputs.targets` に JSON 配列を出力します。固定キーは次の4個で、属性と任意 placeholder の抽出値を同じ階層に展開します。
 
 | キー | 出力元 |
 |---|---|
@@ -429,11 +444,28 @@ bundle exec rspec
 
 ### 各コンポーネントの動作確認
 
+`action-scripts` を作業ディレクトリとして実行します。`validate` と 2 つの `test` はローカルのファイルだけを読み、GitHub には触れません。
+
+| コマンド | 結果 |
+|---|---|
+| `bundle exec ruby config-manager/bin/config-manager validate` | `workflow-config.yaml` を検証し、設定が不正なら終了コード 1 で終わる |
+| `bundle exec ruby config-manager/bin/config-manager test SERVICE [ENVIRONMENT]` | サービスの各対象と除外状態を表示する |
+| `bundle exec ruby label-dispatcher/bin/dispatcher test [--base-ref=REF] [--head-ref=REF]` | 変更に付くラベルを表示する |
+| `bundle exec ruby label-dispatcher/bin/dispatcher dispatch PR_NUMBER` | PR の base と head から変更を検出し、PR のラベルを同期する |
+| `bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]` | PR のラベルを対象に解決する。`ENVIRONMENTS` はカンマ区切りで、空なら全環境 |
+
+変更が何をもたらすかをローカルで確かめるには、2 つの `test` を使います。
+
 ```bash
-bundle exec ruby config-manager/bin/config-manager validate
 bundle exec ruby label-dispatcher/bin/dispatcher test
-bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
+bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=HEAD
+bundle exec ruby config-manager/bin/config-manager test api develop
 ```
+
+- ref を指定しない `dispatcher test` は、ステージ済みと未ステージの変更を使います。ref を指定して存在しない場合は、作業ツリーの変更に切り替えずにエラーで止まります。
+- `dispatch` は常に PR のラベルを同期します。`dispatch` と `resolve` には `GITHUB_TOKEN` と `GITHUB_REPOSITORY` が必要です。
+- リポジトリのルートは、`SOURCE_REPO_PATH` が `.git` を持つ場合はそのパス、それ以外は現在のディレクトリから最も近い `.git` を持つ祖先です。
+- `WORKFLOW_CONFIG_PATH` で設定ファイルを選びます。既定は `workflow-config.yaml` です。
 
 ## ライセンス
 
