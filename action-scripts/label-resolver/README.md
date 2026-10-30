@@ -2,213 +2,169 @@
 
 **English** | [🇯🇵 日本語](README-ja.md)
 
-A Ruby-based deployment resolution tool that converts PR labels into deployment targets for GitHub Actions automation using explicit environment targeting.
+Label Resolver turns `deploy:<service>` labels, or a service name you pass directly, into a JSON array of deployment targets for a job matrix. Environments come from its input and never from branch names, so one run can target any mix of environments.
 
-## Overview
+## Action
 
-The Label Resolver analyzes PR labels and generates deployment targets for specified environments. It creates deployment matrices for multi-service deployments, serving as the central orchestrator for deployment automation decisions.
-
-## Features
-
-- **Label Resolution**: Extract deployment labels from PR information
-- **Explicit Environment Targeting**: Direct environment specification without branch dependencies
-- **Directory Convention Resolution**: Resolve deployment paths using hierarchical directory structure
-- **Matrix Generation**: Create deployment matrices for parallel execution
-- **GitHub Actions Integration**: Seamless integration with GitHub Actions workflows
-
-## Usage
-
-Run commands from the `action-scripts` directory.
-
-The Label Resolver provides a CLI interface through `label-resolver/bin/resolver`:
-
-### Commands
-
-Resolve deployment from PR labels for specific environment(s).
-
-```bash
-bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
-```
-
-**Environment Specification:**
-
-- Single environment: `develop`
-- Multiple environments: `develop,staging` (comma-separated)
-- All environments: omit ENVIRONMENTS parameter
-
-Resolve the targets of one service, or of every service, without a pull request. This command does not call the GitHub API and needs no `GITHUB_TOKEN`.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]
-```
-
-**Service Specification:**
-
-- Single service: a name matching `[a-zA-Z0-9_-]+`
-- Every service: `all`
-
-ENVIRONMENTS follows the same specification as `resolve`. A service name outside the pattern, or an environment that is neither declared nor discovered, fails with exit code 1.
-
-### Examples
-
-Resolve deployments for develop environment.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver resolve 123 develop
-```
-
-Resolve deployments for multiple environments simultaneously.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver resolve 456 develop,staging
-```
-
-Resolve deployment targets for all declared and discovered environments.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver resolve 123
-```
-
-Resolve the targets of one service for the develop environment without a pull request.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver targets demo develop
-```
-
-Resolve the targets of every service for all environments.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver targets all
-```
-
-### Workflow Integration
-
-The resolver is typically called from GitHub Actions workflows:
-
-Single environment deployment.
+The usual call resolves the labels of a pull request. `environments` is optional: give one name or a comma-separated list, or omit it to target all declared and discovered environments.
 
 ```yaml
-- name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@v0.1.0
+- uses: panicboat/deploy-actions/label-resolver@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    environments: ${{ inputs.target_environment }}
-```
-
-Multiple environment deployment.
-
-```yaml
-- name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@v0.1.0
-  with:
-    pr-number: ${{ github.event.pull_request.number }}
-    repository: ${{ github.repository }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
     environments: "develop,staging"
 ```
 
-### Action Outputs
+Set `service` to resolve a service, or `all`, without a pull request. This suits release or manual workflows. `pr-number` is then ignored, and `ref` selects the ref of the source repository to check out.
 
-The resolver provides the following GitHub Actions outputs:
-
-- `targets`: JSON array of deployment targets for matrix strategy
-- `has-targets`: Boolean indicating if targets exist (`true`/`false`)
-
-The `targets` command provides the same two outputs, computed from the candidates that are not excluded, and one more:
-
-- `candidates`: JSON array of every candidate including the excluded ones, each in the form `{"target": <matrix item>, "excluded": <bool>, "root": "<root>"}`
-
-An unknown service is not an error: `targets` is `[]`, `has-targets` is `false`, and `candidates` is `[]`.
-
-## Architecture
-
-### Components
-
-- **LabelResolverController**: Main orchestration logic
-- **GetLabels**: PR label extraction
-- **GenerateMatrix**: Deployment matrix generation from the deploy labels of a PR, without the excluded candidates
-- **ListServiceTargets**: Service name validation and the listing of the targets of one service or all, with every candidate including the excluded ones
-- **ListCandidates**: Environment validation and candidate enumeration shared by `GenerateMatrix` and `ListServiceTargets`
-
-### Flow
-
-`resolve`:
-
-1. **Label Extraction**: Get deploy labels from PR
-2. **Candidate Listing**: `ListCandidates` validates that all target environments exist and enumerates the candidates from the directory structure
-3. **Matrix Generation**: `GenerateMatrix` keeps the candidates that are not excluded as deployment targets
-4. **Output Generation**: Format results for GitHub Actions with simplified outputs
-
-`targets`:
-
-1. **Service Validation**: `ListServiceTargets` rejects a service name outside `[a-zA-Z0-9_-]+`
-2. **Candidate Listing**: `ListCandidates` validates the target environments and enumerates the candidates of the service (every service for `all`)
-3. **Output Generation**: `targets` and `has-targets` come from the candidates that are not excluded, and `candidates` lists every candidate with its exclusion and root
-
-## Configuration
-
-See the root [Configuration](../../README.md#configuration) and [Matrix Output](../../README.md#matrix-output) sections for the schema and matrix format.
-
-## Deploy Labels
-
-The system recognizes labels in the format `deploy:service`:
-
-- `deploy:auth` - Deploy auth service
-- `deploy:api` - Deploy api service
-- `deploy:frontend` - Deploy frontend service
-- `deploy:all` - Resolve targets for all existing services
-
-The prefix and additional prefixes are configurable; see the root [Labels](../../README.md#labels) section.
-
-## Environment Targeting
-
-**Trunk-based Development**: The resolver uses explicit environment targeting rather than branch-based mapping:
-
-- Environments are specified directly as parameters
-- No dependency on branch names for environment determination
-- Supports environments declared in configuration or discovered from stack paths
-- Supports targeting multiple environments in one invocation
-
-## Target Resolution
-
-Selects requested environments from each stack's declared or discovered environments and enumerates existing directories across all paths. Omitting the environment selection or providing only whitespace selects the union of declared and discovered names. Targets with `attributes` are shared across environments and generated once per directory.
-
-`deploy:all` discovers all services from the configured paths. Targets matching exclusion conditions are omitted from the matrix. Missing paths produce a valid empty result; unknown environments, enumeration errors, and conflicting captured values cause failures.
-
-## Error Handling
-
-The resolver provides comprehensive error handling:
-
-- **Invalid Environment**: Clear error when target environment doesn't exist
-- **Invalid Service Name**: `targets` rejects a service name outside `[a-zA-Z0-9_-]+`
-- **Missing Labels**: Graceful handling of PRs without deploy labels
-- **Configuration Errors**: Detailed validation of workflow configuration
-- **Directory Detection**: Missing paths produce a valid empty result
-
-## Development
-
-### Running Tests
-
-```bash
-cd action-scripts
-bundle exec rspec spec/label-resolver/
+```yaml
+- uses: panicboat/deploy-actions/label-resolver@v0.1.0
+  with:
+    repository: ${{ github.repository }}
+    service: api
+    environments: production
+    ref: ${{ github.event.release.tag_name }}
 ```
 
-### Local Testing
+The action checks out the repository itself, so the job needs no checkout step. It validates the configuration with [Config Manager](../config-manager/README.md) first, and it fails when neither `service` nor `pr-number` is set.
 
-Set up environment.
+Inputs:
+
+| Input | Required | Value |
+|---|---|---|
+| `repository` | Yes | Source repository (`owner/repo`) |
+| `pr-number` | Unless `service` is set | Pull request whose labels are resolved; ignored when `service` is set |
+| `service` | No | Service name or `all`; resolves its targets without a pull request |
+| `environments` | No | Comma-separated environments; empty means all declared and discovered environments |
+| `ref` | No | Ref of the source repository to check out; defaults to the event's ref for the triggering repository and to the default branch for another repository |
+| `github-token` | No | Token for checking out the repository and reading the PR; defaults to `${{ github.token }}` |
+| `config-path` | No | Path to the configuration file; defaults to `workflow-config.yaml` |
+
+Outputs:
+
+| Output | Value |
+|---|---|
+| `targets` | JSON array of deployment targets (see [Matrix Output](#matrix-output)) |
+| `has-targets` | `true` or `false` |
+| `candidates` | When `service` is set, JSON array of every candidate including the excluded ones, each `{"target": <matrix item>, "excluded": <bool>, "root": "<root>"}` |
+
+## From Labels to Targets
+
+The resolver reads the pull request's labels that start with any [configured prefix](../label-dispatcher/README.md#labels), `deploy:` by default, and treats the rest of the label as the service name. The same service labeled with different prefixes yields one service, and `all` with any prefix targets every service found through the configured paths. Labels whose remaining text is not a valid service name (`[a-zA-Z0-9_-]+`) are ignored.
+
+A pull request without deploy labels gives empty `targets` and `has-targets: false`.
+
+A workflow triggered by `labeled` must filter on the prefixes it uses. When you change `prefix` or add `extra_prefixes`, update the `if` condition to match every configured prefix, for example `startsWith(github.event.label.name, 'deploy:') || startsWith(github.event.label.name, 'manual/')`.
+
+## How Targets Are Built
+
+The resolver lists all existing directories matching any root followed by `path`. Missing paths generate no targets and are a valid empty result. Services do not require registration. For each stack, targets are built in this order:
+
+1. With `environments`, one target is built for each declared environment, even when `path` does not contain `{environment}`. When it does, only the declared names match, so a directory such as `modules/` never becomes a target.
+2. Without `environments`, when `path` contains `{environment}`, environment names are discovered from existing directories at that position. Directories at that position that are not environments, such as `modules/`, are also discovered as environments, so declare `environments` when such directories sit beside the environment directories.
+3. With neither, one target with `environment: null` is built per directory, regardless of environment selection. It is shared across environments.
+
+The attributes of the service and the stack attach to every target, however it was built. See [Attribute Values](../config-manager/README.md#attribute-values) for what they can reference.
+
+Targets matching a stack's [exclusion conditions](../config-manager/README.md#exclusion-conditions) are left out of `targets`.
+
+### Selecting Environments
+
+The selectable environment list is the union of all declared names and names discovered at execution time. Excluded environments remain selectable. Omitting the selection, or giving only whitespace, targets this union. Each stack generates targets only for its own declared or discovered environments. Selecting a name absent from the union is an error.
+
+## Matrix Output
+
+`targets` is a JSON array. Each target has four fixed keys, with attributes and captured arbitrary placeholders flattened into the same object.
+
+| Key | Source |
+|---|---|
+| `service` | Service name from a label or discovered through `<prefix>all`; the value captured by `{service}` |
+| `environment` | Declared or discovered environment name, or `null` for a target shared across environments |
+| `stack` | Stack `id` |
+| `working_directory` | Relative path of the existing target directory |
+| Attribute keys | The service's and stack's `attributes`, plus the attributes of the profiles in `use` and the inline attributes of the selected environment |
+| Arbitrary placeholder keys | Values captured from the matched path |
+
+With the [full example configuration](../config-manager/README.md#configuration-format), an existing `dystopia/api/infrastructure/aws/develop` directory generates the following row.
+
+```json
+{
+  "service": "api",
+  "environment": "develop",
+  "stack": "aws",
+  "working_directory": "dystopia/api/infrastructure/aws/develop",
+  "type": "terragrunt",
+  "aws_region": "ap-northeast-1",
+  "iam_role_plan": "arn:aws:iam::123456789012:role/aws-plan-develop-role",
+  "iam_role_apply": "arn:aws:iam::123456789012:role/aws-apply-develop-role"
+}
+```
+
+Target identity consists of `service`, `stack`, `environment`, and `working_directory`. Duplicate targets are merged into one row. Paths that interpret the same target with different captured value maps cause an error, regardless of exclusions or definition order.
+
+Because the stack kind is an attribute you define, downstream steps branch on it with `matrix.target.type`. In a job named `resolve`, expose `steps.resolve.outputs.targets` as the job output `targets`, then use it in a later job:
+
+```yaml
+deploy:
+  needs: resolve
+  runs-on: ubuntu-latest
+  strategy:
+    matrix:
+      target: ${{ fromJSON(needs.resolve.outputs.targets) }}
+  steps:
+    - uses: actions/checkout@v7
+    - if: matrix.target.type == 'terragrunt'
+      uses: ./.github/actions/terragrunt-plan
+      with:
+        working-directory: ${{ matrix.target.working_directory }}
+        role-to-assume: ${{ matrix.target.iam_role_plan }}
+    - if: matrix.target.type == 'kustomize'
+      uses: ./.github/actions/kustomize-build
+      with:
+        working-directory: ${{ matrix.target.working_directory }}
+```
+
+## Commands
+
+Run these from the `action-scripts` directory.
+
+| Command | Result |
+|---|---|
+| `bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]` | Resolves the PR's labels into targets; `ENVIRONMENTS` is comma-separated, and empty means all |
+| `bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]` | Resolves the targets of one service, or `all`, without a PR; `ENVIRONMENTS` is the same as for `resolve` |
+
+`resolve` needs `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to read the labels:
 
 ```bash
 export GITHUB_TOKEN=your_token
 export GITHUB_REPOSITORY=owner/repo
 export SOURCE_REPO_PATH=your_source_path
 export WORKFLOW_CONFIG_PATH=workflow-config.yaml
+
+bundle exec ruby label-resolver/bin/resolver resolve 123 develop
+bundle exec ruby label-resolver/bin/resolver resolve 456 develop,staging
+bundle exec ruby label-resolver/bin/resolver resolve 123
 ```
 
-Resolve a real PR.
+`targets` does not call the GitHub API and needs neither variable:
 
 ```bash
-bundle exec ruby label-resolver/bin/resolver resolve 123 develop
+bundle exec ruby label-resolver/bin/resolver targets demo develop
+bundle exec ruby label-resolver/bin/resolver targets all
+```
+
+`targets` takes a name matching `[a-zA-Z0-9_-]+` or `all`, and any other name fails with status 1. A valid name with no matching directory is not an error: the `targets` output is `[]`, `has-targets` is `false`, and `candidates` is `[]`. The `targets` and `has-targets` outputs come from the candidates that are not excluded, and `candidates` lists them all with their exclusion and root. The `resolve` command writes only `targets` and `has-targets`.
+
+Both commands fail with status 1 on an invalid configuration, an environment that is neither declared nor discovered, a directory that cannot be listed, and conflicting captured values. See [Environment Variables](../config-manager/README.md#environment-variables) for the variables they read.
+
+## Code Layout
+
+`LabelResolverController` backs the two commands. For `resolve`, `GetLabels` reads the deploy labels of the PR, and `GenerateMatrix` calls `ListCandidates`, which validates the environments and lists the candidates from the directory structure, then keeps those that are not excluded. For `targets`, `ListServiceTargets` validates the service name, calls `ListCandidates`, and returns both the targets and every candidate with its exclusion and root.
+
+## Testing
+
+```bash
+cd action-scripts
+bundle exec rspec spec/label-resolver/
 ```
