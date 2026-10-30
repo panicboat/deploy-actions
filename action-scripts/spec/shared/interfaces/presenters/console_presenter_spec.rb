@@ -64,7 +64,7 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
 
   it 'shows complete diagnostic targets and their exclusion status' do
     stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws', 'attributes' => { 'token' => nil }, 'exclude' => [{ 'team' => 'platform' }] }] }]).stacks.first
-    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'teams/platform/demo', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' })
+    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'teams/platform/demo', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }).to_listed_target
     expect do
       described_class.new.present_service_test_result(service_name: 'demo', candidates: [candidate])
     end.to output(/stack: "aws".*working_directory: "teams\/platform\/demo\/aws".*token: nil.*team: "platform".*excluded: true/m).to_stdout

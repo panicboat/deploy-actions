@@ -37,7 +37,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   end
 
   describe '#test_service' do
-    let(:candidates) { [instance_double(Entities::TargetCandidate)] }
+    let(:candidates) { [instance_double(Entities::ListedTarget)] }
 
     it 'presents the candidates for the service and environment' do
       allow(test_service).to receive(:execute).with(service_name: 'demo', environment: 'production').and_return(Entities::Result.success(candidates))

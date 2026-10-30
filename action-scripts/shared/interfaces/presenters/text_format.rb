@@ -66,10 +66,10 @@ module Interfaces
 
       def service_test_result(service_name:, candidates:)
         lines = ['Service Configuration Test', "Service: #{service_name}"]
-        candidates.each do |candidate|
+        candidates.each do |listed|
           lines << 'Target:'
-          lines.concat(candidate.to_deployment_target.to_matrix_item.map { |key, value| "  #{key}: #{value.inspect}" })
-          lines << "  excluded: #{candidate.excluded?}"
+          lines.concat(listed.target.to_matrix_item.map { |key, value| "  #{key}: #{value.inspect}" })
+          lines << "  excluded: #{listed.excluded?}"
         end
         lines
       end
