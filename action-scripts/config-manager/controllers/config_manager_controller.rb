@@ -29,11 +29,14 @@ module Interfaces
             config: validation.config,
             summary: validation.summary
           )
+          validation_result
         else
           @presenter.present_config_validation_result(
             valid: false,
             errors: [validation_result.error_message]
           )
+          # TODO: return the failure so that an invalid configuration exits 1.
+          Entities::Result.success
         end
       end
 
@@ -42,25 +45,25 @@ module Interfaces
         begin
           config = @config_client.load_workflow_config
           @presenter.present_config_details(config: config)
+          Entities::Result.success(config)
         rescue => error
-          @presenter.present_error(
-            Entities::Result.failure("Failed to load configuration: #{error.message}")
-          )
+          failure(Entities::Result.failure("Failed to load configuration: #{error.message}"))
         end
       end
 
       def test_service_configuration(service_name:, environment: nil)
         config = @config_client.load_workflow_config
         environments = @resolve_environments.execute(config: config, requested: environment && [environment])
-        return @presenter.present_error(environments) if environments.failure?
+        return failure(environments) if environments.failure?
 
         candidates = @enumerate_targets.execute(config: config, services: [service_name], environments: environments.value)
-        return @presenter.present_error(candidates) if candidates.failure?
+        return failure(candidates) if candidates.failure?
 
         matches = candidates.value.map { |candidate| { target: candidate.to_deployment_target, excluded: candidate.excluded? } }
         @presenter.present_service_test_result(service_name: service_name, matches: matches)
+        Entities::Result.success(matches)
       rescue => error
-        @presenter.present_error(Entities::Result.failure("Failed to test service configuration: #{error.message}"))
+        failure(Entities::Result.failure("Failed to test service configuration: #{error.message}"))
       end
 
       # Diagnostic check for configuration and environment
@@ -120,15 +123,22 @@ module Interfaces
         }
 
         @presenter.present_diagnostic_results(results: diagnostic_results)
+        Entities::Result.success(diagnostic_results)
       end
 
       # Generate configuration template
       def generate_config_template
         template = build_config_template
         @presenter.present_config_template(template: template)
+        Entities::Result.success(template)
       end
 
       private
+
+      def failure(result)
+        @presenter.present_error(result.error_message)
+        result
+      end
 
       def build_config_template
         <<~YAML

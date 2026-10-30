@@ -11,38 +11,43 @@ class ConfigManagerCLI < Thor
 
   def validate
     controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.validate_configuration
+    result = controller.validate_configuration
+    exit 1 if result.failure?
   end
 
   desc "show", "Show parsed configuration in readable format"
 
   def show
     controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.show_configuration
+    result = controller.show_configuration
+    exit 1 if result.failure?
   end
 
   desc "test SERVICE_NAME [ENVIRONMENT]", "Test service configuration for specific service and environment"
 
   def test(service_name, environment = nil)
     controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.test_service_configuration(
+    result = controller.test_service_configuration(
       service_name: service_name,
       environment: environment
     )
+    exit 1 if result.failure?
   end
 
   desc "diagnostics", "Run comprehensive diagnostic checks"
 
   def diagnostics
     controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.run_diagnostics
+    result = controller.run_diagnostics
+    exit 1 if result.failure?
   end
 
   desc "template", "Generate configuration template with examples"
 
   def template
     controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.generate_config_template
+    result = controller.generate_config_template
+    exit 1 if result.failure?
   end
 
   desc "check_file", "Check if configuration file exists and is readable"

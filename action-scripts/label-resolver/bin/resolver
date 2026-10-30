@@ -12,7 +12,8 @@ class LabelResolverCLI < Thor
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
     target_environments = parse_environments(environments)
 
-    controller.resolve_from_labels(pr_number: pr_number.to_i, target_environments: target_environments)
+    result = controller.resolve_from_labels(pr_number: pr_number.to_i, target_environments: target_environments)
+    exit 1 if result.failure?
   end
 
   desc "test PR_NUMBER [ENVIRONMENTS]", "Test deployment workflow without execution"
@@ -20,7 +21,8 @@ class LabelResolverCLI < Thor
   def test(pr_number, environments = nil)
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
     target_environments = parse_environments(environments)
-    controller.test_deployment_workflow(pr_number: pr_number.to_i, target_environments: target_environments)
+    result = controller.test_deployment_workflow(pr_number: pr_number.to_i, target_environments: target_environments)
+    exit 1 if result.failure?
   end
 
   desc "simulate PR_NUMBER [ENVIRONMENTS]", "Simulate GitHub Actions environment locally"
@@ -28,7 +30,8 @@ class LabelResolverCLI < Thor
   def simulate(pr_number, environments = nil)
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
     target_environments = parse_environments(environments)
-    controller.simulate_github_actions(pr_number: pr_number.to_i, target_environments: target_environments)
+    result = controller.simulate_github_actions(pr_number: pr_number.to_i, target_environments: target_environments)
+    exit 1 if result.failure?
   end
 
   desc "validate_env", "Validate environment configuration for deployments"
@@ -58,7 +61,8 @@ class LabelResolverCLI < Thor
     puts ""
 
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
-    controller.debug_deployment_workflow(pr_number: pr_number.to_i, target_environments: target_environments)
+    result = controller.debug_deployment_workflow(pr_number: pr_number.to_i, target_environments: target_environments)
+    exit 1 if result.failure?
   end
 
   private

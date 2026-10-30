@@ -54,7 +54,31 @@ RSpec.describe 'ConfigManagerCLI' do
   it 'passes omitted environments to service diagnosis' do
     controller = instance_double(Interfaces::Controllers::ConfigManagerController)
     allow(ConfigManagerContainer).to receive(:resolve).with(:config_manager_controller).and_return(controller)
-    expect(controller).to receive(:test_service_configuration).with(service_name: 'demo', environment: nil)
+    expect(controller).to receive(:test_service_configuration).with(service_name: 'demo', environment: nil).and_return(Entities::Result.success)
     ConfigManagerCLI.new.test('demo')
+  end
+
+  {
+    validate: [:validate_configuration, []],
+    show: [:show_configuration, []],
+    test: [:test_service_configuration, ['demo']],
+    diagnostics: [:run_diagnostics, []],
+    template: [:generate_config_template, []]
+  }.each do |command, (action, args)|
+    context "with the #{command} command" do
+      let(:controller) { instance_double(Interfaces::Controllers::ConfigManagerController) }
+
+      before { allow(ConfigManagerContainer).to receive(:resolve).with(:config_manager_controller).and_return(controller) }
+
+      it 'exits 1 when the controller returns a failure Result' do
+        allow(controller).to receive(action).and_return(Entities::Result.failure('boom'))
+        expect { ConfigManagerCLI.new.public_send(command, *args) }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+      end
+
+      it 'does not exit when the controller returns a success Result' do
+        allow(controller).to receive(action).and_return(Entities::Result.success)
+        expect { ConfigManagerCLI.new.public_send(command, *args) }.not_to raise_error
+      end
+    end
   end
 end

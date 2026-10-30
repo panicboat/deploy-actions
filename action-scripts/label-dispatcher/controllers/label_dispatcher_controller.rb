@@ -31,7 +31,7 @@ module Interfaces
 
         # Detect changed services (including exclusion filtering)
         detection_result = @detect_services.execute(base_ref: base_ref, head_ref: head_ref)
-        return @presenter.present_error(detection_result) if detection_result.failure?
+        return failure(detection_result) if detection_result.failure?
 
         detection = detection_result.value
 
@@ -39,7 +39,7 @@ module Interfaces
         if ENV['GITHUB_ACTIONS'] && pr_number && @manage_labels
           required_labels = detection.deploy_labels.map(&:to_s)
           manage_result = @manage_labels.execute(pr_number: pr_number, required_labels: required_labels)
-          return @presenter.present_error(manage_result) if manage_result.failure?
+          return failure(manage_result) if manage_result.failure?
 
           labels_added = manage_result.value.labels_added
           labels_removed = manage_result.value.labels_removed
@@ -54,6 +54,7 @@ module Interfaces
           labels_removed: labels_removed,
           changed_files: detection.changed_files
         )
+        detection_result
       end
 
       # Test detection without PR interaction
@@ -61,7 +62,7 @@ module Interfaces
         puts "🧪 Testing deployment workflow for base: #{base_ref}, head: #{head_ref}"
 
         detection_result = @detect_services.execute(base_ref: base_ref, head_ref: head_ref)
-        return @presenter.present_error(detection_result) if detection_result.failure?
+        return failure(detection_result) if detection_result.failure?
 
         detection = detection_result.value
         @presenter.present_label_dispatch_result(
@@ -70,6 +71,7 @@ module Interfaces
           labels_removed: [],
           changed_files: detection.changed_files
         )
+        detection_result
       end
 
       # Simulate GitHub Actions environment locally
@@ -85,12 +87,13 @@ module Interfaces
         File.write(ENV['GITHUB_ENV'], '')
 
         begin
-          dispatch_labels(pr_number: pr_number)
+          result = dispatch_labels(pr_number: pr_number)
 
           if File.exist?(ENV['GITHUB_ENV'])
             puts "\n📋 Generated Environment Variables:"
             puts File.read(ENV['GITHUB_ENV'])
           end
+          result
         ensure
           # Restore original environment
           ENV['GITHUB_ACTIONS'] = original_github_actions
@@ -100,6 +103,11 @@ module Interfaces
       end
 
       private
+
+      def failure(result)
+        @presenter.present_error(result.error_message)
+        result
+      end
 
       # Get PR information from GitHub API
       def get_pr_info_from_api(pr_number)

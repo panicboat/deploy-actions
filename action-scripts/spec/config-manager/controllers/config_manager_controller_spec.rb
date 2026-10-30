@@ -35,7 +35,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         allow(validate_config_use_case).to receive(:execute).and_return(validation_result)
         allow(presenter).to receive(:present_config_validation_result)
 
-        controller.validate_configuration
+        expect(controller.validate_configuration).to be_success
 
         expect(presenter).to have_received(:present_config_validation_result).with(
           valid: true,
@@ -70,7 +70,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         allow(config_client).to receive(:load_workflow_config).and_return(config)
         allow(presenter).to receive(:present_config_details)
 
-        controller.show_configuration
+        expect(controller.show_configuration).to be_success
 
         expect(presenter).to have_received(:present_config_details).with(config: config)
       end
@@ -83,12 +83,10 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         allow(config_client).to receive(:load_workflow_config).and_raise(error)
         allow(presenter).to receive(:present_error)
 
-        controller.show_configuration
+        result = controller.show_configuration
 
-        expect(presenter).to have_received(:present_error) do |result|
-          expect(result.failure?).to be true
-          expect(result.error_message).to include('Config file not found')
-        end
+        expect(result.error_message).to eq('Failed to load configuration: Config file not found')
+        expect(presenter).to have_received(:present_error).with('Failed to load configuration: Config file not found')
       end
     end
   end
@@ -167,6 +165,15 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       controller.test_service_configuration(service_name: 'demo')
     end
 
+    it 'returns the matches as a success Result' do
+      directory('dystopia/demo/aws/develop')
+      allow(presenter).to receive(:present_service_test_result)
+      result = controller.test_service_configuration(service_name: 'demo')
+      expect(result).to be_success
+      expect(result.value).not_to be_empty
+      expect(presenter).to have_received(:present_service_test_result).with(service_name: 'demo', matches: result.value)
+    end
+
     it 'returns an empty list when no directory matches' do
       expect(matches(service: 'unregistered')).to eq([])
     end
@@ -180,8 +187,8 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     it 'reports unknown environments without presenting partial matches' do
       allow(presenter).to receive(:present_error)
       expect(presenter).not_to receive(:present_service_test_result)
-      controller.test_service_configuration(service_name: 'demo', environment: 'preview')
-      expect(presenter).to have_received(:present_error) { |result| expect(result.error_message).to eq('Target environments not found in configuration: preview') }
+      expect(controller.test_service_configuration(service_name: 'demo', environment: 'preview')).to be_failure
+      expect(presenter).to have_received(:present_error).with('Target environments not found in configuration: preview')
     end
 
     it 'reports conflicting captures before exclusions' do
@@ -190,15 +197,15 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       allow(presenter).to receive(:present_error)
       expect(presenter).not_to receive(:present_service_test_result)
       controller.test_service_configuration(service_name: 'demo')
-      expect(presenter).to have_received(:present_error) { |result| expect(result.error_message).to include('Conflicting captures') }
+      expect(presenter).to have_received(:present_error).with(a_string_including('Conflicting captures'))
     end
 
     it 'reports enumeration errors without presenting partial matches' do
       allow(directory_scanner).to receive(:resolve).and_raise(Errno::EACCES)
       allow(presenter).to receive(:present_error)
       expect(presenter).not_to receive(:present_service_test_result)
-      controller.test_service_configuration(service_name: 'demo')
-      expect(presenter).to have_received(:present_error) { |result| expect(result.error_message).to include('Permission denied') }
+      expect(controller.test_service_configuration(service_name: 'demo')).to be_failure
+      expect(presenter).to have_received(:present_error).with(a_string_including('Permission denied'))
     end
   end
 

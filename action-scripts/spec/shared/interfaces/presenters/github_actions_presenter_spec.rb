@@ -3,30 +3,61 @@ require 'tmpdir'
 
 RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
   around do |example|
-    original = ENV.to_h.slice('GITHUB_ENV', 'GITHUB_OUTPUT')
     Dir.mktmpdir do |root|
-      %w[GITHUB_ENV GITHUB_OUTPUT].each do |key|
-        ENV[key] = File.join(root, key)
-        File.write(ENV[key], '')
-      end
+      @output_path = File.join(root, 'GITHUB_OUTPUT')
+      File.write(@output_path, '')
       example.run
     end
-  ensure
-    %w[GITHUB_ENV GITHUB_OUTPUT].each { |key| ENV[key] = original[key] }
+  end
+
+  subject(:presenter) { described_class.new(output_path: @output_path) }
+
+  def dispatch(presenter)
+    presenter.present_label_dispatch_result(deploy_labels: [Entities::DeployLabel.new('deploy:demo')], labels_added: ['deploy:demo'], labels_removed: ['deploy:old'], changed_files: ['dystopia/demo/main.rb'])
   end
 
   it 'writes public dispatch outputs without global service exclusion fields' do
-    described_class.new.present_label_dispatch_result(deploy_labels: [Entities::DeployLabel.new('deploy:demo')], labels_added: ['deploy:demo'], labels_removed: ['deploy:old'], changed_files: ['dystopia/demo/main.rb'])
-    output = File.read(ENV['GITHUB_OUTPUT'])
-    expect(output.lines.map(&:strip)).to contain_exactly('deploy-labels=["deploy:demo"]', 'labels-added=["deploy:demo"]', 'labels-removed=["deploy:old"]', 'services-detected=["demo"]', 'has-changes=true')
-    env = File.read(ENV['GITHUB_ENV'])
-    expect(env).to include('SERVICES_DETECTED=["demo"]', 'DEPLOY_LABELS=["deploy:demo"]', 'HAS_CHANGES=true')
-    expect(env).not_to include('EXCLUDED_SERVICES', 'HAS_EXCLUDED_SERVICES')
+    expect { dispatch(presenter) }.to output.to_stdout
+    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('deploy-labels=["deploy:demo"]', 'labels-added=["deploy:demo"]', 'labels-removed=["deploy:old"]', 'services-detected=["demo"]', 'has-changes=true')
   end
 
   it 'writes false and empty outputs when no labels are detected' do
-    described_class.new.present_label_dispatch_result(deploy_labels: [], labels_added: [], labels_removed: [], changed_files: [])
-    expect(File.read(ENV['GITHUB_OUTPUT'])).to include('deploy-labels=[]', 'services-detected=[]', 'has-changes=false')
+    expect { presenter.present_label_dispatch_result(deploy_labels: [], labels_added: [], labels_removed: [], changed_files: []) }.to output.to_stdout
+    expect(File.read(@output_path)).to include('deploy-labels=[]', 'services-detected=[]', 'has-changes=false')
+  end
+
+  it 'writes the matrix outputs' do
+    target = Entities::DeploymentTarget.new(service: 'demo', environment: 'develop', stack: 'aws', working_directory: 'demo/aws')
+    expect { presenter.present_deployment_matrix(deployment_targets: [target], deploy_labels: [], target_environments: ['develop'], safety_status: 'passed') }.to output.to_stdout
+    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('targets=[{"service":"demo","environment":"develop","stack":"aws","working_directory":"demo/aws"}]', 'has-targets=true', 'safety-status=passed')
+  end
+
+  it 'prints the shared text without color' do
+    expect { dispatch(presenter) }.to output(Interfaces::Presenters::TextFormat.label_dispatch(deploy_labels: [Entities::DeployLabel.new('deploy:demo')], labels_added: ['deploy:demo'], labels_removed: ['deploy:old'], changed_files: ['dystopia/demo/main.rb']).map { |line| "#{line}\n" }.join).to_stdout
+  end
+
+  it 'does not exit on errors' do
+    expect { presenter.present_error('boom') }.to output("::error::boom\n").to_stdout
+  end
+
+  it 'raises when GITHUB_OUTPUT is not set' do
+    expect { dispatch(described_class.new(output_path: nil)) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
+  end
+
+  it 'does not write GITHUB_ENV' do
+    env_path = File.join(File.dirname(@output_path), 'GITHUB_ENV')
+    File.write(env_path, '')
+    original = ENV['GITHUB_ENV']
+    ENV['GITHUB_ENV'] = env_path
+    expect { dispatch(presenter) }.to output.to_stdout
+    expect { presenter.present_error('boom') }.to output.to_stdout
+    expect(File.read(env_path)).to eq('')
+  ensure
+    ENV['GITHUB_ENV'] = original
+  end
+
+  it 'does not print the legacy set-output command' do
+    expect { dispatch(presenter) }.not_to output(/::set-output/).to_stdout
   end
 
   it 'accepts only the dispatch result fields' do
@@ -48,7 +79,7 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
     let(:printed) do
       original = $stdout
       $stdout = StringIO.new
-      described_class.new.present_config_details(config: config)
+      presenter.present_config_details(config: config)
       $stdout.string
     ensure
       $stdout = original
@@ -85,7 +116,7 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
   it 'shows complete diagnostic targets and their exclusion status' do
     target = Entities::DeploymentTarget.new(service: 'demo', stack: 'aws', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }, attributes: { 'token' => nil })
     expect do
-      described_class.new.present_service_test_result(service_name: 'demo', matches: [{ target: target, excluded: true }])
+      presenter.present_service_test_result(service_name: 'demo', matches: [{ target: target, excluded: true }])
     end.to output(/stack: "aws".*working_directory: "teams\/platform\/demo\/aws".*token: nil.*team: "platform".*excluded: true/m).to_stdout
   end
 

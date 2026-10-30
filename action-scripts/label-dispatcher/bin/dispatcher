@@ -21,7 +21,8 @@ class LabelDispatcherCLI < Thor
       puts "🤖 Fetching base and head refs from GitHub API for PR ##{pr_number}"
     end
 
-    controller.dispatch_labels(pr_number: pr_number&.to_i)
+    result = controller.dispatch_labels(pr_number: pr_number&.to_i)
+    exit 1 if result.failure?
   end
 
   desc "test", "Test label detection without PR interaction"
@@ -43,17 +44,19 @@ class LabelDispatcherCLI < Thor
       puts "🧪 Testing with base: #{base_ref || 'nil'}, head: #{head_ref || 'nil'}"
     end
 
-    controller.test_detection(
+    result = controller.test_detection(
       base_ref: base_ref,
       head_ref: head_ref
     )
+    exit 1 if result.failure?
   end
 
   desc "simulate PR_NUMBER", "Simulate GitHub Actions environment locally"
 
   def simulate(pr_number)
     controller = LabelDispatcherContainer.resolve(:label_dispatcher_controller)
-    controller.simulate_github_actions(pr_number: pr_number.to_i)
+    result = controller.simulate_github_actions(pr_number: pr_number.to_i)
+    exit 1 if result.failure?
   end
 
   desc "validate_env", "Validate environment configuration"
@@ -120,4 +123,4 @@ class LabelDispatcherCLI < Thor
   end
 end
 
-LabelDispatcherCLI.start(ARGV)
+LabelDispatcherCLI.start(ARGV) if $PROGRAM_NAME == __FILE__

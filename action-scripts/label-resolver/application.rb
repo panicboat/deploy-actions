@@ -70,7 +70,7 @@ class LabelResolverContainer
 
     # Presenters
     container[:console_presenter] = Interfaces::Presenters::ConsolePresenter.new
-    container[:github_actions_presenter] = Interfaces::Presenters::GitHubActionsPresenter.new
+    container[:github_actions_presenter] = Interfaces::Presenters::GitHubActionsPresenter.new(output_path: Composition.github_output_path)
 
     # Controller
     presenter = Composition.github_actions? ? container[:github_actions_presenter] : container[:console_presenter]

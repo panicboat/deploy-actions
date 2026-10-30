@@ -32,7 +32,7 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
       end
 
       it 'dispatches labels without GitHub integration' do
-        controller.dispatch_labels(pr_number: pr_number)
+        expect(controller.dispatch_labels(pr_number: pr_number)).to be_success
 
         expect(detect_services_use_case).to have_received(:execute).with(
           base_ref: nil,
@@ -93,9 +93,9 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
       end
 
       it 'presents error and stops processing' do
-        controller.dispatch_labels(pr_number: pr_number)
+        expect(controller.dispatch_labels(pr_number: pr_number).error_message).to eq('detection failed')
 
-        expect(presenter).to have_received(:present_error).with(detection_result)
+        expect(presenter).to have_received(:present_error).with('detection failed')
         expect(manage_labels_use_case).not_to have_received(:execute)
       end
     end
@@ -113,9 +113,9 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
       end
 
       it 'presents error when label management fails' do
-        controller.dispatch_labels(pr_number: pr_number)
+        expect(controller.dispatch_labels(pr_number: pr_number).error_message).to eq('label management failed')
 
-        expect(presenter).to have_received(:present_error).with(manage_result)
+        expect(presenter).to have_received(:present_error).with('label management failed')
       end
     end
 
@@ -159,7 +159,7 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     end
 
     it 'tests detection without PR interaction' do
-      controller.test_detection(base_ref: base_ref, head_ref: head_ref)
+      expect { expect(controller.test_detection(base_ref: base_ref, head_ref: head_ref)).to be_success }.to output.to_stdout
 
       expect(detect_services_use_case).to have_received(:execute).with(
         base_ref: base_ref,
@@ -181,9 +181,9 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
       end
 
       it 'presents error' do
-        controller.test_detection(base_ref: base_ref, head_ref: head_ref)
+        expect { expect(controller.test_detection(base_ref: base_ref, head_ref: head_ref)).to be_failure }.to output.to_stdout
 
-        expect(presenter).to have_received(:present_error).with(detection_result)
+        expect(presenter).to have_received(:present_error).with('detection failed')
       end
     end
   end
@@ -220,6 +220,11 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
       expect(ENV).to have_received(:[]=).with('GITHUB_ENV', '/tmp/github_env')
       expect(File).to have_received(:write).with('/tmp/github_env', '')
       expect(controller).to have_received(:dispatch_labels).with(pr_number: pr_number)
+    end
+
+    it 'returns the dispatch Result' do
+      allow(controller).to receive(:dispatch_labels).and_return(Entities::Result.failure('boom'))
+      expect(controller.simulate_github_actions(pr_number: pr_number)).to be_failure
     end
 
     it 'ensures environment cleanup' do

@@ -40,7 +40,9 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
       end
 
       it 'successfully resolves deployment from labels' do
-        controller.resolve_from_labels(pr_number: pr_number, target_environments: target_environments)
+        result = controller.resolve_from_labels(pr_number: pr_number, target_environments: target_environments)
+
+        expect(result.value).to eq(deployment_targets)
 
         expect(determine_target_environment_use_case).to have_received(:execute).with(target_environments: ['develop'])
         expect(validate_deployment_safety_use_case).to have_received(:execute).with(
@@ -105,9 +107,9 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
       end
 
       it 'presents error and stops execution' do
-        controller.resolve_from_labels(pr_number: pr_number, target_environments: ['develop'])
+        expect(controller.resolve_from_labels(pr_number: pr_number, target_environments: ['develop'])).to be_failure
 
-        expect(presenter).to have_received(:present_error).with(pr_result)
+        expect(presenter).to have_received(:present_error).with('PR not found')
         expect(determine_target_environment_use_case).not_to have_received(:execute)
       end
     end
@@ -125,7 +127,7 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
       it 'presents error and stops execution' do
         controller.resolve_from_labels(pr_number: pr_number, target_environments: ['develop'])
 
-        expect(presenter).to have_received(:present_error).with(env_result)
+        expect(presenter).to have_received(:present_error).with('Invalid environment')
         expect(validate_deployment_safety_use_case).not_to have_received(:execute)
       end
     end
@@ -145,7 +147,7 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
       it 'presents error and stops execution' do
         controller.resolve_from_labels(pr_number: pr_number, target_environments: ['develop'])
 
-        expect(presenter).to have_received(:present_error).with(safety_result)
+        expect(presenter).to have_received(:present_error).with('Safety check failed')
         expect(generate_matrix_use_case).not_to have_received(:execute)
       end
     end
@@ -167,7 +169,7 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
       it 'presents error and stops execution' do
         controller.resolve_from_labels(pr_number: pr_number, target_environments: ['develop'])
 
-        expect(presenter).to have_received(:present_error).with(matrix_result)
+        expect(presenter).to have_received(:present_error).with('Matrix generation failed')
         expect(presenter).not_to have_received(:present_deployment_matrix)
       end
     end

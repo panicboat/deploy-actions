@@ -8,64 +8,13 @@ module Interfaces
     class ConsolePresenter
       # Present label dispatch results
       def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)
-        puts "🏷️  Label Dispatch Results".colorize(:blue)
-        puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
-        puts "Labels Added: #{labels_added.join(', ')}" if labels_added.any?
-        puts "Labels Removed: #{labels_removed.join(', ')}" if labels_removed.any?
-
-        puts "Changed Files: #{changed_files.length} files"
-
-        if changed_files.length <= 10
-          changed_files.each { |file| puts "  - #{file}" }
-        else
-          puts "  (showing first 10 files)"
-          changed_files.first(10).each { |file| puts "  - #{file}" }
-          puts "  ... and #{changed_files.length - 10} more files"
-        end
+        print_lines(TextFormat.label_dispatch(deploy_labels: deploy_labels, labels_added: labels_added, labels_removed: labels_removed, changed_files: changed_files), heading_color: :blue)
       end
 
       # Present deployment matrix results
-      def present_deployment_matrix(
-        deployment_targets:,
-        deploy_labels:,
-        target_environment: nil,
-        target_environments: nil,
-        merged_pr_number: nil,
-        pr_number: nil,
-        safety_status: nil
-      )
-        puts "🚀 Deployment Matrix".colorize(:green)
-
-        # Show context information
-        if target_environments && target_environments.length > 1
-          puts "Target Environments: #{target_environments.join(', ')}"
-        elsif target_environment
-          puts "Target Environment: #{target_environment}"
-        elsif target_environments && target_environments.length == 1
-          puts "Target Environment: #{target_environments.first}"
-        end
-        
-        puts "PR Number: ##{merged_pr_number || pr_number}" if merged_pr_number || pr_number
-        puts "Safety Status: #{safety_status}" if safety_status
-        puts ""
-
-        puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
-        puts "Deployment Targets: #{deployment_targets.length}"
-
-        # Group targets by environment for better readability
-        targets_by_env = deployment_targets.group_by(&:environment)
-        targets_by_env.each do |env, targets|
-          puts "\n  Environment: #{env}".colorize(:cyan)
-          targets.each do |target|
-            puts "    #{target.service}:#{target.stack} -> #{target.working_directory}"
-            target.attributes.each do |key, value|
-              puts "      #{key}: #{value}"
-            end
-          end
-        end
-        puts ""
+      def present_deployment_matrix(**fields)
+        print_lines(TextFormat.deployment_matrix(**fields), heading_color: :green)
       end
-
 
       # Present configuration validation results
       def present_config_validation_result(valid:, errors: [], config: nil, summary: nil)
@@ -86,29 +35,11 @@ module Interfaces
       end
 
       def present_config_details(config:)
-        puts "Workflow Configuration"
-        puts "Environments: #{config.declared_environment_names.join(', ')}"
-        config.services.each do |service|
-          puts "Service '#{service.id}':"
-          puts "  roots: #{service.roots.join(', ')}"
-          puts "  ignore: #{service.ignore.join(', ')}" unless service.ignore.empty?
-          service.stacks.each do |stack|
-            puts "  Stack '#{stack.id}':"
-            # Psych writes the root path as '' and would quote a bare dot, so the line is replaced as text.
-            details = stack.to_h.slice(:path, :paths, :attributes, :exclude, :environments).compact.transform_keys(&:to_s).to_yaml.sub(/^path: ''$/, 'path: .')
-            puts details.lines.drop(1).map { |line| "    #{line}" }.join
-          end
-        end
+        print_lines(TextFormat.config_details(config: config))
       end
 
       def present_service_test_result(service_name:, matches:)
-        puts "Service Configuration Test"
-        puts "Service: #{service_name}"
-        matches.each do |match|
-          puts "Target:"
-          match.fetch(:target).to_matrix_item.each { |key, value| puts "  #{key}: #{value.inspect}" }
-          puts "  excluded: #{match.fetch(:excluded)}"
-        end
+        print_lines(TextFormat.service_test_result(service_name: service_name, matches: matches))
       end
 
       # Present diagnostic results
@@ -134,9 +65,8 @@ module Interfaces
       end
 
       # Present error results
-      def present_error(result)
-        puts "❌ Error: #{result.error_message}".colorize(:red)
-        exit 1
+      def present_error(message)
+        puts "❌ Error: #{message}".colorize(:red)
       end
 
       # Present service discovery results
@@ -144,6 +74,14 @@ module Interfaces
         puts "🔍 Service Discovery Results".colorize(:yellow)
         puts "Discovery Method: #{method}"
         puts "Discovered Services: #{discovered_services.join(', ')}"
+      end
+
+      private
+
+      def print_lines(lines, heading_color: nil)
+        heading, *rest = lines
+        puts heading_color ? heading.colorize(heading_color) : heading
+        rest.each { |line| puts line }
       end
     end
   end

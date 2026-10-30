@@ -18,6 +18,16 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
     expect(stdout).to include('Deploy Labels: deploy:demo', 'Changed Files: 1 files')
   end
 
+  it 'does not exit on errors' do
+    expect { described_class.new.present_error('boom') }.to output(/Error: boom/).to_stdout
+  end
+
+  it 'colors the heading of the shared text' do
+    expect do
+      described_class.new.present_label_dispatch_result(deploy_labels: [], labels_added: [], labels_removed: [], changed_files: [])
+    end.to output("#{'🏷️  Label Dispatch Results'.colorize(:blue)}\nDeploy Labels: \nChanged Files: 0 files\n").to_stdout
+  end
+
   it 'accepts only the dispatch result fields' do
     expect(described_class.instance_method(:present_label_dispatch_result).parameters.map(&:last)).to eq(%i[deploy_labels labels_added labels_removed changed_files])
   end
