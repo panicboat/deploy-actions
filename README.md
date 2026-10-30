@@ -2,377 +2,67 @@
 
 **English** | [🇯🇵 日本語](README-ja.md)
 
-A GitHub Actions toolkit that drives PR-label-based deployment orchestration for multi-service repositories.
+Deploy Actions is a pair of GitHub Actions that work out what a pull request needs to deploy in a multi-service repository. They turn changed files into `deploy:<service>` labels, then turn those labels into a JSON list of targets for a job matrix. Running `plan`, `apply`, or a build stays with your own steps (Terragrunt, Helm, kustomize, and so on), and that layer is not part of this repository.
 
-## Overview
+## How It Works
 
-Deploy Actions converts file changes into deployment labels and converts those labels into structured deployment targets. The toolkit handles the change-detection and target-resolution layer; the actual `plan`/`apply` execution is delegated to whatever Composite Action the consumer wires in (Terragrunt, Helm, kustomize, etc.).
+A push to a pull request passes through two workflows:
 
-## Components
+1. Label Dispatcher compares the pull request's base and head, matches the changed files against `workflow-config.yaml`, and syncs one `deploy:<service>` label per affected service.
+2. Adding a label fires the `labeled` event, which starts the second workflow. Label Resolver reads the labels, finds the directories each service deploys from, and outputs one target per directory and environment.
 
-### 1. Config Manager (`action-scripts/config-manager/`)
+Your job then runs once per target. Config Manager validates `workflow-config.yaml` at the start of both actions, and you can run it locally to see the targets of a service.
 
-Validates stack definitions in `workflow-config.yaml` and reports the targets of a service found in existing directories, with their exclusion status.
+## Getting Started
 
-**Highlights:**
-
-- Configuration validation with detailed error reports
-- Service diagnosis that lists each target and whether it is excluded
-- Stack path and exclusion validation
-
-### 2. Label Dispatcher (`label-dispatcher/`)
-
-Detects file changes from a PR and creates `<prefix><service>` labels (`deploy:<service>` by default) for affected services.
-
-**Highlights:**
-
-- Change detection from `git diff`
-- Service discovery from directory patterns
-- Automatic label generation
-- Exclusion handling
-
-### 3. Label Resolver (`label-resolver/`)
-
-Generates a matrix for downstream Actions from `<prefix><service>` labels and the selected environments.
-
-**Highlights:**
-
-- Label-to-target resolution
-- Target selection from declared and discovered environments
-- Deployment-matrix generation
-- Exclusion of targets that match a stack's `exclude` conditions
-
-## Composite Actions
-
-### Label Dispatcher
+Put a `workflow-config.yaml` at the root of the repository you deploy from:
 
 ```yaml
-- uses: panicboat/deploy-actions/label-dispatcher@v0.1.0
-  with:
-    pr-number: ${{ github.event.pull_request.number }}
-    repository: ${{ github.repository }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-Outputs:
-
-| Output | Value |
-|---|---|
-| `labels-added` | JSON array of the labels the PR did not have before the run |
-| `labels-removed` | JSON array of the labels the PR no longer has after the run |
-| `services-detected` | JSON array of the services detected from the changes |
-| `has-changes` | `true` or `false` |
-
-### Label Resolver
-
-`environments` is optional. Specify multiple environments as a comma-separated list; omit it to target all declared and discovered environments.
-
-```yaml
-- uses: panicboat/deploy-actions/label-resolver@v0.1.0
-  with:
-    pr-number: ${{ github.event.pull_request.number }}
-    repository: ${{ github.repository }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    environments: develop
-```
-
-Set `service` to resolve a service, or `all`, without a pull request. `pr-number` is then ignored, and `ref` selects the ref of the source repository to check out.
-
-```yaml
-- uses: panicboat/deploy-actions/label-resolver@v0.1.0
-  with:
-    repository: ${{ github.repository }}
-    service: api
-    environments: production
-    ref: ${{ github.event.release.tag_name }}
-```
-
-Inputs:
-
-| Input | Required | Value |
-|---|---|---|
-| `repository` | Yes | Source repository (`owner/repo`) |
-| `pr-number` | Unless `service` is set | Pull request whose labels are resolved; ignored when `service` is set |
-| `service` | No | Service name or `all`; resolves its targets without a pull request |
-| `environments` | No | Comma-separated environments; empty means all declared and discovered environments |
-| `ref` | No | Ref of the source repository to check out; defaults to the event's ref for the triggering repository and to the default branch for another repository |
-| `github-token` | No | Token for checking out the repository and reading the PR; defaults to `${{ github.token }}` |
-| `config-path` | No | Path to the configuration file; defaults to `workflow-config.yaml` |
-
-Outputs:
-
-| Output | Value |
-|---|---|
-| `targets` | JSON array of deployment targets (see [Matrix Output](#matrix-output)) |
-| `has-targets` | `true` or `false` |
-| `candidates` | When `service` is set, JSON array of every candidate including the excluded ones, each `{"target": <matrix item>, "excluded": <bool>, "root": "<root>"}` |
-
-## Configuration
-
-Define a nonempty `services` array at the top level of `workflow-config.yaml`. A service owns the files under its `roots` and contains the `stacks` that run inside it. The optional top-level `profiles` map defines named attribute sets, and the optional `labels` map sets the label prefixes. Any other top-level key is a configuration error.
-
-```yaml
-labels:
-  prefix: "deploy:"
-
-profiles:
-  aws-develop:
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
-    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
-  aws-production:
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
-    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
-
-services:
-  - id: app
-    roots:
-      - "dystopia/{service}"
-      - "system-components/{service}"
-    ignore:
-      - "**/README.md"
-    stacks:
-      - id: dockerfile
-        path: "."
-        attributes:
-          type: container
-          repository: registry.example.com/{service}
-      - id: kustomize
-        path: "kubernetes/overlays/{environment}"
-        attributes:
-          type: kustomize
-      - id: aws
-        path: "infrastructure/aws/{environment}"
-        attributes:
-          type: terragrunt
-        environments:
-          develop:
-            use: [aws-develop]
-          production:
-            use: [aws-production]
-        exclude:
-          - service: demo
-            environment: production
-      - id: gcp
-        path: "infrastructure/gcp/{environment}"
-        attributes:
-          type: terragrunt
-        environments:
-          develop:
-            use: [aws-develop]
-            gcp_project: foo-develop
-```
-
-### Services
-
-| Field | Requirement | Behavior |
-|---|---|---|
-| `id` | Required | Identifier unique across the configuration; used in error messages and displays |
-| `roots` | Required | Nonempty array of relative patterns from the repository root; every root must contain `{service}` |
-| `attributes` | Optional | Attributes attached to every target of every stack in the service |
-| `ignore` | Optional | Array of globs relative to the root; affects change detection only |
-| `stacks` | Required | Nonempty array of stacks |
-
-A root defines which files belong to a service. The value captured by `{service}` is the service name in labels and the matrix; the service `id` is not used for either.
-
-Roots can contain arbitrary placeholders such as `{project}`. `{environment}` is rejected in roots because the environment belongs to a stack `path`. When environment directories sit below the service, put `{environment}` in `path` and keep the root at the service directory, so that shared directories next to the environments stay under the root.
-
-Not supported: `{environment}` in roots, as in `envs/{environment}/{service}`, and roots without `{service}`.
-
-### Stacks
-
-| Field | Requirement | Behavior |
-|---|---|---|
-| `id` | Required | Identifier unique across all services; becomes the matrix `stack` |
-| `path` | Required | Path relative to each root; `.` is the root itself |
-| `attributes` | Optional | Attributes attached to every target of the stack |
-| `environments` | Optional | Nonempty map from environment names to environment entries |
-| `exclude` | Optional | Array of exclusion conditions; defaults to an empty array |
-
-A stack has no built-in type. Describe the kind of tool with an attribute such as `type`, and branch on it downstream (see [Matrix Output](#matrix-output)).
-
-A stack runs in each root followed by `path`: root `aws/{service}` with path `{environment}` is the directory pattern `aws/{service}/{environment}`. `path` can contain `{environment}` and arbitrary placeholders, but not `{service}`, because the root determines the service. Different stacks can point at the same directory.
-
-Targets are built in this order:
-
-1. With `environments`, one target is built for each declared environment, even when `path` does not contain `{environment}`. When it does, only the declared names match, so a directory such as `modules/` never becomes a target.
-2. Without `environments`, when `path` contains `{environment}`, environment names are discovered from existing directories at that position. Directories at that position that are not environments, such as `modules/`, are also discovered as environments, so declare `environments` when such directories sit beside the environment directories.
-3. With neither, one target with `environment: null` is built per directory, regardless of environment selection.
-
-`attributes` attach to every target of the stack, however it was built. In case 3 they cannot reference `{environment}`. The service's `attributes` attach to the targets of every stack in the same way.
-
-The selectable environment list is the union of all declared names and names discovered at execution time. Excluded environments remain selectable. Omitting the environment selection targets this union. Each stack generates targets only for its own declared or discovered environments. Selecting a name absent from the union is an error.
-
-### Profiles
-
-A profile is a named attribute map under the top-level `profiles`. A stack references profiles with `use` inside `environments.<name>`.
-
-An entry in `environments` is a map of attributes with one reserved key, `use`, which is an optional nonempty array of profile names. The attributes of a target are the service's `attributes`, the stack's `attributes`, the attributes of each profile listed in `use`, and the other keys of the entry (inline attributes). In the example above, the `gcp` stack runs with the AWS role of `aws-develop`, and `gcp_project` adds the project it creates resources in.
-
-- The same attribute name in two or more of those places is a configuration error that names the stack, the environment, and the sources.
-- A `use` naming an undefined profile is a configuration error that points at `services[i].stacks[j].environments.<name>.use[k]`. Unused profiles are allowed.
-- `use` is valid only inside `environments.<name>`. It is rejected in a service's or stack's `attributes` and in profiles.
-- Profile attributes follow the rules for environment attributes: keys cannot be fixed matrix keys, and placeholders must resolve for every stack that uses the profile.
-
-### Attribute Values
-
-String values in service and stack `attributes`, profiles, and environment entries support `{service}` and arbitrary placeholders captured from the root or `path`, such as `{project}`. Targets with an environment, declared or discovered, also support `{environment}`, even if `path` does not contain it. The same rules apply to strings nested in maps or arrays. Map keys remain literal, and non-string values retain their types. Environments do not need identical attribute keys.
-
-Every placeholder referenced by an attribute must be available for every root of the service combined with the stack's `path`, and for every stack of the service when the attribute is a service attribute; unresolved references are configuration errors. For example, `roots: ["teams/{team}/{service}"]` with `attributes: {repository: "ghcr.io/{team}/{service}"}` produces `ghcr.io/payments/api` for `teams/payments/api`. If the service had another root without `{team}`, the reference would be rejected, so put roots that capture different placeholders in separate services.
-
-### Path Matching
-
-Roots and paths are relative patterns. Absolute paths and `..` segments are rejected. Leading `./`, extra `/` separators, and `.` segments are normalized. All existing directories matching any root followed by `path` are enumerated; missing paths generate no targets. Services do not require registration. Service names starting with a dot are excluded.
-
-Names of arbitrary placeholders must match `[a-z_][a-z0-9_]*`, and each value occupies one path segment. Repeated occurrences of a placeholder must match the same value. Glob characters are treated literally. Definitions are rejected if a placeholder conflicts with a fixed matrix key (`stack`, `working_directory`) or with any attribute key of the stack, whether it comes from the service's or stack's `attributes`, a profile, or an environment entry. Attribute keys cannot be fixed matrix keys (`service`, `environment`, `stack`, `working_directory`).
-
-### Exclusion Conditions
-
-Each entry in `exclude` is a nonempty condition map. Conditions can use `service`, `environment`, or any arbitrary placeholder found in any root of the service or in the stack's `path`. Attribute names cannot be used as condition keys.
-
-Conditions use exact matching: keys within a map are combined with AND, and entries in the array are combined with OR. Omitted keys impose no restriction. A condition requiring a captured value that the matched root does not capture does not match there. For example, `project: sandbox` excludes only the targets under a root such as `gcp/{project}/{service}`.
-
-Condition values must be nonempty strings representing one path segment; `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. When `environments` is specified, environment conditions can name only the stack's declared environments. For stacks that discover environments, an environment condition may name a directory value that does not yet exist. For stacks with neither `environments` nor `{environment}` in `path`, `environment` can be omitted or set to `null`; other condition values cannot be `null`. Condition values are literal and do not expand placeholders.
-
-### Detection
-
-Label Dispatcher labels a service when a changed file is below one of its roots, except in the cases below. It evaluates every changed file against every root in this order:
-
-1. The file is skipped when it is not below the root, or when the `{service}` capture starts with a dot.
-2. The file is skipped when its path relative to the root matches an `ignore` pattern.
-3. When the file is below a stack's directory (root followed by `path`), candidate targets are built as Label Resolver builds them. The service is labeled unless `exclude` removes every candidate.
-4. When the file is below no stack's directory, such as `modules/` or `Makefile`, the service is labeled. `exclude` does not apply to these shared files; use `ignore` to skip them.
-
-A stack with `path: "."` has the root itself as its directory, but it does not count as a stack's directory for rule 4. Its candidates label the service as in rule 3; when `exclude` removes all of them, rule 4 still applies unless the file is below another stack's directory. A file below another stack's directory whose candidates are all excluded is still not labeled. For a stack with `environments`, a directory at the `{environment}` position that is not a declared environment is outside the stack's directory.
-
-Choose roots narrow enough that unrelated top-level directories are not taken as services; for example, avoid a bare `{service}` root, which makes every top-level directory a service.
-
-`ignore` patterns are globs relative to the root: for root `dystopia/{service}`, the file `dystopia/api/docs/guide.md` is matched as `docs/guide.md`. `*` does not cross `/`, and `**/` matches zero or more directories. A trailing `/**` matches every file below that directory. Files starting with a dot match, and `?`, `[...]`, and `{a,b}` work as in shell globs. `ignore` affects change detection only; Label Resolver still generates targets under ignored paths.
-
-A shared file can label a service that has no target to resolve, for example when its only environment is excluded. The label is added and Label Resolver returns no targets.
-
-The following configuration puts the environment directories next to a shared `modules/` directory:
-
-```yaml
-profiles:
-  aws-develop:
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
-    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
-  aws-production:
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
-    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
-
-services:
-  - id: infrastructure
-    roots:
-      - "aws/{service}"
-      - "gcp/{project}/{service}"
-    ignore:
-      - "**/*.md"
-    stacks:
-      - id: terragrunt
-        path: "{environment}"
-        attributes:
-          type: terragrunt
-        environments:
-          develop:
-            use: [aws-develop]
-          production:
-            use: [aws-production]
-        exclude:
-          - environment: production
-          - project: sandbox
-```
-
-| Changed file | Result |
-|---|---|
-| `aws/api/modules/main.tf` | Labels `api`: shared file |
-| `gcp/sandbox/api/modules/main.tf` | Labels `api`: shared file; `exclude` does not apply |
-| `aws/api/develop/main.tf` | Labels `api` |
-| `aws/api/production/main.tf` | No label: the only candidate is excluded |
-| `gcp/sandbox/api/develop/main.tf` | No label: the only candidate is excluded |
-| `aws/api/docs/guide.md` | No label: ignored |
-
-### YAML Anchors
-
-Anchors, aliases, and merge keys (`<<`) are accepted and resolved before validation. Define an anchor inside `profiles` or any stack.
-
-```yaml
-profiles:
-  aws-develop: &aws-develop
-    aws_region: ap-northeast-1
-    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
-    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
-  aws-production:
-    <<: *aws-develop
-    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
-    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
-
 services:
   - id: app
     roots:
       - "apps/{service}"
     stacks:
-      - id: aws
-        path: "aws/{environment}"
-        environments: &environments
-          develop:
-            use: [aws-develop]
-          production:
-            use: [aws-production]
-      - id: aws-audit
-        path: "audit/{environment}"
-        environments: *environments
+      - id: kustomize
+        path: "kubernetes/overlays/{environment}"
+        attributes:
+          type: kustomize
 ```
 
-The validator sees only the parsed hash. A key written next to `<<:` silently overrides the merged value, as `iam_role_plan` does above. This differs from the configuration error raised when a stack's `attributes`, a profile in `use`, and the inline attributes define the same key.
+A service owns the files under its `roots`, and the directory name at `{service}` becomes the service name. A stack is a directory inside the service to deploy from. With this configuration, changing `apps/api/src/main.rb` labels the pull request `deploy:api`, and an existing `apps/api/kubernetes/overlays/develop` directory produces this target:
 
-### Labels
-
-Each prefix is used as-is, including its separator.
-
-```yaml
-labels:
-  prefix: "deploy:"
-  extra_prefixes: ["manual/"]
+```json
+{
+  "service": "api",
+  "environment": "develop",
+  "stack": "kustomize",
+  "working_directory": "apps/api/kubernetes/overlays/develop",
+  "type": "kustomize"
+}
 ```
 
-| Field | Requirement | Behavior |
-|---|---|---|
-| `prefix` | Optional | Prefix of the labels managed by Label Dispatcher; defaults to `deploy:` |
-| `extra_prefixes` | Optional | Array of additional prefixes read by Label Resolver; defaults to an empty array |
-
-Label Dispatcher adds `<prefix><service>` labels and removes labels starting with `prefix` that no longer match the changes. It never touches labels starting with an `extra_prefixes` entry, so labels added by hand with those prefixes survive later pushes. Label Resolver reads labels starting with any configured prefix and treats the rest of the label as the service name. The same service labeled with different prefixes yields one service, and `all` with any prefix targets all services. Labels whose remaining text is not a valid service name (`[a-zA-Z0-9_-]+`) are ignored.
-
-Prefixes must be nonempty strings. No prefix may start with another prefix, because Label Dispatcher would remove the labels of the overlapping prefix. Quote prefixes ending with `:` in YAML.
-
-See [workflow-config.yaml](action-scripts/workflow-config.yaml) for a working configuration example.
-
-## Workflow Integration
-
-### 1. Change Detection
+Then add a workflow that dispatches the labels:
 
 ```yaml
-name: Detect Changes and Create Labels
+name: Detect Changes
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
 jobs:
-  detect-changes:
+  dispatch:
     runs-on: ubuntu-latest
     steps:
       - uses: panicboat/deploy-actions/label-dispatcher@v0.1.0
         with:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.DEPLOY_LABEL_TOKEN }}
 ```
 
-### 2. Target Resolution
+`DEPLOY_LABEL_TOKEN` stands for a GitHub App token or a personal access token with `pull-requests: write`. GitHub does not start workflows for events caused by `GITHUB_TOKEN`, so labels added with it would never start the workflow below.
+
+And a workflow that resolves the labels and runs your deployment step for each target:
 
 ```yaml
 name: Deploy
@@ -381,83 +71,47 @@ on:
     types: [labeled]
 
 jobs:
-  plan:
+  resolve:
+    if: startsWith(github.event.label.name, 'deploy:')
     runs-on: ubuntu-latest
-    if: contains(github.event.label.name, 'deploy:')
+    outputs:
+      targets: ${{ steps.resolve.outputs.targets }}
+      has-targets: ${{ steps.resolve.outputs.has-targets }}
     steps:
       - id: resolve
         uses: panicboat/deploy-actions/label-resolver@v0.1.0
         with:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          environments: develop
+
+  deploy:
+    needs: resolve
+    if: needs.resolve.outputs.has-targets == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: ${{ fromJSON(needs.resolve.outputs.targets) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/kustomize-build
+        with:
+          working-directory: ${{ matrix.target.working_directory }}
 ```
 
-Pass `${{ steps.resolve.outputs.targets }}` to your deployment step.
+## Reference
 
-When you change `prefix` or add `extra_prefixes`, update the `if` condition to match every configured prefix, for example `startsWith(github.event.label.name, 'deploy:') || startsWith(github.event.label.name, 'manual/')`.
+Each tool's README holds the detailed rules:
 
-The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of this repository.
+- [Config Manager](action-scripts/config-manager/README.md): every field of `workflow-config.yaml`, its validation rules, and the environment variables the tools read.
+- [Label Dispatcher](action-scripts/label-dispatcher/README.md): which changes label a service, `ignore`, label prefixes, and the action's inputs and outputs.
+- [Label Resolver](action-scripts/label-resolver/README.md): how targets are built, environment selection, the matrix format, resolving a service without a pull request, and the action's inputs and outputs.
 
-## Matrix Output
-
-`label-resolver` writes a JSON array to `outputs.targets`. Each target has the following four fixed keys, with attributes and captured arbitrary placeholders flattened into the same object.
-
-| Key | Source |
-|---|---|
-| `service` | Service name from a label or discovered through `<prefix>all`; the value captured by `{service}` |
-| `environment` | Declared or discovered environment name, or `null` for a target shared across environments |
-| `stack` | Stack `id` |
-| `working_directory` | Relative path of the existing target directory |
-| Attribute keys | Stack `attributes`, plus the attributes of the profiles in `use` and the inline attributes of the selected environment |
-| Arbitrary placeholder keys | Values captured from the matched path |
-
-With the first configuration above, an existing `dystopia/api/infrastructure/aws/develop` directory generates the following row.
-
-```json
-{
-  "service": "api",
-  "environment": "develop",
-  "stack": "aws",
-  "working_directory": "dystopia/api/infrastructure/aws/develop",
-  "type": "terragrunt",
-  "aws_region": "ap-northeast-1",
-  "iam_role_plan": "arn:aws:iam::123456789012:role/aws-plan-develop-role",
-  "iam_role_apply": "arn:aws:iam::123456789012:role/aws-apply-develop-role"
-}
-```
-
-Target identity consists of `service`, `stack`, `environment`, and `working_directory`. Duplicate targets are merged into one row. Paths that interpret the same target with different captured value maps cause an error, regardless of exclusions or definition order.
-
-Because the stack kind is an attribute you define, downstream steps branch on it with `matrix.target.type`. In a job named `resolve`, expose `steps.resolve.outputs.targets` as the job output `targets`, then use it in a later job:
-
-```yaml
-deploy:
-  needs: resolve
-  strategy:
-    matrix:
-      target: ${{ fromJSON(needs.resolve.outputs.targets) }}
-  steps:
-    - if: matrix.target.type == 'terragrunt'
-      uses: ./.github/actions/terragrunt-plan
-      with:
-        working-directory: ${{ matrix.target.working_directory }}
-        role-to-assume: ${{ matrix.target.iam_role_plan }}
-    - if: matrix.target.type == 'kustomize'
-      uses: ./.github/actions/kustomize-build
-      with:
-        working-directory: ${{ matrix.target.working_directory }}
-```
+[action-scripts/workflow-config.yaml](action-scripts/workflow-config.yaml) is a working configuration with several stacks and profiles.
 
 ## Development
 
-### Prerequisites
-
-- Ruby ([.ruby-version](action-scripts/.ruby-version))
-- Bundler
-- Git
-
-### Setup
+The actions are defined in `label-dispatcher/action.yaml` and `label-resolver/action.yaml`, and the Ruby code they call lives in `action-scripts/`. You need Ruby ([.ruby-version](action-scripts/.ruby-version)), Bundler, and Git.
 
 ```bash
 git clone https://github.com/panicboat/deploy-actions.git
@@ -466,34 +120,6 @@ bundle install
 bundle exec rspec
 ```
 
-### Component Testing
-
-Run commands from the `action-scripts` directory. `validate` and both `test` commands read only local files and never touch GitHub.
-
-| Command | Result |
-|---|---|
-| `bundle exec ruby config-manager/bin/config-manager validate` | Validates `workflow-config.yaml`; exits 1 on an invalid configuration |
-| `bundle exec ruby config-manager/bin/config-manager test SERVICE [ENVIRONMENT]` | Prints each target of the service and whether it is excluded |
-| `bundle exec ruby label-dispatcher/bin/dispatcher test [--base-ref=REF] [--head-ref=REF]` | Prints the labels a change would get |
-| `bundle exec ruby label-dispatcher/bin/dispatcher dispatch PR_NUMBER` | Detects changes from the PR's base and head and syncs the PR labels |
-| `bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]` | Resolves the PR's labels into targets; `ENVIRONMENTS` is comma-separated, and empty means all |
-| `bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]` | Resolves the targets of one service, or `all`, without a PR; `ENVIRONMENTS` is the same as for `resolve` |
-
-To check locally what a change would do, use the two `test` commands:
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher test
-bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=HEAD
-bundle exec ruby config-manager/bin/config-manager test api develop
-```
-
-- Without refs, `dispatcher test` uses staged and unstaged changes.
-- With `--base-ref` and `--head-ref`, it diffs the two refs; with `--base-ref` alone, it diffs the base ref against the working tree; `--head-ref` alone is an error.
-- With refs, it stops with an error when a ref does not exist, without falling back to working-tree changes.
-- `dispatch` always syncs the labels of the PR, and `dispatch` and `resolve` need `GITHUB_TOKEN` and `GITHUB_REPOSITORY`, while `targets` needs neither.
-- The repository root is `SOURCE_REPO_PATH` when it holds `.git`; otherwise the search starts at the current directory itself and returns the nearest directory that holds `.git`.
-- `WORKFLOW_CONFIG_PATH` selects the configuration file, relative to the current directory, and defaults to `workflow-config.yaml`.
-
 ## License
 
-MIT — see `LICENSE`.
+MIT. See [LICENSE](LICENSE).

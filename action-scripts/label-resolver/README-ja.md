@@ -2,213 +2,169 @@
 
 [🇺🇸 English](README.md) | **日本語**
 
-PR ラベルを明示的な環境指定を使って GitHub Actions 自動化のためのデプロイメントターゲットに変換する Ruby ベースのデプロイメント解決ツールです。
+Label Resolver は `deploy:<service>` ラベル、または直接渡したサービス名から、job の matrix に渡すデプロイターゲットの JSON 配列を作ります。環境は入力で指定し、ブランチ名からは決めないので、1 回の実行で好きな環境の組み合わせを対象にできます。
 
-## 概要
+## Action
 
-Label Resolver は PR ラベルを分析し、指定された環境に対するデプロイメントターゲットを生成します。マルチサービスデプロイメント用のデプロイメントマトリクスを作成し、デプロイメント自動化の意思決定の中心的なオーケストレーターとして機能します。
-
-## 機能
-
-- **ラベル解決**: PR 情報からデプロイメントラベルを抽出
-- **明示的環境指定**: ブランチ依存なしの直接的な環境指定
-- **ディレクトリ規約解決**: 階層ディレクトリ構造を使用したデプロイメントパスの解決
-- **マトリクス生成**: 並列実行用のデプロイメントマトリクス作成
-- **GitHub Actions 統合**: GitHub Actions ワークフローとのシームレスな統合
-
-## 使い方
-
-`action-scripts` を作業ディレクトリとして実行します。
-
-Label Resolver は `label-resolver/bin/resolver` を通じて CLI インターフェースを提供します：
-
-### コマンド
-
-指定環境に対するデプロイ対象を PR ラベルから解決します。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
-```
-
-**環境指定：**
-
-- 単一環境: `develop`
-- 複数環境: `develop,staging` (カンマ区切り)
-- 全環境: 環境一覧パラメータを省略
-
-Pull Request なしで、1 つのサービスまたは全サービスのデプロイ対象を解決します。このコマンドは GitHub API を呼ばず、`GITHUB_TOKEN` を必要としません。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]
-```
-
-**サービス指定：**
-
-- 単一サービス: `[a-zA-Z0-9_-]+` に一致するサービス名
-- 全サービス: `all`
-
-ENVIRONMENTS の指定方法は `resolve` と同じです。パターンに合わないサービス名、および定義も探索もされていない環境は終了コード 1 で失敗します。
-
-### 実行例
-
-`develop` 環境のデプロイ対象を解決します。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver resolve 123 develop
-```
-
-複数環境のデプロイ対象をまとめて解決します。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver resolve 456 develop,staging
-```
-
-定義環境と探索した環境すべてのデプロイ対象を解決します。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver resolve 123
-```
-
-Pull Request なしで、1 つのサービスの `develop` 環境のデプロイ対象を解決します。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver targets demo develop
-```
-
-全サービスの全環境のデプロイ対象を解決します。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver targets all
-```
-
-### ワークフローへの組み込み
-
-リゾルバーは通常 GitHub Actions ワークフローから呼び出されます：
-
-単一環境を指定する場合：
+ふつうは Pull Request のラベルを解決します。`environments` は省略できます。名前を 1 つかカンマ区切りの一覧を渡し、省略すると定義された環境と探索された環境のすべてが対象になります。
 
 ```yaml
-- name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@v0.1.0
+- uses: panicboat/deploy-actions/label-resolver@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    environments: ${{ inputs.target_environment }}
-```
-
-複数環境を指定する場合：
-
-```yaml
-- name: Resolve deployment targets
-  uses: panicboat/deploy-actions/label-resolver@v0.1.0
-  with:
-    pr-number: ${{ github.event.pull_request.number }}
-    repository: ${{ github.repository }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
     environments: "develop,staging"
 ```
 
-### Action の出力
+`service` を指定すると、Pull Request なしでサービスまたは `all` を解決します。release や手動実行の workflow に向いています。このとき `pr-number` は無視され、`ref` でソースリポジトリの checkout 先を選びます。
 
-リゾルバーは以下の GitHub Actions 出力を提供します：
-
-- `targets`: マトリクス戦略用のデプロイメントターゲットの JSON 配列
-- `has-targets`: ターゲットが存在するかを示すブール値 (`true`/`false`)
-
-`targets` コマンドは、除外されていない candidate から求めた同じ 2 つの出力に加えて、次の出力を提供します：
-
-- `candidates`: 除外された対象を含む全 candidate の JSON 配列。各要素は `{"target": <matrix 項目>, "excluded": <bool>, "root": "<root>"}` の形式
-
-存在しないサービスはエラーになりません。`targets` は `[]`、`has-targets` は `false`、`candidates` は `[]` になります。
-
-## アーキテクチャ
-
-### 構成要素
-
-- **LabelResolverController**: メインオーケストレーションロジック
-- **GetLabels**: PR ラベル抽出
-- **GenerateMatrix**: PR のデプロイラベルから、除外されていない対象だけのデプロイメントマトリクスを生成
-- **ListServiceTargets**: サービス名の検証と、1 つまたは全サービスの対象の一覧化（除外された対象を含む全 candidate を返す）
-- **ListCandidates**: `GenerateMatrix` と `ListServiceTargets` が共有する、環境検証と candidate の列挙
-
-### 処理の流れ
-
-`resolve`：
-
-1. **ラベル抽出**: PR からデプロイラベルを取得
-2. **candidate の一覧化**: `ListCandidates` が全ての対象環境の存在を検証し、ディレクトリ構造から candidate を列挙
-3. **マトリクス生成**: `GenerateMatrix` が除外されていない candidate をデプロイメントターゲットにする
-4. **出力生成**: 簡素化された出力で GitHub Actions 用に結果をフォーマット
-
-`targets`：
-
-1. **サービス検証**: `ListServiceTargets` が `[a-zA-Z0-9_-]+` に一致しないサービス名を拒否
-2. **candidate の一覧化**: `ListCandidates` が対象環境を検証し、サービス（`all` なら全サービス）の candidate を列挙
-3. **出力生成**: `targets` と `has-targets` は除外されていない candidate から、`candidates` は全 candidate を除外状態と root 付きで出力
-
-## 設定
-
-設定仕様と matrix の形式はルートの [設定](../../README-ja.md#設定) と [matrix 出力](../../README-ja.md#matrix-出力) を参照してください。
-
-## デプロイラベル
-
-システムは `deploy:service` 形式のラベルを認識します：
-
-- `deploy:auth` - auth サービスをデプロイ
-- `deploy:api` - api サービスをデプロイ
-- `deploy:frontend` - frontend サービスをデプロイ
-- `deploy:all` - 実在する全サービスの対象を解決
-
-prefix と追加の prefix は設定で変更できます。ルートの [Labels](../../README-ja.md#labels) を参照してください。
-
-## 環境の指定
-
-**トランクベース開発**: リゾルバーはブランチベースマッピングではなく明示的な環境指定を使用：
-
-- 環境はパラメータとして直接指定
-- 環境決定にブランチ名への依存なし
-- 設定で定義した環境と stack のパスから探索した環境をサポート
-- 複数環境への同時デプロイメントが可能
-
-## デプロイ対象の解決
-
-指定環境を各 stack の定義環境または探索した環境から選び、全パスの実在ディレクトリを列挙します。環境指定の省略または空白入力は定義環境と探索した環境の和集合を選択します。`attributes` を持つ環境共通の対象は各ディレクトリにつき一度だけ生成します。
-
-`deploy:all` は設定したパスから全サービスを探索します。除外条件に一致する対象は matrix に含めません。存在しないパスは正常な空の結果になり、未知環境・列挙エラー・抽出値の矛盾は失敗になります。
-
-## エラー処理
-
-リゾルバーは包括的なエラーハンドリングを提供します：
-
-- **無効な環境**: 対象環境が存在しない場合の明確なエラー
-- **無効なサービス名**: `targets` は `[a-zA-Z0-9_-]+` に一致しないサービス名を拒否
-- **ラベル不足**: デプロイラベルのない PR の適切な処理
-- **設定エラー**: ワークフロー設定の詳細な検証
-- **ディレクトリ検出**: 存在しないパスは正常な空の結果
-
-## 開発
-
-### テストの実行
-
-```bash
-cd action-scripts
-bundle exec rspec spec/label-resolver/
+```yaml
+- uses: panicboat/deploy-actions/label-resolver@v0.1.0
+  with:
+    repository: ${{ github.repository }}
+    service: api
+    environments: production
+    ref: ${{ github.event.release.tag_name }}
 ```
 
-### ローカルでの動作確認
+action はリポジトリを自分で checkout するので、job に checkout の step は要りません。最初に [Config Manager](../config-manager/README-ja.md) で設定を検証します。`service` も `pr-number` もなければ失敗します。
 
-実行環境を設定します。
+入力:
+
+| 入力 | 必須 | 値 |
+|---|---|---|
+| `repository` | はい | ソースリポジトリ（`owner/repo`） |
+| `pr-number` | `service` がなければ必須 | ラベルを解決する Pull Request。`service` があれば無視されます |
+| `service` | いいえ | サービス名または `all`。Pull Request なしでターゲットを解決します |
+| `environments` | いいえ | カンマ区切りの環境。空なら定義された環境と探索された環境のすべて |
+| `ref` | いいえ | checkout するソースリポジトリの ref。既定は、起動元のリポジトリならイベントの ref、別のリポジトリならデフォルトブランチ |
+| `github-token` | いいえ | リポジトリの checkout と PR の読み取りに使うトークン。既定は `${{ github.token }}` |
+| `config-path` | いいえ | 設定ファイルのパス。既定は `workflow-config.yaml` |
+
+出力:
+
+| 出力 | 値 |
+|---|---|
+| `targets` | デプロイターゲットの JSON 配列（[Matrix Output](#matrix-output) を参照） |
+| `has-targets` | `true` または `false` |
+| `candidates` | `service` を指定したときの、除外されたものも含む全候補の JSON 配列。各要素は `{"target": <matrix item>, "excluded": <bool>, "root": "<root>"}` |
+
+## From Labels to Targets
+
+resolver は Pull Request のラベルのうち、[設定された prefix](../label-dispatcher/README-ja.md#labels)（既定は `deploy:`）のいずれかで始まるものを読み、残りの部分をサービス名として扱います。同じサービスに別の prefix のラベルが付いていても 1 つのサービスとして扱います。どの prefix でも `all` なら、設定されたパスから見つかる全サービスが対象です。残りの部分が正しいサービス名（`[a-zA-Z0-9_-]+`）でないラベルは無視します。
+
+デプロイラベルのない Pull Request では、`targets` は空、`has-targets` は `false` になります。
+
+`labeled` で起動する workflow では、使っている prefix で絞り込みます。`prefix` を変えたり `extra_prefixes` を足したりしたら、`if` の条件を設定したすべての prefix に合わせて更新します。たとえば `startsWith(github.event.label.name, 'deploy:') || startsWith(github.event.label.name, 'manual/')` です。
+
+## How Targets Are Built
+
+resolver は、いずれかの root に `path` を続けたパターンに一致する実在のディレクトリをすべて列挙します。存在しないパスからターゲットは作られず、結果が空でも正常です。サービスの事前登録は不要です。stack ごとに、次の順でターゲットを作ります。
+
+1. `environments` があれば、`path` に `{environment}` がなくても、定義された環境ごとに 1 つのターゲットを作ります。`path` に `{environment}` があれば定義された名前だけが一致するので、`modules/` のようなディレクトリはターゲットになりません。
+2. `environments` がなく `path` に `{environment}` があれば、その位置の実在ディレクトリから環境名を探索します。`modules/` のように環境でないディレクトリも環境として探索されるので、そうしたディレクトリが環境ディレクトリと並ぶなら `environments` を定義します。
+3. どちらもなければ、環境の選択にかかわらず、ディレクトリごとに `environment: null` のターゲットを 1 つ作ります。環境をまたいで共有されるターゲットです。
+
+サービスと stack の属性は、作られ方によらずすべてのターゲットに付きます。参照できる値は [Attribute Values](../config-manager/README-ja.md#attribute-values) を参照してください。
+
+stack の[除外条件](../config-manager/README-ja.md#exclusion-conditions)に一致するターゲットは `targets` から外れます。
+
+### Selecting Environments
+
+選択できる環境は、定義された名前と実行時に探索された名前の和集合です。除外された環境も選択できます。選択を省略するか空白だけを渡すと、この和集合が対象になります。各 stack は、自身が定義または探索した環境についてだけターゲットを作ります。和集合にない名前を選ぶとエラーです。
+
+## Matrix Output
+
+`targets` は JSON 配列です。各ターゲットには 4 つの固定キーがあり、属性と任意のプレースホルダーの取得値が同じオブジェクトに平坦に入ります。
+
+| キー | 由来 |
+|---|---|
+| `service` | ラベルまたは `<prefix>all` で見つかったサービス名。`{service}` で取得した値 |
+| `environment` | 定義または探索された環境名。環境をまたいで共有するターゲットでは `null` |
+| `stack` | stack の `id` |
+| `working_directory` | 実在するターゲットディレクトリの相対パス |
+| 属性キー | サービスと stack の `attributes`、選択された環境の `use` の profile の属性、インライン属性 |
+| 任意のプレースホルダーのキー | 一致したパスから取得した値 |
+
+[全体の設定例](../config-manager/README-ja.md#configuration-format)で `dystopia/api/infrastructure/aws/develop` ディレクトリがあると、次の行が作られます。
+
+```json
+{
+  "service": "api",
+  "environment": "develop",
+  "stack": "aws",
+  "working_directory": "dystopia/api/infrastructure/aws/develop",
+  "type": "terragrunt",
+  "aws_region": "ap-northeast-1",
+  "iam_role_plan": "arn:aws:iam::123456789012:role/aws-plan-develop-role",
+  "iam_role_apply": "arn:aws:iam::123456789012:role/aws-apply-develop-role"
+}
+```
+
+ターゲットは `service`、`stack`、`environment`、`working_directory` で識別します。重複するターゲットは 1 行にまとめます。同じターゲットを異なる取得値のマップで解釈するパスがあると、除外の有無や定義の順序によらずエラーになります。
+
+stack の種類は自分で定義する属性なので、後続の step は `matrix.target.type` で分岐します。`resolve` という job で `steps.resolve.outputs.targets` を job の output `targets` として公開し、後の job で使います。
+
+```yaml
+deploy:
+  needs: resolve
+  runs-on: ubuntu-latest
+  strategy:
+    matrix:
+      target: ${{ fromJSON(needs.resolve.outputs.targets) }}
+  steps:
+    - uses: actions/checkout@v7
+    - if: matrix.target.type == 'terragrunt'
+      uses: ./.github/actions/terragrunt-plan
+      with:
+        working-directory: ${{ matrix.target.working_directory }}
+        role-to-assume: ${{ matrix.target.iam_role_plan }}
+    - if: matrix.target.type == 'kustomize'
+      uses: ./.github/actions/kustomize-build
+      with:
+        working-directory: ${{ matrix.target.working_directory }}
+```
+
+## Commands
+
+`action-scripts` ディレクトリで実行します。
+
+| コマンド | 結果 |
+|---|---|
+| `bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]` | PR のラベルをターゲットに解決します。`ENVIRONMENTS` はカンマ区切りで、空ならすべて |
+| `bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]` | PR なしで 1 つのサービスまたは `all` のターゲットを解決します。`ENVIRONMENTS` は `resolve` と同じ |
+
+`resolve` はラベルを読むために `GITHUB_TOKEN` と `GITHUB_REPOSITORY` を必要とします。
 
 ```bash
 export GITHUB_TOKEN=your_token
 export GITHUB_REPOSITORY=owner/repo
 export SOURCE_REPO_PATH=your_source_path
 export WORKFLOW_CONFIG_PATH=workflow-config.yaml
+
+bundle exec ruby label-resolver/bin/resolver resolve 123 develop
+bundle exec ruby label-resolver/bin/resolver resolve 456 develop,staging
+bundle exec ruby label-resolver/bin/resolver resolve 123
 ```
 
-実際の PR のデプロイ対象を解決します。
+`targets` は GitHub API を呼ばず、どちらの変数も必要としません。
 
 ```bash
-bundle exec ruby label-resolver/bin/resolver resolve 123 develop
+bundle exec ruby label-resolver/bin/resolver targets demo develop
+bundle exec ruby label-resolver/bin/resolver targets all
+```
+
+`targets` に渡せるのは `[a-zA-Z0-9_-]+` に一致する名前か `all` で、それ以外の名前は終了コード 1 で失敗します。正しい名前で一致するディレクトリがないのはエラーにならず、出力の `targets` は `[]`、`has-targets` は `false`、`candidates` は `[]` になります。出力の `targets` と `has-targets` は除外されなかった候補から作られ、`candidates` は全候補を除外状態と root とともに並べます。`resolve` コマンドが書き出すのは `targets` と `has-targets` だけです。
+
+どちらのコマンドも、不正な設定、定義も探索もされていない環境、列挙できないディレクトリ、取得値の食い違いがあると終了コード 1 で失敗します。読む環境変数は [Environment Variables](../config-manager/README-ja.md#environment-variables) を参照してください。
+
+## Code Layout
+
+2 つのコマンドの入口は `LabelResolverController` です。`resolve` では、`GetLabels` が PR のデプロイラベルを読み、`GenerateMatrix` が `ListCandidates` を呼んで、除外されなかった候補を残します。`ListCandidates` は環境を検証し、ディレクトリ構造から候補を列挙します。`targets` では、`ListServiceTargets` がサービス名を検証して `ListCandidates` を呼び、ターゲットと、除外状態と root を付けた全候補を返します。
+
+## Testing
+
+```bash
+cd action-scripts
+bundle exec rspec spec/label-resolver/
 ```
