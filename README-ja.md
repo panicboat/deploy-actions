@@ -70,75 +70,223 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 
 ## 設定
 
-`workflow-config.yaml` のトップレベルには、空でない `stacks` 配列を定義します。同じ stack のパス、環境属性、除外条件を一つの定義で管理します。トップレベルの `labels` は省略可能で、ラベルの prefix を指定します。
+`workflow-config.yaml` のトップレベルには、空でない `services` 配列を定義します。service は `roots` 配下のファイルを所有し、その中で実行する `stacks` を持ちます。トップレベルの `profiles` は名前付きの属性セットを定義する省略可能なマップ、`labels` はラベルの prefix を指定する省略可能なマップです。これら以外のトップレベルのキーは設定エラーです。
 
 ```yaml
-stacks:
-  - name: terragrunt
-    id: aws
-    paths:
-      - "dystopia/{service}/aws/{environment}"
-      - "system-components/{service}/infrastructure/aws/{environment}"
-      - "teams/{team}/{service}/aws/{environment}"
-    environments:
-      develop:
-        aws_region: ap-northeast-1
-      production:
-        aws_region: us-west-2
-    exclude:
-      - service: demo
-        environment: production
-      - team: sandbox
-  - name: container
-    paths:
+labels:
+  prefix: "deploy:"
+
+profiles:
+  aws-develop:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
+  aws-production:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
+    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
+
+services:
+  - id: app
+    roots:
       - "dystopia/{service}"
       - "system-components/{service}"
-    attributes:
-      repository: registry.example.com/{service}
-  - name: kubernetes
-    paths:
-      - "dystopia/{service}/kubernetes/overlays/{environment}"
-      - "system-components/{service}/kubernetes/overlays/{environment}"
+    ignore:
+      - "**/README.md"
+    stacks:
+      - id: dockerfile
+        path: "."
+        attributes:
+          type: container
+          repository: registry.example.com/{service}
+      - id: kustomize
+        path: "kubernetes/overlays/{environment}"
+        attributes:
+          type: kustomize
+      - id: aws
+        path: "infrastructure/aws/{environment}"
+        attributes:
+          type: terragrunt
+        environments:
+          develop:
+            use: [aws-develop]
+          production:
+            use: [aws-production]
+        exclude:
+          - service: demo
+            environment: production
+      - id: gcp
+        path: "infrastructure/gcp/{environment}"
+        attributes:
+          type: terragrunt
+        environments:
+          develop:
+            use: [aws-develop]
+            gcp_project: foo-develop
 ```
 
-### stack の定義
+### Services
 
 | フィールド | 指定 | 動作 |
 |---|---|---|
-| `name` | 必須 | stack の種類。属性名やプロバイダーを制限しない |
-| `id` | 任意 | インスタンス識別子。省略時は `name`。設定全体で一意 |
-| `paths` | 必須 | 空でない相対パス配列。全パスに `{service}` が必要 |
-| `environments` | 任意 | 環境名をキー、環境属性を値とする空でないマップ |
-| `attributes` | 任意 | 環境共通の対象を明示する。`attributes: {}` も有効。`environments` と併用できない |
+| `id` | 必須 | 設定全体で一意な識別子。エラーメッセージと表示に使う |
+| `roots` | 必須 | リポジトリルートからの相対パターンの空でない配列。すべての root に `{service}` が必要 |
+| `ignore` | 任意 | root からの相対 glob の配列。変更検知にだけ効く |
+| `stacks` | 必須 | stack の空でない配列 |
+
+root は、どのファイルがその service のものかを決めます。ラベルと matrix の service 名は `{service}` が取り出した値で、service の `id` ではありません。
+
+root には `{project}` などの任意 placeholder を使えます。環境は stack の `path` に属するため、root の `{environment}` は拒否します。service より後ろに環境ディレクトリがある構成では、`{environment}` を `path` に書き、root は service のディレクトリにします。環境ディレクトリの隣にある共通ディレクトリが root の配下に残ります。
+
+対応しない構成: `envs/{environment}/{service}` のように root に `{environment}` を書く構成と、`{service}` を含まない root。
+
+### Stacks
+
+| フィールド | 指定 | 動作 |
+|---|---|---|
+| `id` | 必須 | 全 service をまたいで一意な識別子。matrix の `stack` になる |
+| `path` | 必須 | 各 root からの相対パス。`.` は root そのもの |
+| `attributes` | 任意 | その stack のすべての対象に付く属性 |
+| `environments` | 任意 | 環境名から環境エントリへの空でないマップ |
 | `exclude` | 任意 | 除外条件の配列。省略時は空配列 |
 
-共有するプロダクトは一つの定義の `paths` に追加します。独立させる場合は、同じ `name` に異なる `id` を付けた別定義にし、それぞれにパスと属性を置きます。
+stack に組み込みの種類はありません。ツールの種類は `type` などの属性で表し、下流でその属性を使って振り分けます（[matrix 出力](#matrix-出力) を参照）。
 
-`environments` のキーがその stack の環境名です。`environments` と `attributes` の両方を省略した stack は、パスに一致する実在ディレクトリの `{environment}` の位置から環境名を取得します。この場合は全パスに `{environment}` が必要で、含まないパスがあれば設定エラーになります。探索した対象に追加属性はなく、別 stack の環境・属性・除外条件は継承しません。
+stack は各 root に `path` を連結したディレクトリで実行します。root `aws/{service}` と path `{environment}` は、ディレクトリパターン `aws/{service}/{environment}` になります。`path` には `{environment}` と任意 placeholder を書けますが、service は root が決めるため `{service}` は書けません。異なる stack が同じディレクトリを指してもかまいません。
+
+対象は次の順で作ります。
+
+1. `environments` があれば、`path` に `{environment}` がなくても、宣言した環境ごとに対象を作ります。`path` に `{environment}` がある場合は宣言した名前だけに一致するため、`modules/` のようなディレクトリは対象になりません。
+2. `environments` がなく `path` に `{environment}` があれば、その位置にある実在ディレクトリから環境名を探索します。
+3. どちらもなければ、環境選択にかかわらず、ディレクトリごとに `environment: null` の対象を 1 つ作ります。
+
+`attributes` は、どの作り方でも、その stack のすべての対象に付きます。3 の対象では `{environment}` を参照できません。
 
 選択できる環境一覧は、全 stack の定義環境と実行時に探索した環境名の和集合です。除外された環境名も選択できます。環境指定を省略するとこの和集合を対象にします。各 stack は自身の定義環境または探索した環境だけを生成し、和集合にない環境指定はエラーになります。
 
-パスに `{environment}` がなくても、`environments` があれば環境ごとの対象になります。同じディレクトリを異なる環境属性で使えます。`attributes` があれば環境共通で、環境選択数にかかわらず `environment: null` の対象を各ディレクトリにつき一度だけ生成します。この場合はパスに `{environment}` を指定できません。属性が不要な環境共通の対象には `attributes: {}` を明示します。
+### Profiles
+
+profile は、トップレベルの `profiles` に置く名前付きの属性マップです。stack は `environments.<name>` の中の `use` で profile を参照します。
+
+`environments` の各エントリは属性のマップで、予約キー `use` を 1 つ持てます。`use` は profile 名の空でない配列で、省略できます。対象の属性は、stack の `attributes`、`use` に並べた profile の属性、エントリのそれ以外のキー（インラインの属性）を合わせたものです。上の例の `gcp` stack は、`aws-develop` の AWS の role で実行し、`gcp_project` でリソースを作る project を足しています。
+
+- 同じ属性名がこれらの 2 か所以上にあれば設定エラーになり、stack・環境・ぶつかった元を示します。
+- `use` に存在しない profile 名があれば設定エラーになり、`services[i].stacks[j].environments.<name>.use[k]` の位置を示します。使われていない profile はエラーになりません。
+- `use` は `environments.<name>` の中だけで使えます。stack の `attributes` と profile の中では拒否します。
+- profile の属性には環境属性と同じ規則を適用します。キーは matrix の固定キーにできず、placeholder はその profile を使うすべての stack で解決できる必要があります。
 
 ### Attribute Values
 
-`attributes` と環境属性マップの文字列値では、`{service}` とパスから抽出した `{team}` などの任意 placeholder を使えます。環境属性では、パスに含まれない場合も `{environment}` を使えます。マップや配列に入れ子になった文字列にも同じ規則を適用します。マップのキーはリテラルのままで、文字列以外の値は型を保持します。環境間で属性キーを揃える必要はありません。
+`attributes`、profile、環境エントリの文字列値では、`{service}` と、root や `path` から抽出した `{project}` などの任意 placeholder を使えます。環境のある対象（定義または探索した環境）では、`path` に含まれない場合も `{environment}` を使えます。マップや配列に入れ子になった文字列にも同じ規則を適用します。マップのキーはリテラルのままで、文字列以外の値は型を保持します。環境間で属性キーを揃える必要はありません。
 
-属性が参照する placeholder は、その stack のすべてのパスで取得できる必要があり、解決できない参照は設定エラーになります。環境共通の属性では `{environment}` を参照できません。例えば `paths: ["teams/{team}/{service}"]` と `attributes: {repository: "ghcr.io/{team}/{service}"}` の組み合わせは、`teams/payments/api` に対して `ghcr.io/payments/api` を出力します。
+属性が参照する placeholder は、その service のすべての root に stack の `path` を連結したパターンで取得できる必要があり、解決できない参照は設定エラーになります。例えば `roots: ["teams/{team}/{service}"]` と `attributes: {repository: "ghcr.io/{team}/{service}"}` の組み合わせは、`teams/payments/api` に対して `ghcr.io/payments/api` を出力します。`{team}` を含まない root が同じ service にあれば、この参照は拒否されるため、抽出する placeholder が異なる root は別の service に分けます。
 
 ### パスの照合
 
-パスはリポジトリルートからの完全な相対パターンです。絶対パスと `..` 要素は拒否し、先頭の `./`、余分な `/`、`.` 要素は正規化します。すべてのパターンに一致する実在ディレクトリを列挙し、存在しないパスは対象を生成しません。サービスの登録は不要です。ドットで始まるサービスは対象外です。
+root と path は相対パターンです。絶対パスと `..` 要素は拒否し、先頭の `./`、余分な `/`、`.` 要素は正規化します。各 root に `path` を連結したパターンに一致する実在ディレクトリをすべて列挙し、存在しないパスは対象を生成しません。サービスの登録は不要です。ドットで始まるサービスは対象外です。
 
-`{team}` などの任意 placeholder を使えます。名前は `[a-z_][a-z0-9_]*`、値はパスの一要素です。同じ名前を繰り返した場合は、すべて同じ値に一致する必要があります。glob の記号はリテラルとして扱います。任意 placeholder と matrix の固定キー、または同じ stack のいずれかの環境属性・共通属性キーが衝突する定義は拒否します。
+任意 placeholder の名前は `[a-z_][a-z0-9_]*`、値はパスの一要素です。同じ名前を繰り返した場合は、すべて同じ値に一致する必要があります。glob の記号はリテラルとして扱います。placeholder が matrix の固定キー（`stack`、`working_directory`）や、その stack のいずれかの属性キー（`attributes`・profile・環境エントリのどれ由来でも）と衝突する定義は拒否します。属性キーを matrix の固定キー（`service`、`environment`、`stack`、`working_directory`）にすることもできません。
 
 ### 除外条件
 
-`exclude` の各要素は空でない条件マップです。`service`、`environment`、その stack のいずれかのパスにある任意 placeholder を条件にできます。属性名は条件キーとして使えません。
+`exclude` の各要素は空でない条件マップです。`service`、`environment`、その service のいずれかの root または stack の `path` にある任意 placeholder を条件にできます。属性名は条件キーとして使えません。
 
-一つのマップ内は AND、配列内は OR で完全一致を判定します。省略したキーは制約になりません。service のみ、environment のみ、任意 placeholder のみでも指定できます。照合したパスにない抽出値を要求する条件は一致しません。
+一つのマップ内は AND、配列内は OR で完全一致を判定します。省略したキーは制約になりません。照合した root が抽出しない値を要求する条件は、その root では一致しません。例えば `project: sandbox` が除外するのは、`gcp/{project}/{service}` のような root 配下の対象だけです。
 
-条件値は空でない文字列で、`/`、`.`、`..` は使えません。service はドットで始められません。`environments` を指定した stack の環境条件は自身の定義環境だけを指定できます。環境を探索する stack では、まだ存在しないディレクトリの環境値も条件にできます。環境共通 stack では environment の省略または `null` を受け付け、environment 以外の条件値に `null` は使えません。条件値はリテラルで、placeholder は展開しません。
+条件値は空でない文字列で、パスの一要素を表し、`/`、`.`、`..` は使えません。service はドットで始められません。`environments` を指定した stack の環境条件は自身の定義環境だけを指定できます。環境を探索する stack では、まだ存在しないディレクトリの環境値も条件にできます。`environments` も `path` の `{environment}` もない stack では、environment の省略または `null` を受け付け、environment 以外の条件値に `null` は使えません。条件値はリテラルで、placeholder は展開しません。
+
+### Detection
+
+Label Dispatcher は、変更ファイルがいずれかの root の配下にあれば、次の例外を除いてその service にラベルを付けます。変更ファイルごとに、すべての root について次の順で判定します。
+
+1. root の配下にない、または `{service}` の抽出値がドットで始まるファイルは対象外です。
+2. root からの相対パスが `ignore` のいずれかに当たるファイルは対象外です。
+3. ファイルが stack のディレクトリ（root に `path` を連結したもの）の配下にあれば、Label Resolver と同じ規則で候補の対象を作ります。`exclude` がすべての候補を除外しない限り、service にラベルを付けます。
+4. ファイルがどの stack のディレクトリの配下にもなければ（`modules/` や `Makefile` などの共通部品）、service にラベルを付けます。これらの共通部品には `exclude` を適用しません。対象外にするには `ignore` を使います。
+
+`path: "."` の stack は root そのものがディレクトリなので、root 配下のすべてのファイルがその stack の配下になり、その service に規則 4 は適用されません。`environments` を持つ stack では、`{environment}` の位置にあるディレクトリが宣言した環境でなければ、stack のディレクトリの外です。
+
+`ignore` は root からの相対 glob です。root `dystopia/{service}` では、`dystopia/api/docs/guide.md` を `docs/guide.md` として照合します。`*` は `/` をまたがず、`**/` は 0 個以上のディレクトリに当たります。末尾の `/**` はそのディレクトリ配下のすべてのファイルに当たります。ドットで始まるファイルにも当たり、`?`、`[...]`、`{a,b}` はシェルの glob と同じように使えます。`ignore` は変更検知にだけ効き、Label Resolver は無視したパスの配下でも対象を生成します。
+
+共通部品の変更でラベルが付いた service に、解決できる対象が 1 つもないこともあります（たとえば唯一の環境が除外されている場合）。その場合はラベルが付き、Label Resolver は 0 件の対象を返します。
+
+次の設定は、環境ディレクトリを共通の `modules/` ディレクトリの隣に置く構成です。
+
+```yaml
+profiles:
+  aws-develop:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
+  aws-production:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
+    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
+
+services:
+  - id: infrastructure
+    roots:
+      - "aws/{service}"
+      - "gcp/{project}/{service}"
+    ignore:
+      - "**/*.md"
+    stacks:
+      - id: terragrunt
+        path: "{environment}"
+        attributes:
+          type: terragrunt
+        environments:
+          develop:
+            use: [aws-develop]
+          production:
+            use: [aws-production]
+        exclude:
+          - environment: production
+          - project: sandbox
+```
+
+| 変更ファイル | 結果 |
+|---|---|
+| `aws/api/modules/main.tf` | `api` にラベルを付ける（共通部品） |
+| `gcp/sandbox/api/modules/main.tf` | `api` にラベルを付ける（共通部品。`exclude` は適用しない） |
+| `aws/api/develop/main.tf` | `api` にラベルを付ける |
+| `aws/api/production/main.tf` | ラベルなし（唯一の候補が除外される） |
+| `gcp/sandbox/api/develop/main.tf` | ラベルなし（唯一の候補が除外される） |
+| `aws/api/docs/guide.md` | ラベルなし（`ignore`） |
+
+### YAML Anchors
+
+anchor・alias・merge key（`<<`）を使え、検証の前に展開されます。anchor は `profiles` かいずれかの stack の中で定義します。
+
+```yaml
+profiles:
+  aws-develop: &aws-develop
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
+  aws-production:
+    <<: *aws-develop
+    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
+    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
+
+services:
+  - id: app
+    roots:
+      - "apps/{service}"
+    stacks:
+      - id: aws
+        path: "aws/{environment}"
+        environments: &environments
+          develop:
+            use: [aws-develop]
+          production:
+            use: [aws-production]
+      - id: aws-audit
+        path: "audit/{environment}"
+        environments: *environments
+```
+
+validator はパース後のハッシュしか見ません。`<<:` と同じマップに書いたキーは、上の `iam_role_plan` のように、取り込んだ値をエラーにせず上書きします。stack の `attributes`、`use` で参照した profile、インラインの属性が同じキーを定義したときの設定エラーとは異なります。
 
 ### Labels
 
@@ -211,33 +359,53 @@ jobs:
 
 ## matrix 出力
 
-`label-resolver` は `outputs.targets` と環境変数 `DEPLOYMENT_TARGETS` に JSON 配列を出力します。固定キーは次の5個で、属性と任意 placeholder の抽出値を同じ階層に展開します。
+`label-resolver` は `outputs.targets` と環境変数 `DEPLOYMENT_TARGETS` に JSON 配列を出力します。固定キーは次の4個で、属性と任意 placeholder の抽出値を同じ階層に展開します。
 
 | キー | 出力元 |
 |---|---|
-| `service` | ラベルまたは `<prefix>all` で探索したサービス名 |
+| `service` | ラベルまたは `<prefix>all` で探索したサービス名。`{service}` が取り出した値 |
 | `environment` | 定義または探索した環境名。環境共通なら `null` |
-| `stack` | stack の `name` |
-| `stack_id` | 確定した `id` |
+| `stack` | stack の `id` |
 | `working_directory` | 実在する対象ディレクトリの相対パス |
-| 属性のキー | 当該環境属性、または共通 `attributes` |
+| 属性のキー | stack の `attributes`、選択した環境の `use` で参照した profile の属性、インラインの属性 |
 | 任意 placeholder のキー | 一致したパスの抽出値 |
 
-上記の設定例で `teams/payments/api/aws/develop` が存在する場合、次の行を生成します。
+上記の最初の設定例で `dystopia/api/infrastructure/aws/develop` が存在する場合、次の行を生成します。
 
 ```json
 {
   "service": "api",
   "environment": "develop",
-  "stack": "terragrunt",
-  "stack_id": "aws",
-  "working_directory": "teams/payments/api/aws/develop",
+  "stack": "aws",
+  "working_directory": "dystopia/api/infrastructure/aws/develop",
+  "type": "terragrunt",
   "aws_region": "ap-northeast-1",
-  "team": "payments"
+  "iam_role_plan": "arn:aws:iam::123456789012:role/aws-plan-develop-role",
+  "iam_role_apply": "arn:aws:iam::123456789012:role/aws-apply-develop-role"
 }
 ```
 
-対象の同一性は service・stack_id・environment・working_directory で決まります。同じ対象の重複は一行にまとめます。同じ対象を異なる抽出値マップで解釈するパスは、除外条件や記載順にかかわらずエラーになります。下流では `${{ matrix.team }}` のように任意のキーを参照できます。
+対象の同一性は service・stack・environment・working_directory で決まります。同じ対象の重複は一行にまとめます。同じ対象を異なる抽出値マップで解釈するパスは、除外条件や記載順にかかわらずエラーになります。
+
+stack の種類は利用者が定義する属性なので、下流では `matrix.target.type` で振り分けます。`resolve` という名前の job で `steps.resolve.outputs.targets` を job の出力 `targets` として公開し、後続の job で使います。
+
+```yaml
+deploy:
+  needs: resolve
+  strategy:
+    matrix:
+      target: ${{ fromJSON(needs.resolve.outputs.targets) }}
+  steps:
+    - if: matrix.target.type == 'terragrunt'
+      uses: ./.github/actions/terragrunt-plan
+      with:
+        working-directory: ${{ matrix.target.working_directory }}
+        role-to-assume: ${{ matrix.target.iam_role_plan }}
+    - if: matrix.target.type == 'kustomize'
+      uses: ./.github/actions/kustomize-build
+      with:
+        working-directory: ${{ matrix.target.working_directory }}
+```
 
 ## 開発
 

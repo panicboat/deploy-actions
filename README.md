@@ -70,75 +70,223 @@ Generates a matrix for downstream Actions from `<prefix><service>` labels and th
 
 ## Configuration
 
-Define a nonempty `stacks` array at the top level of `workflow-config.yaml`. Each stack definition contains its paths, environment attributes, and exclusion conditions. The optional top-level `labels` map sets the label prefixes.
+Define a nonempty `services` array at the top level of `workflow-config.yaml`. A service owns the files under its `roots` and contains the `stacks` that run inside it. The optional top-level `profiles` map defines named attribute sets, and the optional `labels` map sets the label prefixes. Any other top-level key is a configuration error.
 
 ```yaml
-stacks:
-  - name: terragrunt
-    id: aws
-    paths:
-      - "dystopia/{service}/aws/{environment}"
-      - "system-components/{service}/infrastructure/aws/{environment}"
-      - "teams/{team}/{service}/aws/{environment}"
-    environments:
-      develop:
-        aws_region: ap-northeast-1
-      production:
-        aws_region: us-west-2
-    exclude:
-      - service: demo
-        environment: production
-      - team: sandbox
-  - name: container
-    paths:
+labels:
+  prefix: "deploy:"
+
+profiles:
+  aws-develop:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
+  aws-production:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
+    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
+
+services:
+  - id: app
+    roots:
       - "dystopia/{service}"
       - "system-components/{service}"
-    attributes:
-      repository: registry.example.com/{service}
-  - name: kubernetes
-    paths:
-      - "dystopia/{service}/kubernetes/overlays/{environment}"
-      - "system-components/{service}/kubernetes/overlays/{environment}"
+    ignore:
+      - "**/README.md"
+    stacks:
+      - id: dockerfile
+        path: "."
+        attributes:
+          type: container
+          repository: registry.example.com/{service}
+      - id: kustomize
+        path: "kubernetes/overlays/{environment}"
+        attributes:
+          type: kustomize
+      - id: aws
+        path: "infrastructure/aws/{environment}"
+        attributes:
+          type: terragrunt
+        environments:
+          develop:
+            use: [aws-develop]
+          production:
+            use: [aws-production]
+        exclude:
+          - service: demo
+            environment: production
+      - id: gcp
+        path: "infrastructure/gcp/{environment}"
+        attributes:
+          type: terragrunt
+        environments:
+          develop:
+            use: [aws-develop]
+            gcp_project: foo-develop
 ```
 
-### Stack Definitions
+### Services
 
 | Field | Requirement | Behavior |
 |---|---|---|
-| `name` | Required | Stack type; does not restrict attribute names or providers |
-| `id` | Optional | Instance identifier; defaults to `name` and must be unique across the configuration |
-| `paths` | Required | Nonempty array of relative paths; every path must contain `{service}` |
-| `environments` | Optional | Nonempty map from environment names to environment attributes |
-| `attributes` | Optional | Explicitly selects a target shared across environments, including `attributes: {}`; cannot be combined with `environments` |
+| `id` | Required | Identifier unique across the configuration; used in error messages and displays |
+| `roots` | Required | Nonempty array of relative patterns from the repository root; every root must contain `{service}` |
+| `ignore` | Optional | Array of globs relative to the root; affects change detection only |
+| `stacks` | Required | Nonempty array of stacks |
+
+A root defines which files belong to a service. The value captured by `{service}` is the service name in labels and the matrix; the service `id` is not used for either.
+
+Roots can contain arbitrary placeholders such as `{project}`. `{environment}` is rejected in roots because the environment belongs to a stack `path`. When environment directories sit below the service, put `{environment}` in `path` and keep the root at the service directory, so that shared directories next to the environments stay under the root.
+
+Not supported: `{environment}` in roots, as in `envs/{environment}/{service}`, and roots without `{service}`.
+
+### Stacks
+
+| Field | Requirement | Behavior |
+|---|---|---|
+| `id` | Required | Identifier unique across all services; becomes the matrix `stack` |
+| `path` | Required | Path relative to each root; `.` is the root itself |
+| `attributes` | Optional | Attributes attached to every target of the stack |
+| `environments` | Optional | Nonempty map from environment names to environment entries |
 | `exclude` | Optional | Array of exclusion conditions; defaults to an empty array |
 
-Products that share a stack use multiple entries in one definition's `paths`. For independent stacks, use separate definitions with the same `name` and different `id` values, each with its own paths and attributes.
+A stack has no built-in type. Describe the kind of tool with an attribute such as `type`, and branch on it downstream (see [Matrix Output](#matrix-output)).
 
-The keys in `environments` define the stack's environment names. A stack with neither `environments` nor `attributes` discovers environment names from the `{environment}` position in existing directories matching its paths. Every path in that stack must contain `{environment}`; otherwise the configuration is invalid. Discovered targets have no additional attributes and do not inherit another stack's environments, attributes, or exclusions.
+A stack runs in each root followed by `path`: root `aws/{service}` with path `{environment}` is the directory pattern `aws/{service}/{environment}`. `path` can contain `{environment}` and arbitrary placeholders, but not `{service}`, because the root determines the service. Different stacks can point at the same directory.
+
+Targets are built in this order:
+
+1. With `environments`, one target is built for each declared environment, even when `path` does not contain `{environment}`. When it does, only the declared names match, so a directory such as `modules/` never becomes a target.
+2. Without `environments`, when `path` contains `{environment}`, environment names are discovered from existing directories at that position.
+3. With neither, one target with `environment: null` is built per directory, regardless of environment selection.
+
+`attributes` attach to every target of the stack, however it was built. In case 3 they cannot reference `{environment}`.
 
 The selectable environment list is the union of all declared names and names discovered at execution time. Excluded environments remain selectable. Omitting the environment selection targets this union. Each stack generates targets only for its own declared or discovered environments. Selecting a name absent from the union is an error.
 
-A stack with `environments` generates targets for each environment even when its paths do not contain `{environment}`. The same directory can use different environment attributes. A stack with `attributes` generates one target with `environment: null` per directory, regardless of environment selection. Its paths cannot contain `{environment}`. Use `attributes: {}` when a shared target needs no attributes.
+### Profiles
+
+A profile is a named attribute map under the top-level `profiles`. A stack references profiles with `use` inside `environments.<name>`.
+
+An entry in `environments` is a map of attributes with one reserved key, `use`, which is an optional nonempty array of profile names. The attributes of a target are the stack's `attributes`, the attributes of each profile listed in `use`, and the other keys of the entry (inline attributes). In the example above, the `gcp` stack runs with the AWS role of `aws-develop`, and `gcp_project` adds the project it creates resources in.
+
+- The same attribute name in two or more of those places is a configuration error that names the stack, the environment, and the sources.
+- A `use` naming an undefined profile is a configuration error that points at `services[i].stacks[j].environments.<name>.use[k]`. Unused profiles are allowed.
+- `use` is valid only inside `environments.<name>`. It is rejected in a stack's `attributes` and in profiles.
+- Profile attributes follow the rules for environment attributes: keys cannot be fixed matrix keys, and placeholders must resolve for every stack that uses the profile.
 
 ### Attribute Values
 
-String values in `attributes` and environment attribute maps support `{service}` and arbitrary placeholders captured from the path, such as `{team}`. Environment attributes also support `{environment}`, even if the path does not contain it. The same rules apply to strings nested in maps or arrays. Map keys remain literal, and non-string values retain their types. Environments do not need identical attribute keys.
+String values in `attributes`, profiles, and environment entries support `{service}` and arbitrary placeholders captured from the root or `path`, such as `{project}`. Targets with an environment, declared or discovered, also support `{environment}`, even if `path` does not contain it. The same rules apply to strings nested in maps or arrays. Map keys remain literal, and non-string values retain their types. Environments do not need identical attribute keys.
 
-Every placeholder referenced by an attribute must be available for every path in that stack; unresolved references are configuration errors. Shared attributes cannot reference `{environment}`. For example, `paths: ["teams/{team}/{service}"]` with `attributes: {repository: "ghcr.io/{team}/{service}"}` produces `ghcr.io/payments/api` for `teams/payments/api`.
+Every placeholder referenced by an attribute must be available for every root of the service combined with the stack's `path`; unresolved references are configuration errors. For example, `roots: ["teams/{team}/{service}"]` with `attributes: {repository: "ghcr.io/{team}/{service}"}` produces `ghcr.io/payments/api` for `teams/payments/api`. If the service had another root without `{team}`, the reference would be rejected, so put roots that capture different placeholders in separate services.
 
 ### Path Matching
 
-Paths are complete relative patterns from the repository root. Absolute paths and `..` segments are rejected. Leading `./`, extra `/` separators, and `.` segments are normalized. All existing directories matching any pattern are enumerated; missing paths generate no targets. Services do not require registration. Service names starting with a dot are excluded.
+Roots and paths are relative patterns. Absolute paths and `..` segments are rejected. Leading `./`, extra `/` separators, and `.` segments are normalized. All existing directories matching any root followed by `path` are enumerated; missing paths generate no targets. Services do not require registration. Service names starting with a dot are excluded.
 
-Arbitrary placeholders such as `{team}` are supported. Names must match `[a-z_][a-z0-9_]*`, and each value occupies one path segment. Repeated occurrences of a placeholder must match the same value. Glob characters are treated literally. Definitions are rejected if an arbitrary placeholder conflicts with a fixed matrix key or with any environment or shared attribute key in the same stack.
+Names of arbitrary placeholders must match `[a-z_][a-z0-9_]*`, and each value occupies one path segment. Repeated occurrences of a placeholder must match the same value. Glob characters are treated literally. Definitions are rejected if a placeholder conflicts with a fixed matrix key (`stack`, `working_directory`) or with any attribute key of the stack, whether it comes from `attributes`, a profile, or an environment entry. Attribute keys cannot be fixed matrix keys (`service`, `environment`, `stack`, `working_directory`).
 
 ### Exclusion Conditions
 
-Each entry in `exclude` is a nonempty condition map. Conditions can use `service`, `environment`, or any arbitrary placeholder found in the stack's paths. Attribute names cannot be used as condition keys.
+Each entry in `exclude` is a nonempty condition map. Conditions can use `service`, `environment`, or any arbitrary placeholder found in any root of the service or in the stack's `path`. Attribute names cannot be used as condition keys.
 
-Conditions use exact matching: keys within a map are combined with AND, and entries in the array are combined with OR. Omitted keys impose no restriction. A condition can specify only a service, only an environment, or only an arbitrary placeholder. A condition requiring a captured value absent from the matched path does not match.
+Conditions use exact matching: keys within a map are combined with AND, and entries in the array are combined with OR. Omitted keys impose no restriction. A condition requiring a captured value that the matched root does not capture does not match there. For example, `project: sandbox` excludes only the targets under a root such as `gcp/{project}/{service}`.
 
-Condition values must be nonempty strings representing one path segment; `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. When `environments` is specified, environment conditions can name only the stack's declared environments. For stacks that discover environments, an environment condition may name a directory value that does not yet exist. For stacks shared across environments, `environment` can be omitted or set to `null`; other condition values cannot be `null`. Condition values are literal and do not expand placeholders.
+Condition values must be nonempty strings representing one path segment; `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. When `environments` is specified, environment conditions can name only the stack's declared environments. For stacks that discover environments, an environment condition may name a directory value that does not yet exist. For stacks with neither `environments` nor `{environment}` in `path`, `environment` can be omitted or set to `null`; other condition values cannot be `null`. Condition values are literal and do not expand placeholders.
+
+### Detection
+
+Label Dispatcher labels a service when a changed file is below one of its roots, except in the cases below. It evaluates every changed file against every root in this order:
+
+1. The file is skipped when it is not below the root, or when the `{service}` capture starts with a dot.
+2. The file is skipped when its path relative to the root matches an `ignore` pattern.
+3. When the file is below a stack's directory (root followed by `path`), candidate targets are built as Label Resolver builds them. The service is labeled unless `exclude` removes every candidate.
+4. When the file is below no stack's directory, such as `modules/` or `Makefile`, the service is labeled. `exclude` does not apply to these shared files; use `ignore` to skip them.
+
+A stack with `path: "."` has the root itself as its directory, so every file below the root is inside it and rule 4 never applies to that service. For a stack with `environments`, a directory at the `{environment}` position that is not a declared environment is outside the stack's directory.
+
+`ignore` patterns are globs relative to the root: for root `dystopia/{service}`, the file `dystopia/api/docs/guide.md` is matched as `docs/guide.md`. `*` does not cross `/`, and `**/` matches zero or more directories. A trailing `/**` matches every file below that directory. Files starting with a dot match, and `?`, `[...]`, and `{a,b}` work as in shell globs. `ignore` affects change detection only; Label Resolver still generates targets under ignored paths.
+
+A shared file can label a service that has no target to resolve, for example when its only environment is excluded. The label is added and Label Resolver returns no targets.
+
+The following configuration puts the environment directories next to a shared `modules/` directory:
+
+```yaml
+profiles:
+  aws-develop:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
+  aws-production:
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
+    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
+
+services:
+  - id: infrastructure
+    roots:
+      - "aws/{service}"
+      - "gcp/{project}/{service}"
+    ignore:
+      - "**/*.md"
+    stacks:
+      - id: terragrunt
+        path: "{environment}"
+        attributes:
+          type: terragrunt
+        environments:
+          develop:
+            use: [aws-develop]
+          production:
+            use: [aws-production]
+        exclude:
+          - environment: production
+          - project: sandbox
+```
+
+| Changed file | Result |
+|---|---|
+| `aws/api/modules/main.tf` | Labels `api`: shared file |
+| `gcp/sandbox/api/modules/main.tf` | Labels `api`: shared file; `exclude` does not apply |
+| `aws/api/develop/main.tf` | Labels `api` |
+| `aws/api/production/main.tf` | No label: the only candidate is excluded |
+| `gcp/sandbox/api/develop/main.tf` | No label: the only candidate is excluded |
+| `aws/api/docs/guide.md` | No label: ignored |
+
+### YAML Anchors
+
+Anchors, aliases, and merge keys (`<<`) are accepted and resolved before validation. Define an anchor inside `profiles` or any stack.
+
+```yaml
+profiles:
+  aws-develop: &aws-develop
+    aws_region: ap-northeast-1
+    iam_role_plan: arn:aws:iam::123456789012:role/aws-plan-develop-role
+    iam_role_apply: arn:aws:iam::123456789012:role/aws-apply-develop-role
+  aws-production:
+    <<: *aws-develop
+    iam_role_plan: arn:aws:iam::210987654321:role/aws-plan-production-role
+    iam_role_apply: arn:aws:iam::210987654321:role/aws-apply-production-role
+
+services:
+  - id: app
+    roots:
+      - "apps/{service}"
+    stacks:
+      - id: aws
+        path: "aws/{environment}"
+        environments: &environments
+          develop:
+            use: [aws-develop]
+          production:
+            use: [aws-production]
+      - id: aws-audit
+        path: "audit/{environment}"
+        environments: *environments
+```
+
+The validator sees only the parsed hash. A key written next to `<<:` silently overrides the merged value, as `iam_role_plan` does above. This differs from the configuration error raised when a stack's `attributes`, a profile in `use`, and the inline attributes define the same key.
 
 ### Labels
 
@@ -211,33 +359,53 @@ The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of thi
 
 ## Matrix Output
 
-`label-resolver` writes a JSON array to `outputs.targets` and the `DEPLOYMENT_TARGETS` environment variable. Each target has the following five fixed keys, with attributes and captured arbitrary placeholders flattened into the same object.
+`label-resolver` writes a JSON array to `outputs.targets` and the `DEPLOYMENT_TARGETS` environment variable. Each target has the following four fixed keys, with attributes and captured arbitrary placeholders flattened into the same object.
 
 | Key | Source |
 |---|---|
-| `service` | Service name from a label or discovered through `<prefix>all` |
+| `service` | Service name from a label or discovered through `<prefix>all`; the value captured by `{service}` |
 | `environment` | Declared or discovered environment name, or `null` for a target shared across environments |
-| `stack` | Stack `name` |
-| `stack_id` | Resolved `id` |
+| `stack` | Stack `id` |
 | `working_directory` | Relative path of the existing target directory |
-| Attribute keys | Selected environment attributes or shared `attributes` |
+| Attribute keys | Stack `attributes`, plus the attributes of the profiles in `use` and the inline attributes of the selected environment |
 | Arbitrary placeholder keys | Values captured from the matched path |
 
-With the configuration above, an existing `teams/payments/api/aws/develop` directory generates the following row.
+With the first configuration above, an existing `dystopia/api/infrastructure/aws/develop` directory generates the following row.
 
 ```json
 {
   "service": "api",
   "environment": "develop",
-  "stack": "terragrunt",
-  "stack_id": "aws",
-  "working_directory": "teams/payments/api/aws/develop",
+  "stack": "aws",
+  "working_directory": "dystopia/api/infrastructure/aws/develop",
+  "type": "terragrunt",
   "aws_region": "ap-northeast-1",
-  "team": "payments"
+  "iam_role_plan": "arn:aws:iam::123456789012:role/aws-plan-develop-role",
+  "iam_role_apply": "arn:aws:iam::123456789012:role/aws-apply-develop-role"
 }
 ```
 
-Target identity consists of `service`, `stack_id`, `environment`, and `working_directory`. Duplicate targets are merged into one row. Paths that interpret the same target with different captured value maps cause an error, regardless of exclusions or definition order. Downstream steps can reference arbitrary keys such as `${{ matrix.team }}`.
+Target identity consists of `service`, `stack`, `environment`, and `working_directory`. Duplicate targets are merged into one row. Paths that interpret the same target with different captured value maps cause an error, regardless of exclusions or definition order.
+
+Because the stack kind is an attribute you define, downstream steps branch on it with `matrix.target.type`. In a job named `resolve`, expose `steps.resolve.outputs.targets` as the job output `targets`, then use it in a later job:
+
+```yaml
+deploy:
+  needs: resolve
+  strategy:
+    matrix:
+      target: ${{ fromJSON(needs.resolve.outputs.targets) }}
+  steps:
+    - if: matrix.target.type == 'terragrunt'
+      uses: ./.github/actions/terragrunt-plan
+      with:
+        working-directory: ${{ matrix.target.working_directory }}
+        role-to-assume: ${{ matrix.target.iam_role_plan }}
+    - if: matrix.target.type == 'kustomize'
+      uses: ./.github/actions/kustomize-build
+      with:
+        working-directory: ${{ matrix.target.working_directory }}
+```
 
 ## Development
 
