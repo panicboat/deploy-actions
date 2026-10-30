@@ -40,6 +40,13 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
     expect(result.error_message).to include('services[0].roots')
   end
 
+  it 'accepts the repository sample' do
+    client = Infrastructure::ConfigClient.new(config_path: File.expand_path('../../../workflow-config.yaml', __dir__))
+    result = described_class.new(config_client: client).execute
+    expect(result).to be_success
+    expect(result.value.config.stacks.map(&:id)).to include('aws', 'dockerfile', 'kustomize')
+  end
+
   it 'returns a failed result for missing files' do
     client = Infrastructure::ConfigClient.new(config_path: "#{file.path}.missing")
     result = described_class.new(config_client: client).execute

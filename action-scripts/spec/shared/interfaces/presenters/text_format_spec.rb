@@ -31,19 +31,12 @@ RSpec.describe Interfaces::Presenters::TextFormat do
     end
   end
 
-  describe '.config_details' do
-    it 'shows each service with its roots and the YAML of its stacks' do
-      config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'tools', 'roots' => ['tools/{service}'], 'stacks' => [{ 'id' => 'scripts', 'path' => '.' }] }])
-      expect(described_class.config_details(config: config).join("\n")).to eq("Workflow Configuration\nEnvironments: \nService 'tools':\n  roots: tools/{service}\n  Stack 'scripts':\n    path: .\n    paths:\n    - tools/{service}\n    attributes: {}\n    exclude: []")
-    end
-  end
-
   describe '.service_test_result' do
     it 'shows every matrix field of each target and its exclusion status' do
-      target = Entities::DeploymentTarget.new(service: 'demo', stack: 'aws', working_directory: 'demo/aws')
-      lines = described_class.service_test_result(service_name: 'demo', matches: [{ target: target, excluded: false }])
-      expect(lines.first(3)).to eq(['Service Configuration Test', 'Service: demo', 'Target:'])
-      expect(lines).to include('  service: "demo"', '  working_directory: "demo/aws"', '  excluded: false')
+      stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first
+      candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {})
+      lines = described_class.service_test_result(service_name: 'demo', candidates: [candidate])
+      expect(lines).to eq(['Service Configuration Test', 'Service: demo', 'Target:', '  service: "demo"', '  environment: nil', '  stack: "aws"', '  working_directory: "demo/aws"', '  excluded: false'])
     end
   end
 end

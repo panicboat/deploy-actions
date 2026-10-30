@@ -6,7 +6,7 @@ GitHub Actions デプロイメント自動化のための Ruby ベース設定�
 
 ## 概要
 
-stack 定義の読み込みと検証、設定表示、サービスの実在ディレクトリ診断を提供します。設定仕様は [設定](../../README-ja.md#設定)、出力形式は [matrix 出力](../../README-ja.md#matrix-出力) を参照してください。
+stack 定義の読み込みと検証、サービスの実在ディレクトリ診断を提供します。設定仕様は [設定](../../README-ja.md#設定)、出力形式は [matrix 出力](../../README-ja.md#matrix-出力) を参照してください。
 
 ## 使い方
 
@@ -19,12 +19,7 @@ Config Manager は `config-manager/bin/config-manager` を通じて CLI イン�
 | コマンド | 結果 |
 |---|---|
 | `bundle exec ruby config-manager/bin/config-manager validate` | 設定の検証結果と service・stack・定義環境数 |
-| `bundle exec ruby config-manager/bin/config-manager show` | 各 service の roots と ignore、その各 stack の全パス、環境属性または共通属性、除外条件 |
-| `bundle exec ruby config-manager/bin/config-manager environments` | 定義環境と探索した環境名の和集合 |
-| `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | 実在する全一致対象と除外状態 |
-| `bundle exec ruby config-manager/bin/config-manager diagnostics` | 設定、環境変数、Git 状態、設定ファイルの診断 |
-| `bundle exec ruby config-manager/bin/config-manager template` | 新しい設定を作るための YAML の表示 |
-| `bundle exec ruby config-manager/bin/config-manager check_file` | 既定ファイルの存在、読み取り、YAML 構文の確認 |
+| `bundle exec ruby config-manager/bin/config-manager test SERVICE [ENVIRONMENT]` | 実在する全一致対象と除外状態 |
 
 ### サービス診断
 
@@ -45,12 +40,13 @@ bundle exec ruby config-manager/bin/config-manager test demo production
 
 - **ConfigManagerController**: メインオーケストレーションと CLI インターフェース
 - **ValidateConfig**: 包括的設定検証
+- **TestService**: サービス診断のための対象列挙と除外状態の判定
 - **ConfigClient**: 設定読み込みとパース
 - **ConsolePresenter**: 人間が読める出力フォーマット
 
 ### 検証の流れ
 
-YAML を読み込み、設定モデルで構造と整合性を検証し、検証結果と service・stack・定義環境数を表示します。検証と設定表示ではディレクトリを列挙しません。実在ディレクトリの環境名は `environments` またはサービス診断で取得します。検証規則の詳細は [設定](../../README-ja.md#設定) を参照してください。
+YAML を読み込み、設定モデルで構造と整合性を検証し、検証結果と service・stack・定義環境数を表示します。検証ではディレクトリを列挙しません。実在ディレクトリの環境名はサービス診断で取得します。設定が不正な場合は終了コード 1 で終わります。検証規則の詳細は [設定](../../README-ja.md#設定) を参照してください。
 
 ## エラー処理
 

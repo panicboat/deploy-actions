@@ -34,34 +34,8 @@ module Interfaces
         end
       end
 
-      def present_config_details(config:)
-        print_lines(TextFormat.config_details(config: config))
-      end
-
-      def present_service_test_result(service_name:, matches:)
-        print_lines(TextFormat.service_test_result(service_name: service_name, matches: matches))
-      end
-
-      # Present diagnostic results
-      def present_diagnostic_results(results:)
-        puts "🏥 Diagnostic Results".colorize(:blue)
-        results.each do |result|
-          status_color = case result[:status]
-                        when 'PASS' then :green
-                        when 'WARN' then :yellow
-                        when 'FAIL' then :red
-                        else :white
-                        end
-
-          puts "#{result[:status].ljust(4)} #{result[:check]}: #{result[:details]}".colorize(status_color)
-        end
-      end
-
-      # Present config template
-      def present_config_template(template:)
-        puts "📋 Configuration Template".colorize(:blue)
-        puts ""
-        puts template
+      def present_service_test_result(service_name:, candidates:)
+        print_lines(TextFormat.service_test_result(service_name: service_name, candidates: candidates))
       end
 
       # Present error results

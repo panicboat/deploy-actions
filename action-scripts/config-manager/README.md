@@ -6,7 +6,7 @@ A Ruby-based configuration validation and management tool for GitHub Actions dep
 
 ## Overview
 
-Loads and validates stack definitions, displays configuration, and diagnoses services using existing directories. See [Configuration](../../README.md#configuration) for the schema and [Matrix Output](../../README.md#matrix-output) for the output format.
+Loads and validates stack definitions and diagnoses services using existing directories. See [Configuration](../../README.md#configuration) for the schema and [Matrix Output](../../README.md#matrix-output) for the output format.
 
 ## Usage
 
@@ -19,12 +19,7 @@ Run commands from the `action-scripts` directory.
 | Command | Result |
 |---|---|
 | `bundle exec ruby config-manager/bin/config-manager validate` | Validation result and service, stack, and declared environment counts |
-| `bundle exec ruby config-manager/bin/config-manager show` | Roots and ignore patterns for each service, and all paths, environment or shared attributes, and exclusions for each of its stacks |
-| `bundle exec ruby config-manager/bin/config-manager environments` | Union of declared and discovered environment names |
-| `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | All existing matching targets and their exclusion status |
-| `bundle exec ruby config-manager/bin/config-manager diagnostics` | Diagnostics for configuration, environment variables, Git state, and the configuration file |
-| `bundle exec ruby config-manager/bin/config-manager template` | Display of YAML for creating a configuration |
-| `bundle exec ruby config-manager/bin/config-manager check_file` | Existence, readability, and YAML syntax checks for the default file |
+| `bundle exec ruby config-manager/bin/config-manager test SERVICE [ENVIRONMENT]` | All existing matching targets and their exclusion status |
 
 ### Service Diagnosis
 
@@ -45,12 +40,13 @@ Unknown environments, invalid configuration, directory enumeration failures, and
 
 - **ConfigManagerController**: Main orchestration and CLI interface
 - **ValidateConfig**: Comprehensive configuration validation
+- **TestService**: Target enumeration and exclusion status for service diagnosis
 - **ConfigClient**: Configuration loading and parsing
 - **ConsolePresenter**: Human-readable output formatting
 
 ### Validation Flow
 
-Loads YAML, validates structure and consistency through the configuration model, and displays the validation result with service, stack, and declared environment counts. Validation and configuration display do not enumerate directories; use `environments` or service diagnosis to discover environment names from existing directories. See [Configuration](../../README.md#configuration) for the validation rules.
+Loads YAML, validates structure and consistency through the configuration model, and displays the validation result with service, stack, and declared environment counts. Validation does not enumerate directories; use service diagnosis to discover environment names from existing directories. An invalid configuration exits with status 1. See [Configuration](../../README.md#configuration) for the validation rules.
 
 ## Error Handling
 

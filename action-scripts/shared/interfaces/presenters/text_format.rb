@@ -41,28 +41,12 @@ module Interfaces
         lines << ''
       end
 
-      def config_details(config:)
-        lines = ['Workflow Configuration', "Environments: #{config.declared_environment_names.join(', ')}"]
-        config.services.each do |service|
-          lines << "Service '#{service.id}':"
-          lines << "  roots: #{service.roots.join(', ')}"
-          lines << "  ignore: #{service.ignore.join(', ')}" unless service.ignore.empty?
-          service.stacks.each do |stack|
-            lines << "  Stack '#{stack.id}':"
-            # Psych writes the root path as '' and would quote a bare dot, so the line is replaced as text.
-            details = stack.to_h.slice(:path, :paths, :attributes, :exclude, :environments).compact.transform_keys(&:to_s).to_yaml.sub(/^path: ''$/, 'path: .')
-            lines.concat(details.lines.drop(1).map { |line| "    #{line.chomp}" })
-          end
-        end
-        lines
-      end
-
-      def service_test_result(service_name:, matches:)
+      def service_test_result(service_name:, candidates:)
         lines = ['Service Configuration Test', "Service: #{service_name}"]
-        matches.each do |match|
+        candidates.each do |candidate|
           lines << 'Target:'
-          lines.concat(match.fetch(:target).to_matrix_item.map { |key, value| "  #{key}: #{value.inspect}" })
-          lines << "  excluded: #{match.fetch(:excluded)}"
+          lines.concat(candidate.to_deployment_target.to_matrix_item.map { |key, value| "  #{key}: #{value.inspect}" })
+          lines << "  excluded: #{candidate.excluded?}"
         end
         lines
       end

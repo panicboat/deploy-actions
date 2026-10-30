@@ -31,8 +31,6 @@ module Interfaces
 
       # Present configuration validation results for GitHub Actions
       def present_config_validation_result(valid:, errors: [], config: nil, summary: nil)
-        write_outputs('config_valid' => valid.to_s)
-
         if valid
           puts "✅ Configuration is valid"
           if summary
@@ -49,34 +47,8 @@ module Interfaces
         end
       end
 
-      def present_config_details(config:)
-        puts TextFormat.config_details(config: config)
-      end
-
-      def present_service_test_result(service_name:, matches:)
-        puts TextFormat.service_test_result(service_name: service_name, matches: matches)
-      end
-
-      # Present diagnostic results
-      def present_diagnostic_results(results:)
-        puts "🏥 Diagnostic Results"
-        results.each do |result|
-          status_icon = case result[:status]
-                       when 'PASS' then '✅'
-                       when 'WARN' then '⚠️'
-                       when 'FAIL' then '❌'
-                       else '❓'
-                       end
-
-          puts "#{status_icon} #{result[:check]}: #{result[:details]}"
-        end
-      end
-
-      # Present config template
-      def present_config_template(template:)
-        puts "📋 Configuration Template"
-        puts ""
-        puts template
+      def present_service_test_result(service_name:, candidates:)
+        puts TextFormat.service_test_result(service_name: service_name, candidates: candidates)
       end
 
       # Present error results for GitHub Actions

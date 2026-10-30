@@ -1,84 +1,119 @@
 require 'spec_helper'
 require 'thor'
+require 'open3'
 require 'tmpdir'
 require 'fileutils'
 
 RSpec.describe 'ConfigManagerCLI' do
+  let(:config_manager_path) { File.expand_path('../../config-manager/bin/config-manager', __dir__) }
+
   before(:all) { load File.expand_path('../../config-manager/bin/config-manager', __dir__) }
 
   it 'does not start commands when loaded as a library' do
     expect(ConfigManagerCLI).not_to receive(:start)
-    load File.expand_path('../../config-manager/bin/config-manager', __dir__)
+    load config_manager_path
   end
 
-  it 'does not register service list or global exclusion commands' do
-    expect(ConfigManagerCLI.all_commands.keys).not_to include('services', 'excluded_services')
+  it 'registers only the validate and test commands' do
+    expect(ConfigManagerCLI.all_commands.keys - Thor.all_commands.keys).to contain_exactly('validate', 'test')
   end
 
-  it 'lists the union of configured environment names' do
-    config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [
-      { 'id' => 'aws', 'path' => 'aws', 'environments' => { 'production' => {}, 'preview' => {} } },
-      { 'id' => 'kubernetes', 'path' => 'k8s', 'environments' => { 'preview' => {}, 'sandbox' => {} } }
-    ] }])
-    client = instance_double(Infrastructure::ConfigClient, load_workflow_config: config)
-    allow(ConfigManagerContainer).to receive(:resolve).with(:config_client).and_return(client)
-    allow(ConfigManagerContainer).to receive(:resolve).with(:resolve_environments).and_return(UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::DirectoryScanner.new(repository_root: Dir.pwd)))
-    expect { ConfigManagerCLI.new.environments }.to output(/production.*preview.*sandbox/m).to_stdout
-  end
+  context 'with a controller' do
+    let(:controller) { instance_double(Interfaces::Controllers::ConfigManagerController) }
 
-  it 'lists environment names discovered from paths' do
-    Dir.mktmpdir do |root|
-      FileUtils.mkdir_p(File.join(root, 'apps/demo/preview'))
-      config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
-      client = instance_double(Infrastructure::ConfigClient, load_workflow_config: config)
-      allow(ConfigManagerContainer).to receive(:resolve).with(:config_client).and_return(client)
-      allow(ConfigManagerContainer).to receive(:resolve).with(:resolve_environments).and_return(UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::DirectoryScanner.new(repository_root: root)))
-      expect { ConfigManagerCLI.new.environments }.to output(/preview/).to_stdout
+    before { allow(ConfigManagerContainer).to receive(:resolve).with(:config_manager_controller).and_return(controller) }
+
+    it 'passes the service and the environment to the controller' do
+      expect(controller).to receive(:test_service).with(service_name: 'demo', environment: 'production').and_return(Entities::Result.success)
+      ConfigManagerCLI.new.test('demo', 'production')
     end
-  end
 
-  it 'accepts a configuration file that uses YAML anchors' do
-    Dir.mktmpdir do |root|
-      File.write(File.join(root, 'workflow-config.yaml'), <<~YAML)
-        profiles:
-          base: &base
-            region: ap-northeast-1
-          copy: *base
-      YAML
-      Dir.chdir(root) do
-        expect { expect { ConfigManagerCLI.new.check_file }.not_to raise_error }.to output(/File contains valid YAML/).to_stdout
-      end
+    it 'passes an omitted environment as nil' do
+      expect(controller).to receive(:test_service).with(service_name: 'demo', environment: nil).and_return(Entities::Result.success)
+      ConfigManagerCLI.new.test('demo')
     end
-  end
 
-  it 'passes omitted environments to service diagnosis' do
-    controller = instance_double(Interfaces::Controllers::ConfigManagerController)
-    allow(ConfigManagerContainer).to receive(:resolve).with(:config_manager_controller).and_return(controller)
-    expect(controller).to receive(:test_service_configuration).with(service_name: 'demo', environment: nil).and_return(Entities::Result.success)
-    ConfigManagerCLI.new.test('demo')
-  end
-
-  {
-    validate: [:validate_configuration, []],
-    show: [:show_configuration, []],
-    test: [:test_service_configuration, ['demo']],
-    diagnostics: [:run_diagnostics, []],
-    template: [:generate_config_template, []]
-  }.each do |command, (action, args)|
-    context "with the #{command} command" do
-      let(:controller) { instance_double(Interfaces::Controllers::ConfigManagerController) }
-
-      before { allow(ConfigManagerContainer).to receive(:resolve).with(:config_manager_controller).and_return(controller) }
-
-      it 'exits 1 when the controller returns a failure Result' do
+    {
+      validate: [:validate, []],
+      test: [:test_service, ['demo']]
+    }.each do |command, (action, args)|
+      it "exits 1 when #{command} returns a failure Result" do
         allow(controller).to receive(action).and_return(Entities::Result.failure('boom'))
         expect { ConfigManagerCLI.new.public_send(command, *args) }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
       end
 
-      it 'does not exit when the controller returns a success Result' do
+      it "does not exit when #{command} returns a success Result" do
         allow(controller).to receive(action).and_return(Entities::Result.success)
         expect { ConfigManagerCLI.new.public_send(command, *args) }.not_to raise_error
       end
+    end
+  end
+
+  context 'when run as a process' do
+    around do |example|
+      Dir.mktmpdir do |root|
+        @root = root
+        Open3.capture3('git', 'init', '--quiet', root)
+        example.run
+      end
+    end
+
+    def write_config(content)
+      File.write(File.join(@root, 'workflow-config.yaml'), content)
+    end
+
+    def run_config_manager(*args, env: {})
+      base_env = %w[GITHUB_ACTIONS GITHUB_OUTPUT GITHUB_ENV SOURCE_REPO_PATH WORKFLOW_CONFIG_PATH].to_h { |key| [key, nil] }
+      Open3.capture3(base_env.merge(env), RbConfig.ruby, config_manager_path, *args, chdir: @root)
+    end
+
+    let(:valid_config) { { 'services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.' }] }] }.to_yaml }
+
+    it 'exits 1 when the configuration is invalid' do
+      write_config("services: 1\n")
+      stdout, _stderr, status = run_config_manager('validate')
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include('Configuration validation failed')
+    end
+
+    it 'exits 0 when the configuration is valid' do
+      write_config(valid_config)
+      stdout, stderr, status = run_config_manager('validate')
+      expect(status.exitstatus).to eq(0), stderr
+      expect(stdout).to include('Configuration is valid')
+    end
+
+    it 'writes no step outputs or environment variables when validating in GitHub Actions' do
+      write_config(valid_config)
+      output_path = File.join(@root, 'GITHUB_OUTPUT')
+      env_path = File.join(@root, 'GITHUB_ENV')
+      [output_path, env_path].each { |path| File.write(path, '') }
+      _stdout, stderr, status = run_config_manager('validate', env: { 'GITHUB_ACTIONS' => 'true', 'GITHUB_OUTPUT' => output_path, 'GITHUB_ENV' => env_path })
+      expect(status.exitstatus).to eq(0), stderr
+      expect(File.read(output_path)).to eq('')
+      expect(File.read(env_path)).to eq('')
+    end
+
+    it 'stops in GitHub Actions before validating when GITHUB_OUTPUT is not set' do
+      write_config(valid_config)
+      stdout, stderr, status = run_config_manager('validate', env: { 'GITHUB_ACTIONS' => 'true' })
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include('GITHUB_OUTPUT is not set')
+      expect(stdout).not_to include('Configuration is valid')
+    end
+
+    it 'exits 1 when test is called without a service' do
+      write_config(valid_config)
+      _stdout, _stderr, status = run_config_manager('test')
+      expect(status.exitstatus).to eq(1)
+    end
+
+    it 'shows the targets of a service' do
+      write_config(valid_config)
+      FileUtils.mkdir_p(File.join(@root, 'apps/demo'))
+      stdout, stderr, status = run_config_manager('test', 'demo')
+      expect(status.exitstatus).to eq(0), stderr
+      expect(stdout).to include('Service: demo', '  working_directory: "apps/demo"', '  excluded: false')
     end
   end
 end
