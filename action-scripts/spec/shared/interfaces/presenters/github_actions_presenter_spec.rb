@@ -18,12 +18,12 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
 
   it 'writes public dispatch outputs without global service exclusion fields' do
     expect { dispatch(presenter) }.to output.to_stdout
-    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('deploy-labels=["deploy:demo"]', 'labels-added=["deploy:demo"]', 'labels-removed=["deploy:old"]', 'services-detected=["demo"]', 'has-changes=true')
+    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('labels-added=["deploy:demo"]', 'labels-removed=["deploy:old"]', 'services-detected=["demo"]', 'has-changes=true')
   end
 
   it 'writes false and empty outputs when no labels are detected' do
     expect { presenter.present_label_dispatch_result(deploy_labels: [], labels_added: [], labels_removed: [], changed_files: []) }.to output.to_stdout
-    expect(File.read(@output_path)).to include('deploy-labels=[]', 'services-detected=[]', 'has-changes=false')
+    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('labels-added=[]', 'labels-removed=[]', 'services-detected=[]', 'has-changes=false')
   end
 
   it 'writes the matrix outputs' do

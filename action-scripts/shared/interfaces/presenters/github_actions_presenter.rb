@@ -10,7 +10,6 @@ module Interfaces
       # Present label dispatch results for GitHub Actions
       def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)
         write_outputs(
-          'deploy-labels' => deploy_labels.map(&:to_s).to_json,
           'labels-added' => labels_added.to_json,
           'labels-removed' => labels_removed.to_json,
           'services-detected' => deploy_labels.map(&:service).uniq.to_json,

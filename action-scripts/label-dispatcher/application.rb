@@ -16,57 +16,48 @@ end
 
 # Dependency injection container for label dispatcher
 class LabelDispatcherContainer
-  def self.configure
-    @container ||= build_container
-  end
-
   def self.resolve(name)
-    configure[name]
+    @entries ||= {}
+    @entries.fetch(name) { @entries[name] = build(name) }
   end
 
   private
 
-  def self.build_container
-    container = {}
-
-    # Infrastructure clients
-    container[:git_client] = Composition.git_client
-    container[:config_client] = Composition.config_client
-
-    # GitHub client (only in GitHub Actions or with credentials)
-    container[:github_client] = begin
-      Composition.github_client
-    rescue RuntimeError
-      raise if Composition.github_actions?
-      # SILENT: Local runs without credentials skip the GitHub-backed use cases.
-      nil
-    end
-
-    # Use cases
-    container[:detect_changed_services] = UseCases::LabelManagement::DetectChangedServices.new(
-      config_client: container[:config_client],
-      git_client: container[:git_client]
-    )
-
-    if container[:github_client]
-      container[:manage_labels] = UseCases::LabelManagement::ManageLabels.new(
-        github_client: container[:github_client],
-        config_client: container[:config_client]
+  def self.build(name)
+    case name
+    when :config_client then Composition.config_client
+    when :git_client then Composition.git_client
+    when :github_client then Composition.github_client
+    when :detect_changed_services
+      UseCases::LabelManagement::DetectChangedServices.new(config_client: resolve(:config_client), git_client: resolve(:git_client))
+    when :manage_labels
+      UseCases::LabelManagement::ManageLabels.new(github_client: resolve(:github_client), config_client: resolve(:config_client))
+    when :dispatch_labels
+      UseCases::LabelManagement::DispatchLabels.new(
+        github_client: resolve(:github_client),
+        detect_changed_services: resolve(:detect_changed_services),
+        manage_labels: resolve(:manage_labels)
       )
+    when :presenter then build_presenter
+    when :label_dispatcher_controller
+      Interfaces::Controllers::LabelDispatcherController.new(
+        presenter: resolve(:presenter),
+        # A builder instead of an instance keeps `test` runnable without GitHub credentials.
+        dispatch_labels: -> { resolve(:dispatch_labels) },
+        detect_changed_services: resolve(:detect_changed_services)
+      )
+    else
+      raise KeyError, "Unknown dependency: #{name}"
     end
+  end
 
-    # Presenters
-    container[:console_presenter] = Interfaces::Presenters::ConsolePresenter.new
-    container[:github_actions_presenter] = Interfaces::Presenters::GitHubActionsPresenter.new(output_path: Composition.github_output_path)
+  def self.build_presenter
+    return Interfaces::Presenters::ConsolePresenter.new unless Composition.github_actions?
 
-    # Controller
-    presenter = Composition.github_actions? ? container[:github_actions_presenter] : container[:console_presenter]
-    container[:label_dispatcher_controller] = Interfaces::Controllers::LabelDispatcherController.new(
-      detect_services_use_case: container[:detect_changed_services],
-      manage_labels_use_case: container[:manage_labels],
-      presenter: presenter
-    )
+    output_path = Composition.github_output_path
+    # Checked before the command runs so dispatch cannot change labels and then fail to write outputs.
+    raise 'GITHUB_OUTPUT is not set' if output_path.nil?
 
-    container
+    Interfaces::Presenters::GitHubActionsPresenter.new(output_path: output_path)
   end
 end

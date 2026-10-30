@@ -44,24 +44,6 @@ Test with specific git references.
 bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=feature/auth
 ```
 
-Simulate GitHub Actions environment.
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher simulate PR_NUMBER
-```
-
-Validate environment configuration.
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher validate_env
-```
-
-Show usage examples and tips.
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher help_usage
-```
-
 ### Workflow Integration
 
 The dispatcher is typically called from GitHub Actions workflows:
@@ -74,15 +56,6 @@ The dispatcher is typically called from GitHub Actions workflows:
     repository: ${{ github.repository }}
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
-
-### Environment Variables
-
-The dispatcher sets the following environment variables for GitHub Actions:
-
-- `SERVICES_DETECTED`: JSON array of detected services
-- `LABELS_ADDED`: JSON array of labels that were added
-- `LABELS_REMOVED`: JSON array of labels that were removed
-- `HAS_CHANGES`: Boolean indicating if changes were detected
 
 ## Change Matching
 
@@ -104,6 +77,7 @@ The Label Dispatcher follows a clean architecture pattern:
 
 ### Use Cases
 
+- `DispatchLabels`: Detects changes between the PR base and head SHAs and syncs the PR labels
 - `DetectChangedServices`: Analyzes file changes and maps to services
 - `ManageLabels`: Handles PR label operations
 
@@ -122,7 +96,7 @@ The Label Dispatcher follows a clean architecture pattern:
 
 ## Detection Results
 
-Detection results include labels, changed files, and affected services. GitHub Actions outputs are `deploy-labels`, `labels-added`, `labels-removed`, `services-detected`, and `has-changes`. Use [Service Diagnosis](../config-manager/README.md#service-diagnosis) to inspect exclusion status.
+Detection results include labels, changed files, and affected services. GitHub Actions outputs are `labels-added`, `labels-removed`, `services-detected`, and `has-changes`. Use [Service Diagnosis](../config-manager/README.md#service-diagnosis) to inspect exclusion status.
 
 ## Error Handling
 
@@ -155,12 +129,6 @@ Test with specific refs.
 
 ```bash
 bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=HEAD
-```
-
-Validate environment.
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher validate_env
 ```
 
 ## Integration Points

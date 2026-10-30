@@ -44,24 +44,6 @@ bundle exec ruby label-dispatcher/bin/dispatcher test
 bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=feature/auth
 ```
 
-GitHub Actions の実行環境をシミュレートします。
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher simulate PR_NUMBER
-```
-
-実行環境の設定を検証します。
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher validate_env
-```
-
-使用例と実行方法を表示します。
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher help_usage
-```
-
 ### ワークフローへの組み込み
 
 ディスパッチャーは通常GitHub Actionsワークフローから呼び出されます：
@@ -74,15 +56,6 @@ bundle exec ruby label-dispatcher/bin/dispatcher help_usage
     repository: ${{ github.repository }}
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
-
-### 環境変数
-
-ディスパッチャーは GitHub Actions 用に以下の環境変数を設定します：
-
-- `SERVICES_DETECTED`: 検出されたサービスの JSON 配列
-- `LABELS_ADDED`: 追加されたラベルの JSON 配列
-- `LABELS_REMOVED`: 削除されたラベルの JSON 配列
-- `HAS_CHANGES`: 変更が検出されたかを示すブール値
 
 ## 変更パスの照合
 
@@ -104,6 +77,7 @@ Label Dispatcherはクリーンアーキテクチャパターンに従います�
 
 ### ユースケース
 
+- `DispatchLabels`: PR の base と head の SHA の間の変更を検出し、PR のラベルを同期
 - `DetectChangedServices`: ファイル変更を分析してサービスにマッピング
 - `ManageLabels`: PRラベル操作を処理
 
@@ -122,7 +96,7 @@ Label Dispatcherはクリーンアーキテクチャパターンに従います�
 
 ## 検出結果
 
-検出結果にはラベル、変更ファイル、対象サービスを含みます。GitHub Actions では `deploy-labels`、`labels-added`、`labels-removed`、`services-detected`、`has-changes` を出力します。除外状態の確認には [サービス診断](../config-manager/README-ja.md#サービス診断) を使います。
+検出結果にはラベル、変更ファイル、対象サービスを含みます。GitHub Actions では `labels-added`、`labels-removed`、`services-detected`、`has-changes` を出力します。除外状態の確認には [サービス診断](../config-manager/README-ja.md#サービス診断) を使います。
 
 ## エラー処理
 
@@ -155,12 +129,6 @@ bundle exec ruby label-dispatcher/bin/dispatcher test
 
 ```bash
 bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=HEAD
-```
-
-実行環境を検証します。
-
-```bash
-bundle exec ruby label-dispatcher/bin/dispatcher validate_env
 ```
 
 ## 連携先
