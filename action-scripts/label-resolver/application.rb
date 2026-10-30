@@ -42,9 +42,12 @@ class LabelResolverContainer
     end
 
     # Use cases
+    container[:resolve_environments] = UseCases::Shared::ResolveEnvironments.new(directory_scanner: container[:file_client])
+    container[:enumerate_targets] = UseCases::Shared::EnumerateTargets.new(directory_scanner: container[:file_client])
+
     container[:determine_target_environment] = UseCases::LabelResolver::DetermineTargetEnvironment.new(
       config_client: container[:config_client],
-      file_client: container[:file_client]
+      resolve_environments: container[:resolve_environments]
     )
 
     if container[:github_client]
@@ -60,7 +63,8 @@ class LabelResolverContainer
 
     container[:generate_matrix] = UseCases::LabelResolver::GenerateMatrix.new(
       config_client: container[:config_client],
-      file_client: container[:file_client]
+      resolve_environments: container[:resolve_environments],
+      enumerate_targets: container[:enumerate_targets]
     )
 
     # Presenters

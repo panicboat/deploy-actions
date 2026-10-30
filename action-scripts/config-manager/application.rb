@@ -34,6 +34,9 @@ class ConfigManagerContainer
     container[:file_client] = Infrastructure::FileSystemClient.new
 
     # Use cases
+    container[:resolve_environments] = UseCases::Shared::ResolveEnvironments.new(directory_scanner: container[:file_client])
+    container[:enumerate_targets] = UseCases::Shared::EnumerateTargets.new(directory_scanner: container[:file_client])
+
     container[:validate_config] = UseCases::ConfigManagement::ValidateConfig.new(
       config_client: container[:config_client]
     )
@@ -46,8 +49,9 @@ class ConfigManagerContainer
     presenter = ENV['GITHUB_ACTIONS'] ? container[:github_actions_presenter] : container[:console_presenter]
     container[:config_manager_controller] = Interfaces::Controllers::ConfigManagerController.new(
       validate_config_use_case: container[:validate_config],
+      resolve_environments_use_case: container[:resolve_environments],
+      enumerate_targets_use_case: container[:enumerate_targets],
       config_client: container[:config_client],
-      file_client: container[:file_client],
       presenter: presenter
     )
 

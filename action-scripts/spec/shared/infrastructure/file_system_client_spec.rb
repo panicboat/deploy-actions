@@ -57,35 +57,6 @@ RSpec.describe Infrastructure::FileSystemClient do
     expect(client.resolve_directories(pattern: 'dystopia/{service}/aws')).to eq([])
   end
 
-  it 'combines declared and discovered environments without applying exclusions' do
-    %w[teams/platform/demo/production teams/platform/demo/.preview teams/sandbox/api/production teams/platform/.hidden/hidden].each { |path| directory(path) }
-    config = Entities::WorkflowConfigParser.parse('services' => [
-      { 'id' => 'plain', 'roots' => ['{service}'], 'stacks' => [
-        { 'id' => 'aws', 'path' => 'aws', 'environments' => { 'production' => {}, 'develop' => {} } },
-        { 'id' => 'container', 'path' => '.' }
-      ] },
-      { 'id' => 'teams', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}', 'exclude' => [{ 'environment' => '.preview' }] }] }
-    ])
-    expect(client.environment_names(config: config)).to eq(%w[production develop .preview])
-    directory('teams/platform/demo/sandbox')
-    expect(client.environment_names(config: config)).to eq(%w[production develop .preview sandbox])
-  end
-
-  it 'returns no environments when inferred directories are absent' do
-    config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
-    expect(client.environment_names(config: config)).to eq([])
-  end
-
-  it 'propagates permission errors during environment discovery' do
-    directory('blocked/demo/production')
-    path = File.join(@root, 'blocked')
-    File.chmod(0, path)
-    config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['blocked/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
-    expect { client.environment_names(config: config) }.to raise_error(Errno::EACCES)
-  ensure
-    File.chmod(0o755, path) if path
-  end
-
   it 'propagates actual permission errors for literal and placeholder directories' do
     directory('blocked/demo')
     path = File.join(@root, 'blocked')

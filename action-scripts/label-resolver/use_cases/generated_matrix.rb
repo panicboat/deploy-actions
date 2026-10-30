@@ -1,56 +1,23 @@
 module UseCases
   module LabelResolver
     class GenerateMatrix
-      def initialize(config_client:, file_client:)
+      def initialize(config_client:, resolve_environments:, enumerate_targets:)
         @config_client = config_client
-        @file_client = file_client
+        @resolve_environments = resolve_environments
+        @enumerate_targets = enumerate_targets
       end
 
       def execute(deploy_labels:, target_environments:)
         config = @config_client.load_workflow_config
-        available = @file_client.environment_names(config: config)
-        environments = target_environments.nil? || target_environments.empty? ? available : target_environments.uniq
-        unknown = environments - available
-        return Entities::Result.failure("Target environments not found in configuration: #{unknown.join(', ')}") unless unknown.empty?
+        environments = @resolve_environments.execute(config: config, requested: target_environments)
+        return environments if environments.failure?
 
         labels = deploy_labels.select(&:valid?)
-        services = labels.any?(&:deploy_all?) ? [nil] : labels.map(&:service).uniq
-        candidates = {}
-        config.stacks.each do |stack|
-          stack.target_environments(environments).each do |environment|
-            services.each do |service|
-              values = { 'environment' => environment }
-              values['service'] = service if service
-              stack.paths.each do |pattern|
-                @file_client.resolve_directories(pattern: pattern, values: values).each do |match|
-                  captures = match.fetch(:captures)
-                  name = captures.fetch('service')
-                  next if Entities::Service.hidden_name?(name)
-                  directory = match.fetch(:working_directory)
-                  custom = captures.reject { |key, _| %w[service environment].include?(key) }
-                  identity = [name, stack.id, environment, directory]
-                  if candidates.key?(identity) && candidates[identity][:captures] != custom
-                    raise "Conflicting captures for stack '#{stack.id}' at '#{directory}'"
-                  end
-                  candidates[identity] = { stack: stack, environment: environment, service: name, working_directory: directory, captures: custom }
-                end
-              end
-            end
-          end
-        end
+        services = labels.any?(&:deploy_all?) ? nil : labels.map(&:service).uniq
+        candidates = @enumerate_targets.execute(config: config, services: services, environments: environments.value)
+        return candidates if candidates.failure?
 
-        targets = candidates.values.filter_map do |candidate|
-          stack = candidate.fetch(:stack)
-          environment = candidate.fetch(:environment)
-          values = candidate.fetch(:captures).merge('service' => candidate.fetch(:service), 'environment' => environment)
-          next if stack.excluded?(values)
-          attributes = stack.target_attributes(environment)
-          Entities::DeploymentTarget.new(
-            service: candidate.fetch(:service), environment: environment, stack: stack.id,
-            working_directory: candidate.fetch(:working_directory), captures: candidate.fetch(:captures), attributes: attributes
-          )
-        end
-        Entities::Result.success(targets)
+        Entities::Result.success(candidates.value.reject(&:excluded?).map(&:to_deployment_target))
       rescue => error
         Entities::Result.failure("Failed to generate deployment matrix: #{error.message}")
       end

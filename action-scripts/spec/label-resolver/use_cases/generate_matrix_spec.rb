@@ -7,7 +7,13 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   let(:config) { Entities::WorkflowConfigParser.parse(config_hash) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
   let(:file_client) { Infrastructure::FileSystemClient.new }
-  subject(:use_case) { described_class.new(config_client: config_client, file_client: file_client) }
+  subject(:use_case) do
+    described_class.new(
+      config_client: config_client,
+      resolve_environments: UseCases::Shared::ResolveEnvironments.new(directory_scanner: file_client),
+      enumerate_targets: UseCases::Shared::EnumerateTargets.new(directory_scanner: file_client)
+    )
+  end
 
   around do |example|
     original = ENV['SOURCE_REPO_PATH']
@@ -43,6 +49,24 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     config_hash.replace('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'kustomize', 'path' => 'overlays/{environment}', 'attributes' => { 'type' => 'kustomize' } }] }])
     directory('dystopia/demo/overlays/develop')
     expect(items).to eq([{ service: 'demo', environment: 'develop', stack: 'kustomize', working_directory: 'dystopia/demo/overlays/develop', type: 'kustomize' }])
+  end
+
+  it 'keeps the stack-major, environment, service, path order' do
+    use_service(roots: ['dystopia/{service}', 'components/{service}'], stacks: [
+      { 'id' => 'aws', 'path' => 'aws/{environment}', 'environments' => { 'production' => {}, 'develop' => {} } },
+      { 'id' => 'kubernetes', 'path' => 'k8s/{environment}' }
+    ])
+    %w[dystopia components].each { |root| %w[aws k8s].each { |stack| %w[production develop].each { |env| directory("#{root}/demo/#{stack}/#{env}") } } }
+    expect(items(environments: nil).map { |row| [row[:stack], row[:environment], row[:working_directory]] }).to eq([
+      ['aws', 'production', 'dystopia/demo/aws/production'],
+      ['aws', 'production', 'components/demo/aws/production'],
+      ['aws', 'develop', 'dystopia/demo/aws/develop'],
+      ['aws', 'develop', 'components/demo/aws/develop'],
+      ['kubernetes', 'production', 'dystopia/demo/k8s/production'],
+      ['kubernetes', 'production', 'components/demo/k8s/production'],
+      ['kubernetes', 'develop', 'dystopia/demo/k8s/develop'],
+      ['kubernetes', 'develop', 'components/demo/k8s/develop']
+    ])
   end
 
   it 'skips sibling directories of declared environments' do

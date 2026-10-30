@@ -6,13 +6,15 @@ module Interfaces
     class ConfigManagerController
       def initialize(
         validate_config_use_case:,
+        resolve_environments_use_case:,
+        enumerate_targets_use_case:,
         config_client:,
-        file_client:,
         presenter:
       )
         @validate_config = validate_config_use_case
+        @resolve_environments = resolve_environments_use_case
+        @enumerate_targets = enumerate_targets_use_case
         @config_client = config_client
-        @file_client = file_client
         @presenter = presenter
       end
 
@@ -49,45 +51,13 @@ module Interfaces
 
       def test_service_configuration(service_name:, environment: nil)
         config = @config_client.load_workflow_config
-        available = @file_client.environment_names(config: config)
-        if environment && !available.include?(environment)
-          return @presenter.present_error(Entities::Result.failure("Environment '#{environment}' not found in configuration"))
-        end
-        candidates = {}
-        config.stacks.each do |stack|
-          environments = if stack.declares_environments?
-            stack.environments.keys
-          elsif stack.common?
-            [nil]
-          else
-            available
-          end
-          environments &= [environment] if environment && !stack.common?
-          environments.each do |selected|
-            values = { 'service' => service_name, 'environment' => selected }
-            stack.paths.each do |pattern|
-              @file_client.resolve_directories(pattern: pattern, values: values).each do |match|
-                captures = match.fetch(:captures)
-                next if Entities::Service.hidden_name?(captures.fetch('service'))
-                directory = match.fetch(:working_directory)
-                custom = captures.reject { |key, _| %w[service environment].include?(key) }
-                identity = [service_name, stack.id, selected, directory]
-                if candidates.key?(identity) && candidates[identity][:captures] != custom
-                  raise "Conflicting captures for stack '#{stack.id}' at '#{directory}'"
-                end
-                candidates[identity] = { stack: stack, environment: selected, working_directory: directory, captures: custom }
-              end
-            end
-          end
-        end
-        matches = candidates.values.map do |candidate|
-          stack = candidate.fetch(:stack)
-          selected = candidate.fetch(:environment)
-          captures = candidate.fetch(:captures)
-          attributes = stack.target_attributes(selected)
-          target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack.id, working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
-          { target: target, excluded: stack.excluded?(captures.merge('service' => service_name, 'environment' => selected)) }
-        end
+        environments = @resolve_environments.execute(config: config, requested: environment && [environment])
+        return @presenter.present_error(environments) if environments.failure?
+
+        candidates = @enumerate_targets.execute(config: config, services: [service_name], environments: environments.value)
+        return @presenter.present_error(candidates) if candidates.failure?
+
+        matches = candidates.value.map { |candidate| { target: candidate.to_deployment_target, excluded: candidate.excluded? } }
         @presenter.present_service_test_result(service_name: service_name, matches: matches)
       rescue => error
         @presenter.present_error(Entities::Result.failure("Failed to test service configuration: #{error.message}"))

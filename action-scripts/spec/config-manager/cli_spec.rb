@@ -22,7 +22,7 @@ RSpec.describe 'ConfigManagerCLI' do
     ] }])
     client = instance_double(Infrastructure::ConfigClient, load_workflow_config: config)
     allow(ConfigManagerContainer).to receive(:resolve).with(:config_client).and_return(client)
-    allow(ConfigManagerContainer).to receive(:resolve).with(:file_client).and_return(Infrastructure::FileSystemClient.new)
+    allow(ConfigManagerContainer).to receive(:resolve).with(:resolve_environments).and_return(UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::FileSystemClient.new))
     expect { ConfigManagerCLI.new.environments }.to output(/production.*preview.*sandbox/m).to_stdout
   end
 
@@ -35,7 +35,7 @@ RSpec.describe 'ConfigManagerCLI' do
       config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
       client = instance_double(Infrastructure::ConfigClient, load_workflow_config: config)
       allow(ConfigManagerContainer).to receive(:resolve).with(:config_client).and_return(client)
-      allow(ConfigManagerContainer).to receive(:resolve).with(:file_client).and_return(Infrastructure::FileSystemClient.new)
+      allow(ConfigManagerContainer).to receive(:resolve).with(:resolve_environments).and_return(UseCases::Shared::ResolveEnvironments.new(directory_scanner: Infrastructure::FileSystemClient.new))
       expect { ConfigManagerCLI.new.environments }.to output(/preview/).to_stdout
     end
   ensure

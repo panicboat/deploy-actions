@@ -10,6 +10,7 @@ require 'json'
 # Load shared components in Clean Architecture dependency order
 [
   'entities/**/*.rb',      # Domain layer (innermost)
+  'use_cases/**/*.rb',
   'infrastructure/**/*.rb', # Infrastructure layer
   'interfaces/**/*.rb'     # Interface layer (outermost)
 ].each do |pattern|

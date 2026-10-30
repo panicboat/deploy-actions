@@ -19,8 +19,9 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   subject(:controller) do
     described_class.new(
       validate_config_use_case: validate_config_use_case,
+      resolve_environments_use_case: UseCases::Shared::ResolveEnvironments.new(directory_scanner: file_client),
+      enumerate_targets_use_case: UseCases::Shared::EnumerateTargets.new(directory_scanner: file_client),
       config_client: config_client,
-      file_client: file_client,
       presenter: presenter
     )
   end
@@ -185,7 +186,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
       allow(presenter).to receive(:present_error)
       expect(presenter).not_to receive(:present_service_test_result)
       controller.test_service_configuration(service_name: 'demo', environment: 'preview')
-      expect(presenter).to have_received(:present_error) { |result| expect(result.error_message).to include('preview') }
+      expect(presenter).to have_received(:present_error) { |result| expect(result.error_message).to eq('Target environments not found in configuration: preview') }
     end
 
     it 'reports conflicting captures before exclusions' do
