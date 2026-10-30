@@ -17,34 +17,22 @@ module UseCases
       def execute(pr_number:, required_labels:)
         prefix = @config_client.load_workflow_config.label_prefix
 
-        # Initial cleanup: Remove all existing deploy labels
-        current_deploy_labels = @github_client.get_deploy_labels(pr_number, prefix: prefix)
-        current_deploy_labels.each do |label|
+        previous_labels = @github_client.get_deploy_labels(pr_number, prefix: prefix)
+
+        # Removing every label before re-adding it fires the labeled event that starts the resolver on each push.
+        previous_labels.each do |label|
           @github_client.remove_label_from_pr(pr_number, label)
         end
 
-        # Get updated labels (should be empty after cleanup)
-        current_deploy_labels = @github_client.get_deploy_labels(pr_number, prefix: prefix)
-
-        labels_to_add = required_labels - current_deploy_labels
-        labels_to_remove = current_deploy_labels - required_labels
-
-        # Ensure all required labels exist in the repository
         required_labels.each do |label|
           @github_client.ensure_label_exists(label)
         end
 
-        # Remove outdated labels
-        labels_to_remove.each do |label|
-          @github_client.remove_label_from_pr(pr_number, label)
-        end
-
-        # Add new labels
-        labels_to_add.each do |label|
+        required_labels.each do |label|
           @github_client.add_label_to_pr(pr_number, label)
         end
 
-        Entities::Result.success(LabelSync.new(labels_added: labels_to_add, labels_removed: labels_to_remove))
+        Entities::Result.success(LabelSync.new(labels_added: required_labels - previous_labels, labels_removed: previous_labels - required_labels))
       rescue => error
         Entities::Result.failure(error.message)
       end

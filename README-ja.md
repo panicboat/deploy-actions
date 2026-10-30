@@ -58,8 +58,8 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 
 | 出力 | 値 |
 |---|---|
-| `labels-added` | PR に追加したラベルの JSON 配列 |
-| `labels-removed` | PR から外したラベルの JSON 配列 |
+| `labels-added` | 実行前の PR になかったラベルの JSON 配列 |
+| `labels-removed` | 実行後の PR からなくなったラベルの JSON 配列 |
 | `services-detected` | 変更から検出したサービスの JSON 配列 |
 | `has-changes` | `true` または `false` |
 

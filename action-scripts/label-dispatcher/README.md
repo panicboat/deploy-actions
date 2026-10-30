@@ -150,7 +150,7 @@ The dispatcher uses standardized label formats:
 
 - `deploy:service-name` - Deploy specific service
 - `deploy:all` - Deploy all services (special case)
-- Labels are automatically managed and synchronized
+- Every run removes the deploy labels and adds the required ones again, so each push fires the `labeled` event that starts the resolver
 
 The prefix is configurable; see the root [Labels](../../README.md#labels) section.
 

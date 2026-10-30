@@ -58,8 +58,8 @@ Outputs:
 
 | Output | Value |
 |---|---|
-| `labels-added` | JSON array of the labels added to the PR |
-| `labels-removed` | JSON array of the labels removed from the PR |
+| `labels-added` | JSON array of the labels the PR did not have before the run |
+| `labels-removed` | JSON array of the labels the PR no longer has after the run |
 | `services-detected` | JSON array of the services detected from the changes |
 | `has-changes` | `true` or `false` |
 
