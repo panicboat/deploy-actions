@@ -2,6 +2,7 @@ require 'spec_helper'
 require 'thor'
 require 'open3'
 require 'tmpdir'
+require 'fileutils'
 
 RSpec.describe 'LabelDispatcherCLI' do
   let(:dispatcher_path) { File.expand_path('../../label-dispatcher/bin/dispatcher', __dir__) }
@@ -65,6 +66,25 @@ RSpec.describe 'LabelDispatcherCLI' do
       stdout, stderr, status = run_dispatcher('test')
       expect(status.exitstatus).to eq(0), stderr
       expect(stdout).to include('Label Dispatch Results')
+    end
+
+    it 'labels a valid service and not a directory whose name is not a service' do
+      git = ->(*args) { Open3.capture3('git', '-C', @root, '-c', 'user.name=t', '-c', 'user.email=t@example.com', *args) }
+      %w[apps/a.b apps/api apps/all].each { |path| FileUtils.mkdir_p(File.join(@root, path)) }
+      %w[apps/a.b/main.rb apps/api/main.rb apps/all/main.rb].each { |path| File.write(File.join(@root, path), "1\n") }
+      git.call('add', '-A')
+      git.call('commit', '-q', '-m', 'base')
+      %w[apps/a.b/main.rb apps/api/main.rb].each { |path| File.write(File.join(@root, path), "2\n") }
+      git.call('add', '-A')
+      git.call('commit', '-q', '-m', 'change')
+      output_path = File.join(@root, 'github-output')
+
+      stdout, stderr, status = run_dispatcher('test', '--base-ref=HEAD~1', '--head-ref=HEAD', env: { 'GITHUB_ACTIONS' => '1', 'GITHUB_OUTPUT' => output_path })
+
+      expect(status.exitstatus).to eq(0), stderr
+      expect(stdout).to include('Deploy Labels: deploy:api').and(include('apps/a.b/main.rb'))
+      expect(stdout).not_to include('deploy:a.b')
+      expect(File.read(output_path).lines.map(&:strip)).to include('services-detected=["api"]', 'has-changes=true')
     end
 
     it 'exits 1 when test cannot diff the base ref' do

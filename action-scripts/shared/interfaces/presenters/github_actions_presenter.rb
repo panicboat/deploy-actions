@@ -25,11 +25,10 @@ module Interfaces
         puts TextFormat.deployment_matrix(deployment_targets: deployment_targets, deploy_labels: deploy_labels, target_environments: target_environments, pr_number: pr_number)
       end
 
-      def present_service_targets(service:, target_environments:, targets:, candidates:)
-        entries = candidates.map { |listed| { target: listed.target.to_matrix_item, excluded: listed.excluded?, root: listed.root } }
-        write_outputs('targets' => targets.map(&:to_matrix_item).to_json, 'has-targets' => targets.any?.to_s, 'candidates' => entries.to_json)
+      def present_service_targets(service:, target_environments:, targets:)
+        write_outputs('targets' => targets.map(&:to_matrix_item).to_json, 'has-targets' => targets.any?.to_s)
 
-        puts TextFormat.service_targets(service: service, target_environments: target_environments, targets: targets, candidates: candidates)
+        puts TextFormat.service_targets(service: service, target_environments: target_environments, targets: targets)
       end
 
       def present_config_validation_result(valid:, errors: [], summary: nil)

@@ -27,7 +27,7 @@ module Entities
       captures = PatternMatcher.extract_prefix(root, file)
       return unless captures
       name = captures.fetch('service')
-      return if Service.hidden_name?(name)
+      return unless Service.valid_name?(name)
       relative_path = file.delete_prefix("#{PatternMatcher.expand(root, captures)}/")
       name unless service.ignored?(relative_path)
     end

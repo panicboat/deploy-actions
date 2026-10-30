@@ -1,5 +1,5 @@
 module Entities
-  ListedTarget = Data.define(:target, :excluded, :root) do
+  ListedTarget = Data.define(:target, :excluded) do
     alias_method :excluded?, :excluded
   end
 end

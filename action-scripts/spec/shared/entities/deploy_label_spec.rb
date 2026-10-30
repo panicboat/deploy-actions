@@ -29,6 +29,20 @@ RSpec.describe Entities::DeployLabel do
     end
   end
 
+  it 'gives all no special meaning' do
+    expect(described_class.new('deploy:all')).not_to respond_to(:deploy_all?)
+  end
+
+  it 'holds no service name pattern of its own' do
+    expect(described_class.const_defined?(:SERVICE_PATTERN)).to be(false)
+  end
+
+  it 'accepts exactly the names the service definition accepts' do
+    ['api', 'all', 'a.b', '.hidden', "demo\n", 'a b'].each do |name|
+      expect(described_class.new("deploy:#{name}").valid?).to eq(Entities::Service.valid_name?(name))
+    end
+  end
+
   describe '#valid?' do
     context 'with valid service label' do
       subject(:label) { described_class.new('deploy:test-service') }
@@ -156,32 +170,6 @@ RSpec.describe Entities::DeployLabel do
       label = described_class.new('deploy:test-service')
       expect(label).not_to respond_to(:service_name)
       expect(label).not_to respond_to(:label_string)
-    end
-  end
-
-  describe '#deploy_all?' do
-    context 'with deploy:all label' do
-      subject(:label) { described_class.new('deploy:all') }
-
-      it 'returns true' do
-        expect(label).to be_deploy_all
-      end
-    end
-
-    context 'with service-specific label' do
-      subject(:label) { described_class.new('deploy:test-service') }
-
-      it 'returns false' do
-        expect(label).not_to be_deploy_all
-      end
-    end
-
-    context 'with invalid label' do
-      subject(:label) { described_class.new('invalid-label') }
-
-      it 'returns false' do
-        expect(label).not_to be_deploy_all
-      end
     end
   end
 
@@ -319,7 +307,7 @@ RSpec.describe Entities::DeployLabel do
 
     it 'extracts the service after any configured prefix' do
       expect(described_class.new('env:prod:api', prefixes: prefixes).service).to eq('api')
-      expect(described_class.new('manual/all', prefixes: prefixes)).to be_deploy_all
+      expect(described_class.new('manual/all', prefixes: prefixes).service).to eq('all')
     end
 
     it 'keeps the matched prefix in its string representation' do

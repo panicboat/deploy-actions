@@ -16,7 +16,7 @@ The usual call resolves the labels of a pull request. `environments` is optional
     environments: "develop,staging"
 ```
 
-Set `service` to resolve a service, or `all`, without a pull request. This suits release or manual workflows. `pr-number` is then ignored, and `ref` selects the ref of the source repository to check out.
+Set `service` to resolve a service without a pull request. This suits release or manual workflows. `pr-number` is then ignored, and `ref` selects the ref of the source repository to check out.
 
 ```yaml
 - uses: panicboat/deploy-actions/label-resolver@v0.1.0
@@ -35,7 +35,7 @@ Inputs:
 |---|---|---|
 | `repository` | Yes | Source repository (`owner/repo`) |
 | `pr-number` | Unless `service` is set | Pull request whose labels are resolved; ignored when `service` is set |
-| `service` | No | Service name or `all`; resolves its targets without a pull request |
+| `service` | No | [Service name](../config-manager/README.md#service-names); resolves its targets without a pull request |
 | `environments` | No | Comma-separated environments; empty means all declared and discovered environments |
 | `ref` | No | Ref of the source repository to check out; defaults to the event's ref for the triggering repository and to the default branch for another repository |
 | `github-token` | No | Token for checking out the repository and reading the PR; defaults to `${{ github.token }}` |
@@ -47,11 +47,10 @@ Outputs:
 |---|---|
 | `targets` | JSON array of deployment targets (see [Matrix Output](#matrix-output)) |
 | `has-targets` | `true` or `false` |
-| `candidates` | When `service` is set, JSON array of every candidate including the excluded ones, each `{"target": <matrix item>, "excluded": <bool>, "root": "<root>"}` |
 
 ## From Labels to Targets
 
-The resolver reads the pull request's labels that start with any [configured prefix](../label-dispatcher/README.md#labels), `deploy:` by default, and treats the rest of the label as the service name. The same service labeled with different prefixes yields one service, and `all` with any prefix targets every service found through the configured paths. Labels whose remaining text is not a valid service name (`[a-zA-Z0-9_-]+`) are ignored.
+The resolver reads the pull request's labels that start with any [configured prefix](../label-dispatcher/README.md#labels), `deploy:` by default, and treats the rest of the label as the service name. The same service labeled with different prefixes yields one service. Labels whose remaining text is not a [valid service name](../config-manager/README.md#service-names) are ignored. `all` is an ordinary name, so `deploy:all` targets only a directory named `all`.
 
 A pull request without deploy labels gives empty `targets` and `has-targets: false`.
 
@@ -59,7 +58,7 @@ A workflow triggered by `labeled` must filter on the prefixes it uses. When you 
 
 ## How Targets Are Built
 
-The resolver lists all existing directories matching any root followed by `path`. Missing paths generate no targets and are a valid empty result. Services do not require registration. For each stack, targets are built in this order:
+The resolver lists all existing directories matching any root followed by `path`. Missing paths generate no targets and are a valid empty result. Services do not require registration, and a directory at `{service}` whose name is not a [valid service name](../config-manager/README.md#service-names) is skipped without looking inside it. For each stack, targets are built in this order:
 
 1. With `environments`, one target is built for each declared environment, even when `path` does not contain `{environment}`. When it does, only the declared names match, so a directory such as `modules/` never becomes a target.
 2. Without `environments`, when `path` contains `{environment}`, environment names are discovered from existing directories at that position. Directories at that position that are not environments, such as `modules/`, are also discovered as environments, so declare `environments` when such directories sit beside the environment directories.
@@ -79,7 +78,7 @@ The selectable environment list is the union of all declared names and names dis
 
 | Key | Source |
 |---|---|
-| `service` | Service name from a label or discovered through `<prefix>all`; the value captured by `{service}` |
+| `service` | Service name from a label or the `service` input; the value captured by `{service}` |
 | `environment` | Declared or discovered environment name, or `null` for a target shared across environments |
 | `stack` | Stack `id` |
 | `working_directory` | Relative path of the existing target directory |
@@ -132,7 +131,7 @@ Run these from the `action-scripts` directory.
 | Command | Result |
 |---|---|
 | `bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]` | Resolves the PR's labels into targets; `ENVIRONMENTS` is comma-separated, and empty means all |
-| `bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]` | Resolves the targets of one service, or `all`, without a PR; `ENVIRONMENTS` is the same as for `resolve` |
+| `bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]` | Resolves the targets of one service without a PR; `ENVIRONMENTS` is the same as for `resolve` |
 
 `resolve` needs `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to read the labels:
 
@@ -151,16 +150,15 @@ bundle exec ruby label-resolver/bin/resolver resolve 123
 
 ```bash
 bundle exec ruby label-resolver/bin/resolver targets demo develop
-bundle exec ruby label-resolver/bin/resolver targets all
 ```
 
-`targets` takes a name matching `[a-zA-Z0-9_-]+` or `all`, and any other name fails with status 1. A valid name with no matching directory is not an error: the `targets` output is `[]`, `has-targets` is `false`, and `candidates` is `[]`. The `targets` and `has-targets` outputs come from the candidates that are not excluded, and `candidates` lists them all with their exclusion and root. The `resolve` command writes only `targets` and `has-targets`.
+`targets` takes a [valid service name](../config-manager/README.md#service-names), and any other name fails with status 1. A valid name with no matching directory is not an error: the `targets` output is `[]` and `has-targets` is `false`. The `all` name is looked up like any other. Both commands write only `targets` and `has-targets`, which leave out excluded targets. To see the excluded targets, use [`config-manager test`](../config-manager/README.md#commands).
 
 Both commands fail with status 1 on an invalid configuration, an environment that is neither declared nor discovered, a directory that cannot be listed, and conflicting captured values. See [Environment Variables](../config-manager/README.md#environment-variables) for the variables they read.
 
 ## Code Layout
 
-`LabelResolverController` backs the two commands. For `resolve`, `GetLabels` reads the deploy labels of the PR, and `GenerateMatrix` calls `ListCandidates`, which validates the environments and lists the candidates from the directory structure, then keeps those that are not excluded. For `targets`, `ListServiceTargets` validates the service name, calls `ListCandidates`, and returns both the targets and every candidate with its exclusion and root.
+`LabelResolverController` backs the two commands. For `resolve`, `GetLabels` reads the deploy labels of the PR, and `GenerateMatrix` calls `ListCandidates`, which validates the environments and lists the candidates from the directory structure, then keeps those that are not excluded. For `targets`, `ListServiceTargets` validates the service name, calls `ListCandidates`, and returns the targets that are not excluded.
 
 ## Testing
 

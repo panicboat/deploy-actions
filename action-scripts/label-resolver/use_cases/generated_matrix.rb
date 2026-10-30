@@ -6,8 +6,7 @@ module UseCases
       end
 
       def execute(deploy_labels:, target_environments:)
-        labels = deploy_labels.select(&:valid?)
-        services = labels.any?(&:deploy_all?) ? nil : labels.map(&:service).uniq
+        services = deploy_labels.select(&:valid?).map(&:service).uniq
         candidates = @list_candidates.execute(services: services, environments: target_environments)
         return candidates if candidates.failure?
 

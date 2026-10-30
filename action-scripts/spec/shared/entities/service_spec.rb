@@ -52,29 +52,38 @@ RSpec.describe Entities::Service do
     end
   end
 
-  describe '.hidden_name?' do
-    it 'treats a name starting with a dot as hidden' do
-      expect(described_class.hidden_name?('.preview')).to be(true)
-      expect(described_class.hidden_name?('.')).to be(true)
+  describe '.valid_name?' do
+    %w[demo a Demo-1 my_service all 0 - _].each do |name|
+      it "accepts #{name}" do
+        expect(described_class.valid_name?(name)).to be(true)
+      end
     end
 
-    it 'treats other names as visible' do
-      expect(described_class.hidden_name?('demo')).to be(false)
-      expect(described_class.hidden_name?('demo.v2')).to be(false)
+    ['', '.', '..', '.preview', 'a.b', 'demo.v2', 'a/b', 'a b', "demo\n", "\ndemo", 'café', 'deploy:demo', nil].each do |name|
+      it "rejects #{name.inspect}" do
+        expect(described_class.valid_name?(name)).to be(false)
+      end
     end
   end
 
-  describe '.hidden_captures?' do
-    it 'treats captures with a hidden service as hidden' do
-      expect(described_class.hidden_captures?('team' => 'platform', 'service' => '.hidden')).to be(true)
+  describe '.invalid_name_message' do
+    it 'quotes the name and states the format' do
+      expect(described_class.invalid_name_message('a.b')).to eq('Invalid service name: "a.b" (use a name matching [a-zA-Z0-9_-]+)')
+    end
+  end
+
+  describe '.captures_invalid_name?' do
+    it 'is true for captures whose service fails the name definition' do
+      expect(described_class.captures_invalid_name?('team' => 'platform', 'service' => '.hidden')).to be(true)
+      expect(described_class.captures_invalid_name?('team' => 'platform', 'service' => 'a.b')).to be(true)
     end
 
-    it 'treats captures with a visible service as visible' do
-      expect(described_class.hidden_captures?('team' => '.platform', 'service' => 'demo')).to be(false)
+    it 'is false for captures with a valid service' do
+      expect(described_class.captures_invalid_name?('team' => '.platform', 'service' => 'demo')).to be(false)
     end
 
-    it 'treats captures without a service as visible' do
-      expect(described_class.hidden_captures?('team' => '.platform')).to be(false)
+    it 'is false for captures without a service' do
+      expect(described_class.captures_invalid_name?('team' => '.platform')).to be(false)
     end
   end
 end

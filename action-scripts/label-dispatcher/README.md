@@ -40,7 +40,7 @@ Outputs:
 
 A service gets a label when a changed file sits below one of its roots. The dispatcher compares the pull request's base and head with a three-dot diff, then evaluates every changed file against every root in this order:
 
-1. The file is skipped when it is not below the root, or when the `{service}` capture starts with a dot.
+1. The file is skipped when it is not below the root, or when the `{service}` capture is not a [valid service name](../config-manager/README.md#service-names).
 2. The file is skipped when its path relative to the root matches an `ignore` pattern.
 3. When the file is below a stack's directory (root followed by `path`), candidate targets are built as [Label Resolver builds them](../label-resolver/README.md#how-targets-are-built). The service is labeled unless `exclude` removes every candidate.
 4. When the file is below no stack's directory, such as `modules/` or `Makefile`, the service is labeled. `exclude` does not apply to these shared files, so use `ignore` to skip them.
@@ -55,7 +55,7 @@ Three cases change the outcome of rules 3 and 4:
 - A file below another stack's directory whose candidates are all excluded is still not labeled.
 - For a stack with `environments`, a directory at the `{environment}` position that is not a declared environment is outside the stack's directory.
 
-Choose roots narrow enough that unrelated top-level directories are not taken as services. A bare `{service}` root, for example, makes every top-level directory a service.
+Choose roots narrow enough that unrelated top-level directories are not taken as services. A bare `{service}` root, for example, makes every top-level directory with a valid service name a service.
 
 A shared file can label a service that has no target to resolve, for example when its only environment is excluded. The label is added and Label Resolver returns no targets.
 
@@ -128,9 +128,9 @@ labels:
 
 Each prefix is used as-is, including its separator, so quote prefixes ending with `:` in YAML. Prefixes must be nonempty strings. No prefix may start with another prefix, because Label Dispatcher would remove the labels of the overlapping prefix.
 
-`<prefix>all` targets every service in Label Resolver. The dispatcher creates it only for a directory named `all` at the `{service}` position, so it is normally added by hand, and a hand-added label with `prefix` is removed on the next push. Labels starting with an `extra_prefixes` entry are never touched, so `manual/all` or `manual/api` survives later pushes.
+A label added by hand with `prefix` is removed on the next push. Labels starting with an `extra_prefixes` entry are never touched, so `manual/api` survives later pushes.
 
-A label is added for any directory name at the `{service}` position, but Label Resolver [reads only names matching](../label-resolver/README.md#from-labels-to-targets) `[a-zA-Z0-9_-]+`. A directory such as `a.b` therefore gets a label that resolves to nothing.
+Only a [valid service name](../config-manager/README.md#service-names) gets a label. A directory such as `a.b` is not a service, so a change below it labels nothing. A directory named `all` is an ordinary service and gets `<prefix>all`, which [Label Resolver reads](../label-resolver/README.md#from-labels-to-targets) as that one service.
 
 ## Commands
 

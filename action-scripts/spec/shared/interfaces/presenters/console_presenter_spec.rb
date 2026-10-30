@@ -38,15 +38,15 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
 
   it 'colors the heading of the service targets text' do
     stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first
-    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}).to_listed_target
-    lines = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], targets: [candidate.target], candidates: [candidate])
+    target = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {}).to_deployment_target
+    lines = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], targets: [target])
     expect do
-      described_class.new.present_service_targets(service: 'demo', target_environments: [], targets: [candidate.target], candidates: [candidate])
+      described_class.new.present_service_targets(service: 'demo', target_environments: [], targets: [target])
     end.to output("#{lines.first.colorize(:green)}\n#{lines.drop(1).map { |line| "#{line}\n" }.join}").to_stdout
   end
 
   it 'accepts only the service target fields' do
-    expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments targets candidates])
+    expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments targets])
   end
 
   it 'colors the validation heading by the result' do
@@ -64,7 +64,7 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
 
   it 'shows complete diagnostic targets and their exclusion status' do
     stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws', 'attributes' => { 'token' => nil }, 'exclude' => [{ 'team' => 'platform' }] }] }]).stacks.first
-    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'teams/platform/demo', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }).to_listed_target
+    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }).to_listed_target
     expect do
       described_class.new.present_service_test_result(service_name: 'demo', candidates: [candidate])
     end.to output(/stack: "aws".*working_directory: "teams\/platform\/demo\/aws".*token: nil.*team: "platform".*excluded: true/m).to_stdout

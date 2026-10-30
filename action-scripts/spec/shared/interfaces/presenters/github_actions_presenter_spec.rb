@@ -48,46 +48,37 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
         { 'id' => 'alb', 'path' => 'alb', 'exclude' => [{ 'service' => 'demo' }] }
       ] }])
     end
-    let(:included) { Entities::TargetCandidate.new(stack: stack_config.stacks[0], service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}).to_listed_target }
-    let(:excluded) { Entities::TargetCandidate.new(stack: stack_config.stacks[1], service: 'demo', environment: nil, root: 'aws/alb', working_directory: 'aws/alb/alb', captures: {}).to_listed_target }
-    let(:included_item) { '{"service":"demo","environment":null,"stack":"aws","working_directory":"demo/aws"}' }
+    let(:target) { Entities::TargetCandidate.new(stack: stack_config.stacks[0], service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {}).to_deployment_target }
+    let(:excluded_target) { Entities::TargetCandidate.new(stack: stack_config.stacks[1], service: 'demo', environment: nil, working_directory: 'aws/alb/alb', captures: {}).to_deployment_target }
+    let(:target_item) { '{"service":"demo","environment":null,"stack":"aws","working_directory":"demo/aws"}' }
     let(:excluded_item) { '{"service":"demo","environment":null,"stack":"alb","working_directory":"aws/alb/alb"}' }
 
-    it 'writes the given targets, their presence, and every candidate with its exclusion and root' do
-      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [included.target], candidates: [included, excluded]) }.to output.to_stdout
-      expect(File.read(@output_path).lines.map(&:strip)).to eq([
-        "targets=[#{included_item}]",
-        'has-targets=true',
-        "candidates=[{\"target\":#{included_item},\"excluded\":false,\"root\":\"demo\"},{\"target\":#{excluded_item},\"excluded\":true,\"root\":\"aws/alb\"}]"
-      ])
-    end
-
-    it 'writes false when no target is given' do
-      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [], candidates: [excluded]) }.to output.to_stdout
-      expect(File.read(@output_path).lines.map(&:strip).first(2)).to eq(['targets=[]', 'has-targets=false'])
+    it 'writes only the given targets and their presence' do
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [target]) }.to output.to_stdout
+      expect(File.read(@output_path).lines.map(&:strip)).to eq(["targets=[#{target_item}]", 'has-targets=true'])
     end
 
     it 'does not filter the given targets by exclusion' do
-      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [excluded.target], candidates: [excluded]) }.to output.to_stdout
-      expect(File.read(@output_path).lines.map(&:strip).first(2)).to eq(["targets=[#{excluded_item}]", 'has-targets=true'])
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [excluded_target]) }.to output.to_stdout
+      expect(File.read(@output_path).lines.map(&:strip)).to eq(["targets=[#{excluded_item}]", 'has-targets=true'])
     end
 
-    it 'writes empty outputs when no candidates exist' do
-      expect { presenter.present_service_targets(service: 'missing', target_environments: [], targets: [], candidates: []) }.to output.to_stdout
-      expect(File.read(@output_path).lines.map(&:strip)).to eq(['targets=[]', 'has-targets=false', 'candidates=[]'])
+    it 'writes empty outputs when no target exists' do
+      expect { presenter.present_service_targets(service: 'missing', target_environments: [], targets: []) }.to output.to_stdout
+      expect(File.read(@output_path).lines.map(&:strip)).to eq(['targets=[]', 'has-targets=false'])
     end
 
     it 'prints the shared text without color' do
-      expected = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], targets: [included.target], candidates: [included]).map { |line| "#{line}\n" }.join
-      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [included.target], candidates: [included]) }.to output(expected).to_stdout
+      expected = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], targets: [target]).map { |line| "#{line}\n" }.join
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [target]) }.to output(expected).to_stdout
     end
 
     it 'accepts only the service target fields' do
-      expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments targets candidates])
+      expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments targets])
     end
 
     it 'raises when GITHUB_OUTPUT is not set' do
-      expect { described_class.new(output_path: nil).present_service_targets(service: 'demo', target_environments: [], targets: [], candidates: []) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
+      expect { described_class.new(output_path: nil).present_service_targets(service: 'demo', target_environments: [], targets: []) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
     end
   end
 
@@ -146,7 +137,7 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
 
   it 'shows complete diagnostic targets and their exclusion status' do
     stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws', 'attributes' => { 'token' => nil }, 'exclude' => [{ 'team' => 'platform' }] }] }]).stacks.first
-    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'teams/platform/demo', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }).to_listed_target
+    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }).to_listed_target
     expect do
       presenter.present_service_test_result(service_name: 'demo', candidates: [candidate])
     end.to output(/stack: "aws".*working_directory: "teams\/platform\/demo\/aws".*token: nil.*team: "platform".*excluded: true/m).to_stdout

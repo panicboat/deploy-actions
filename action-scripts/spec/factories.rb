@@ -8,10 +8,6 @@ FactoryBot.define do
       label_string { "deploy:test-service" }
     end
     
-    trait :valid_all do
-      label_string { "deploy:all" }
-    end
-    
     trait :invalid do
       label_string { "invalid-label" }
     end

@@ -23,7 +23,7 @@ RSpec.describe UseCases::Shared::EnumerateTargets do
     FileUtils.mkdir_p(File.join(@root, path))
   end
 
-  def enumerate(services: nil, environments: %w[develop production])
+  def enumerate(services: ['demo'], environments: %w[develop production])
     result = use_case.execute(config: config, services: services, environments: environments)
     expect(result).to be_success
     result.value
@@ -43,42 +43,30 @@ RSpec.describe UseCases::Shared::EnumerateTargets do
     expect(candidates.map(&:service).uniq).to eq(['demo'])
   end
 
-  it 'enumerates every service when services are nil' do
-    %w[dystopia/demo dystopia/api].each { |path| directory(path) }
-    expect(enumerate.map(&:service)).to eq(%w[api demo])
-  end
-
-  context 'with team roots' do
-    let(:config) do
-      Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [
-        { 'id' => 'kubernetes', 'path' => '{environment}' },
-        { 'id' => 'terragrunt', 'path' => 'aws/{environment}' },
-        { 'id' => 'container', 'path' => '.' }
-      ] }])
+  %w[.hidden a.b].each do |name|
+    it "gives no candidate for a directory named #{name}" do
+      directory("dystopia/#{name}/overlays/develop")
+      expect(enumerate(services: [name])).to eq([])
     end
 
-    it 'records the root directory of each candidate' do
-      %w[teams/payments/api/develop teams/payments/api/aws/develop].each { |path| directory(path) }
-      expect(enumerate(environments: ['develop']).map { |candidate| [candidate.stack.id, candidate.working_directory, candidate.root] }).to contain_exactly(
-        ['kubernetes', 'teams/payments/api/develop', 'teams/payments/api'],
-        ['terragrunt', 'teams/payments/api/aws/develop', 'teams/payments/api'],
-        ['container', 'teams/payments/api', 'teams/payments/api']
-      )
+    it "does not descend into an unreadable directory named #{name}" do
+      directory("dystopia/#{name}/overlays/develop")
+      path = File.join(@root, 'dystopia', name)
+      File.chmod(0, path)
+      expect(enumerate(services: [name])).to eq([])
+    ensure
+      File.chmod(0o755, path) if path
     end
   end
 
-  it 'skips hidden services' do
-    directory('dystopia/.hidden/overlays/develop')
-    expect(enumerate).to eq([])
-  end
-
-  it 'enumerates targets next to an unreadable hidden service' do
+  it 'enumerates targets next to a directory whose name is not a service' do
     directory('dystopia/demo/overlays/develop')
-    directory('dystopia/.cache/overlays/develop')
-    path = File.join(@root, 'dystopia/.cache')
-    File.chmod(0, path)
+    directory('dystopia/a.b/overlays/develop')
     expect(enumerate.map(&:working_directory)).to eq(['dystopia/demo/overlays/develop', 'dystopia/demo'])
-  ensure
-    File.chmod(0o755, path) if path
+  end
+
+  it 'enumerates a directory named all as an ordinary service' do
+    %w[dystopia/all dystopia/demo].each { |path| directory(path) }
+    expect(enumerate(services: ['all']).map(&:working_directory)).to eq(['dystopia/all'])
   end
 end

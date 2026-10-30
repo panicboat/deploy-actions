@@ -69,6 +69,22 @@ RSpec.describe 'ConfigManagerCLI' do
 
     let(:valid_config) { { 'services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.' }] }] }.to_yaml }
 
+    it 'exits 1 for test with a name that is not a valid service name' do
+      write_config(valid_config)
+      FileUtils.mkdir_p(File.join(@root, 'apps/a.b'))
+      stdout, _stderr, status = run_config_manager('test', 'a.b')
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include('Invalid service name: "a.b" (use a name matching [a-zA-Z0-9_-]+)')
+      expect(stdout).not_to include('Service Configuration Test')
+    end
+
+    it 'exits 0 with an empty result for test with a valid name that matches no directory' do
+      write_config(valid_config)
+      stdout, stderr, status = run_config_manager('test', 'missing')
+      expect(status.exitstatus).to eq(0), stderr
+      expect(stdout).to eq("Service Configuration Test\nService: missing\n")
+    end
+
     it 'exits 1 when the configuration is invalid' do
       write_config("services: 1\n")
       stdout, _stderr, status = run_config_manager('validate')

@@ -17,7 +17,7 @@ inputs:
     description: 'PR number (from prepare job output or event)'
     required: false
   service:
-    description: 'Service name or all; when set, resolves its targets without a pull request and ignores pr-number'
+    description: 'Service name matching [a-zA-Z0-9_-]+; when set, resolves its targets without a pull request and ignores pr-number'
     required: false
   environments:
     description: 'Target environments (comma-separated: develop,staging or single: develop)'
@@ -38,9 +38,6 @@ outputs:
   has-targets:
     description: 'Whether targets found'
     value: ${{ steps.extract.outputs.has-targets }}
-  candidates:
-    description: 'Every candidate target including the excluded ones; set only when service is given'
-    value: ${{ steps.extract.outputs.candidates }}
 
 runs:
   using: 'composite'

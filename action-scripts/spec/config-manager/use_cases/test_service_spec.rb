@@ -123,14 +123,24 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     expect(result.error_message).to eq('Failed to test service configuration: Permission denied')
   end
 
-  it 'carries the root of each target' do
+  ['a.b', '.hidden', 'demo/aws', "demo\n"].each do |name|
+    it "fails for the service name #{name.inspect} before loading the configuration" do
+      directory('dystopia/a.b/aws/develop')
+      result = use_case.execute(service_name: name, environment: nil)
+      expect(result).to be_failure
+      expect(result.error_message).to eq("Invalid service name: #{name.inspect} (use a name matching [a-zA-Z0-9_-]+)")
+      expect(config_client).not_to have_received(:load_workflow_config)
+    end
+  end
+
+  it 'lists nothing for a valid name with no matching directory' do
     directory('dystopia/demo/aws/develop')
-    expect(candidates.map(&:root)).to all(eq('dystopia/demo'))
+    expect(candidates(service: 'missing')).to eq([])
   end
 
   it 'fails for an attribute that references a placeholder with no value' do
     stack = Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [])
-    unbuildable = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {})
+    unbuildable = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {})
     list_candidates = instance_double(UseCases::Shared::ListCandidates, execute: Entities::Result.success([unbuildable]))
 
     result = described_class.new(list_candidates: list_candidates).execute(service_name: 'demo', environment: nil)

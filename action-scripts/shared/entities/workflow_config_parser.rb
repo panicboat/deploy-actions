@@ -214,7 +214,7 @@ module Entities
             end
           else
             validate_segment!(value, condition_position)
-            invalid!(condition_position, 'service must not start with a dot') if key == 'service' && Service.hidden_name?(value)
+            invalid!(condition_position, "service must match #{Service.name_format}") if key == 'service' && !Service.valid_name?(value)
           end
         end
       end

@@ -151,9 +151,26 @@ RSpec.describe Entities::ChangeDetector do
     expect(services).to eq(['api'])
   end
 
-  it 'ignores hidden services' do
-    changed_files.replace(['teams/platform/.hidden/aws/develop/main.tf'])
-    expect(services).to eq([])
+  ['.hidden', 'a.b', 'café', 'a b'].each do |name|
+    it "gives no service for a directory named #{name.inspect}" do
+      changed_files.replace(["teams/platform/#{name}/aws/develop/main.tf", "teams/platform/#{name}/README.md"])
+      expect(services).to eq([])
+    end
+  end
+
+  it 'detects a valid service beside a directory whose name is not a service' do
+    changed_files.replace(['teams/platform/a.b/aws/develop/main.tf', 'teams/platform/api/aws/develop/main.tf'])
+    expect(services).to eq(['api'])
+  end
+
+  it 'keeps a dotted value of another placeholder' do
+    changed_files.replace(['teams/.platform.v2/api/aws/develop/main.tf'])
+    expect(services).to eq(['api'])
+  end
+
+  it 'treats a directory named all as an ordinary service' do
+    changed_files.replace(['teams/platform/all/aws/develop/main.tf'])
+    expect(services).to eq(['all'])
   end
 
   [false, true].each do |reverse|
@@ -168,23 +185,5 @@ RSpec.describe Entities::ChangeDetector do
   it 'returns no services for unrelated changes' do
     changed_files.replace(['README.md'])
     expect(services).to eq([])
-  end
-
-  describe 'candidate roots' do
-    def candidate_roots
-      built = nil
-      allow(Entities::TargetCandidates).to receive(:new).and_wrap_original { |original, *args| built = original.call(*args) }
-      services
-      built.to_a.map(&:root)
-    end
-
-    { 0 => ['.', 'Dockerfile'], 1 => ['aws', 'aws/main.tf'], 2 => ['aws/{environment}', 'aws/develop/main.tf'] }.each do |length, (path, file)|
-      it "records the matched root for a stack path of length #{length}" do
-        service['roots'] = ['dystopia/{service}', 'teams/{team}/{service}']
-        service['stacks'] = [{ 'id' => 'terragrunt', 'path' => path }]
-        changed_files.replace(["dystopia/demo/#{file}", "teams/platform/api/#{file}"])
-        expect(candidate_roots).to eq(%w[dystopia/demo teams/platform/api])
-      end
-    end
   end
 end

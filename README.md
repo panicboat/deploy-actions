@@ -29,7 +29,7 @@ services:
           type: kustomize
 ```
 
-A service owns the files under its `roots`, and the directory name at `{service}` becomes the service name. A stack is a directory inside the service to deploy from. With this configuration, changing `apps/api/src/main.rb` labels the pull request `deploy:api`, and an existing `apps/api/kubernetes/overlays/develop` directory produces this target:
+A service owns the files under its `roots`, and the directory name at `{service}` becomes the service name. A [service name](action-scripts/config-manager/README.md#service-names) contains only ASCII letters, digits, `_`, and `-`, and a directory with any other name, such as `a.b` or `.github`, is not a service. A stack is a directory inside the service to deploy from. With this configuration, changing `apps/api/src/main.rb` labels the pull request `deploy:api`, and an existing `apps/api/kubernetes/overlays/develop` directory produces this target:
 
 ```json
 {
