@@ -52,14 +52,17 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
   describe '#targets' do
     let(:stack) { Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first }
     let(:candidates) { [Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {})] }
+    let(:listed_targets) { candidates.map(&:to_listed_target) }
+    let(:unbuildable_stack) { Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [{ 'service' => 'demo' }]) }
+    let(:unbuildable) { Entities::TargetCandidate.new(stack: unbuildable_stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}) }
 
     it 'presents every candidate for a service' do
       allow(list_candidates).to receive(:execute).with(services: ['demo'], environments: ['develop']).and_return(Entities::Result.success(candidates))
 
       result = controller.targets(service: 'demo', environments: ['develop'])
 
-      expect(result.value).to eq(candidates)
-      expect(presenter).to have_received(:present_service_targets).with(service: 'demo', target_environments: ['develop'], candidates: candidates)
+      expect(result.value).to eq(listed_targets)
+      expect(presenter).to have_received(:present_service_targets).with(service: 'demo', target_environments: ['develop'], candidates: listed_targets)
     end
 
     it 'treats all as every service' do
@@ -68,7 +71,7 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
       controller.targets(service: 'all', environments: [])
 
       expect(list_candidates).to have_received(:execute).with(services: nil, environments: [])
-      expect(presenter).to have_received(:present_service_targets).with(service: 'all', target_environments: [], candidates: candidates)
+      expect(presenter).to have_received(:present_service_targets).with(service: 'all', target_environments: [], candidates: listed_targets)
     end
 
     it 'rejects a service name outside [a-zA-Z0-9_-]+' do
@@ -109,6 +112,18 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
       result = controller.targets(service: 'demo', environments: [])
 
       expect(result.error_message).to eq("Failed to resolve service targets: Conflicting captures for stack 'aws' at 'demo/aws'")
+      expect(presenter).to have_received(:present_error).with(result.error_message)
+      expect(presenter).not_to have_received(:present_service_targets)
+    end
+
+    it 'presents a target that cannot be built as a failure instead of raising' do
+      allow(list_candidates).to receive(:execute).and_return(Entities::Result.success(candidates + [unbuildable]))
+
+      result = nil
+      expect { result = controller.targets(service: 'demo', environments: []) }.not_to raise_error
+
+      expect(result).to be_failure
+      expect(result.error_message).to match(/\AFailed to resolve service targets: .*\{team\}/)
       expect(presenter).to have_received(:present_error).with(result.error_message)
       expect(presenter).not_to have_received(:present_service_targets)
     end

@@ -29,17 +29,20 @@ module Interfaces
       def targets(service:, environments:)
         return failure(Entities::Result.failure("Invalid service name: #{service.inspect} (use all or a name matching [a-zA-Z0-9_-]+)")) unless service.match?(Entities::DeployLabel::SERVICE_PATTERN)
 
-        candidates_result = list_candidates(services: service == 'all' ? nil : [service], environments: environments)
-        return failure(candidates_result) if candidates_result.failure?
+        targets_result = list_targets(services: service == 'all' ? nil : [service], environments: environments)
+        return failure(targets_result) if targets_result.failure?
 
-        @presenter.present_service_targets(service: service, target_environments: environments, candidates: candidates_result.value)
-        candidates_result
+        @presenter.present_service_targets(service: service, target_environments: environments, candidates: targets_result.value)
+        targets_result
       end
 
       private
 
-      def list_candidates(services:, environments:)
-        @list_candidates.execute(services: services, environments: environments)
+      def list_targets(services:, environments:)
+        candidates_result = @list_candidates.execute(services: services, environments: environments)
+        return candidates_result if candidates_result.failure?
+
+        Entities::Result.success(candidates_result.value.map(&:to_listed_target))
       rescue => error
         Entities::Result.failure("Failed to resolve service targets: #{error.message}")
       end

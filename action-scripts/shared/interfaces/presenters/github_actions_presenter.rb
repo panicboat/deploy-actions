@@ -30,7 +30,7 @@ module Interfaces
       end
 
       def present_service_targets(service:, target_environments:, candidates:)
-        entries = candidates.map { |candidate| { target: candidate.to_deployment_target.to_matrix_item, excluded: candidate.excluded?, root: candidate.root } }
+        entries = candidates.map { |listed| { target: listed.target.to_matrix_item, excluded: listed.excluded?, root: listed.root } }
         targets = entries.reject { |entry| entry[:excluded] }.map { |entry| entry[:target] }
         write_outputs('targets' => targets.to_json, 'has-targets' => targets.any?.to_s, 'candidates' => entries.to_json)
 

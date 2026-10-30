@@ -48,8 +48,8 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
         { 'id' => 'alb', 'path' => 'alb', 'exclude' => [{ 'service' => 'demo' }] }
       ] }])
     end
-    let(:included) { Entities::TargetCandidate.new(stack: stack_config.stacks[0], service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}) }
-    let(:excluded) { Entities::TargetCandidate.new(stack: stack_config.stacks[1], service: 'demo', environment: nil, root: 'aws/alb', working_directory: 'aws/alb/alb', captures: {}) }
+    let(:included) { Entities::TargetCandidate.new(stack: stack_config.stacks[0], service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}).to_listed_target }
+    let(:excluded) { Entities::TargetCandidate.new(stack: stack_config.stacks[1], service: 'demo', environment: nil, root: 'aws/alb', working_directory: 'aws/alb/alb', captures: {}).to_listed_target }
     let(:included_item) { '{"service":"demo","environment":null,"stack":"aws","working_directory":"demo/aws"}' }
     let(:excluded_item) { '{"service":"demo","environment":null,"stack":"alb","working_directory":"aws/alb/alb"}' }
 

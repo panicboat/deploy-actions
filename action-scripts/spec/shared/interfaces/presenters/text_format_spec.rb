@@ -67,7 +67,7 @@ RSpec.describe Interfaces::Presenters::TextFormat do
         Entities::TargetCandidate.new(stack: config.stacks[0], service: 'demo', environment: 'develop', root: 'demo', working_directory: 'demo/overlays/develop', captures: {}),
         Entities::TargetCandidate.new(stack: config.stacks[0], service: 'demo', environment: 'production', root: 'demo', working_directory: 'demo/overlays/production', captures: {}),
         Entities::TargetCandidate.new(stack: config.stacks[1], service: 'demo', environment: nil, root: 'demo', working_directory: 'demo', captures: {})
-      ]
+      ].map(&:to_listed_target)
     end
 
     it 'shows the service, the environments, and each target with its root and exclusion status' do

@@ -8,6 +8,10 @@ module Entities
       stack.excluded?(exclusion_values)
     end
 
+    def to_listed_target
+      ListedTarget.new(target: to_deployment_target, excluded: excluded?, root: root)
+    end
+
     def to_deployment_target
       DeploymentTarget.new(
         service: service, environment: environment, stack: stack.id,

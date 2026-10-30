@@ -47,10 +47,11 @@ module Interfaces
           lines << "Target Environment: #{target_environments.first}"
         end
         lines << "Targets: #{candidates.reject(&:excluded?).length} of #{candidates.length} candidates"
-        candidates.each do |candidate|
-          environment = candidate.environment && " (#{candidate.environment})"
-          lines << '' << "  #{candidate.service}:#{candidate.stack.id}#{environment} -> #{candidate.working_directory}"
-          lines << "    root: #{candidate.root}" << "    excluded: #{candidate.excluded?}"
+        candidates.each do |listed|
+          target = listed.target
+          environment = target.environment && " (#{target.environment})"
+          lines << '' << "  #{target.service}:#{target.stack}#{environment} -> #{target.working_directory}"
+          lines << "    root: #{listed.root}" << "    excluded: #{listed.excluded?}"
         end
         lines
       end
