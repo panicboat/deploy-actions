@@ -146,7 +146,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       { 'id' => 'kubernetes', 'path' => 'overlays/{environment}' }
     ])
     %w[dystopia/demo/aws/production dystopia/demo/overlays/production dystopia/api/overlays/preview].each { |path| directory(path) }
-    rows = items(labels: ['deploy:all'])
+    rows = items(labels: ['deploy:demo', 'deploy:api'])
     expect(rows.map { |row| [row[:service], row[:stack], row[:environment]] }).to contain_exactly(
       ['demo', 'container', nil], ['api', 'container', nil], ['demo', 'kubernetes', 'production'], ['api', 'kubernetes', 'preview']
     )
@@ -193,21 +193,36 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     expect(items(environments: nil)).to eq([{ service: 'demo', environment: nil, stack: 'container', working_directory: 'dystopia/demo', type: 'container', repository: 'registry.example.com/app' }])
   end
 
-  it 'discovers unregistered services for all labels and deduplicates overlapping labels' do
-    directory('dystopia/demo/aws/develop'); directory('dystopia/api/aws/develop'); directory('dystopia/.hidden/aws/develop')
-    rows = items(labels: ['deploy:all', 'deploy:demo', 'deploy:all'])
-    expect(rows.length).to eq(4)
-    expect(rows.map { |row| row[:service] }.uniq).to contain_exactly('demo', 'api')
+  it 'deduplicates overlapping labels and reads no other service' do
+    directory('dystopia/demo/aws/develop'); directory('dystopia/api/aws/develop')
+    rows = items(labels: ['deploy:demo', 'deploy:demo'])
+    expect(rows.length).to eq(2)
+    expect(rows.map { |row| row[:service] }.uniq).to eq(['demo'])
+  end
+
+  it 'targets only the directory named all for an all label' do
+    directory('dystopia/all/aws/develop'); directory('dystopia/demo/aws/develop')
+    expect(items(labels: ['deploy:all']).map { |row| row[:service] }.uniq).to eq(['all'])
+  end
+
+  it 'targets nothing for an all label when no directory is named all' do
+    directory('dystopia/demo/aws/develop')
+    expect(items(labels: ['deploy:all'])).to eq([])
+  end
+
+  it 'gives no targets for a label that fails the service name definition' do
+    directory('dystopia/a.b/aws/develop'); directory('dystopia/api/aws/develop')
+    expect(items(labels: ['deploy:a.b', 'deploy:api']).map { |row| row[:service] }.uniq).to eq(['api'])
+    expect(items(labels: ['deploy:a.b'])).to eq([])
   end
 
   {
     %w[deploy:all extra:all] => ['deploy:all'],
-    %w[deploy:demo extra:demo] => ['deploy:demo'],
-    %w[deploy:demo extra:all] => ['deploy:all']
+    %w[deploy:demo extra:demo] => ['deploy:demo']
   }.each do |labels, equivalent|
     it "deduplicates targets of #{labels.join(' and ')} across prefixes" do
       config_hash['labels'] = { 'extra_prefixes' => ['extra:'] }
-      directory('dystopia/demo/aws/develop'); directory('dystopia/api/aws/develop')
+      directory('dystopia/demo/aws/develop'); directory('dystopia/all/aws/develop'); directory('dystopia/api/aws/develop')
       expected = items(labels: equivalent)
       rows = items(labels: labels)
       expect(rows).to eq(expected)
@@ -275,7 +290,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   it 'returns failures without partial targets for enumeration errors' do
     directory('dystopia/demo/aws/develop')
     allow(directory_scanner).to receive(:resolve).and_call_original
-    allow(directory_scanner).to receive(:resolve).with(pattern: 'system-components/{service}/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }, skip: Entities::Service.method(:hidden_captures?)).and_raise(Errno::EACCES)
+    allow(directory_scanner).to receive(:resolve).with(pattern: 'system-components/{service}/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }, skip: Entities::Service.method(:captures_invalid_name?)).and_raise(Errno::EACCES)
     result = generate
     expect(result).to be_failure
     expect(result.error_message).to include('Permission denied')

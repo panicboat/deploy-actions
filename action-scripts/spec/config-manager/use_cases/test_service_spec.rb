@@ -123,14 +123,14 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     expect(result.error_message).to eq('Failed to test service configuration: Permission denied')
   end
 
-  it 'carries the root of each target' do
-    directory('dystopia/demo/aws/develop')
-    expect(candidates.map(&:root)).to all(eq('dystopia/demo'))
+  it 'lists nothing for a directory whose name is not a service' do
+    directory('dystopia/a.b/aws/develop')
+    expect(candidates(service: 'a.b')).to eq([])
   end
 
   it 'fails for an attribute that references a placeholder with no value' do
     stack = Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [])
-    unbuildable = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {})
+    unbuildable = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {})
     list_candidates = instance_double(UseCases::Shared::ListCandidates, execute: Entities::Result.success([unbuildable]))
 
     result = described_class.new(list_candidates: list_candidates).execute(service_name: 'demo', environment: nil)

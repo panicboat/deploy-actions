@@ -30,12 +30,7 @@ module Interfaces
         targets_result = @list_service_targets.execute(service: service, environments: environments)
         return failure(targets_result) if targets_result.failure?
 
-        @presenter.present_service_targets(
-          service: service,
-          target_environments: environments,
-          targets: targets_result.value.targets,
-          candidates: targets_result.value.candidates
-        )
+        @presenter.present_service_targets(service: service, target_environments: environments, targets: targets_result.value)
         targets_result
       end
 

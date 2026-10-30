@@ -22,7 +22,7 @@ bundle exec ruby config-manager/bin/config-manager test demo
 bundle exec ruby config-manager/bin/config-manager test demo production
 ```
 
-Without an environment it covers all declared and discovered environments plus the targets shared across environments. With an environment it covers that environment plus the shared targets. Services do not need registering, and a name that matches no directory prints an empty result. Each target is printed with its stack `id`, expanded attribute values, and captured placeholders. Excluded targets are printed too, with `excluded: true`, so you can see what is left out of deployment. An unknown environment, an invalid configuration, a directory that cannot be listed, and conflicting captured values for the same target are errors and exit with status 1.
+Without an environment it covers all declared and discovered environments plus the targets shared across environments. With an environment it covers that environment plus the shared targets. Services do not need registering, and a name that matches no directory or is not a [valid service name](#service-names) prints an empty result. Each target is printed with its stack `id`, expanded attribute values, and captured placeholders. Excluded targets are printed too, with `excluded: true`, so you can see what is left out of deployment. An unknown environment, an invalid configuration, a directory that cannot be listed, and conflicting captured values for the same target are errors and exit with status 1.
 
 To try a configuration change without editing the original, point `WORKFLOW_CONFIG_PATH` at a copy:
 
@@ -118,6 +118,12 @@ The value captured by `{service}` is the service name in labels and the matrix. 
 
 Roots can contain arbitrary placeholders such as `{project}`. `{environment}` is rejected in roots, as in `envs/{environment}/{service}`, because the environment belongs to a stack's `path`. When environment directories sit below the service, put `{environment}` in `path` and keep the root at the service directory, so that shared directories next to the environments stay under the root.
 
+### Service Names
+
+A service name matches `[a-zA-Z0-9_-]+`: ASCII letters, digits, `_`, and `-`. `all` is a name like any other.
+
+A directory at the `{service}` position with any other name, such as `a.b` or `.github`, is not a service. A change below it labels nothing, it produces no targets, and environments below it are not discovered. The tools do not look inside it, so it may be unreadable. Other placeholders, such as `{team}`, have no such rule.
+
 ### Stacks
 
 A stack runs in each root followed by its `path`: root `aws/{service}` with path `{environment}` is the directory pattern `aws/{service}/{environment}`. Different stacks can point at the same directory.
@@ -154,7 +160,7 @@ Every placeholder referenced by an attribute must be available for every root of
 
 ### Path Patterns
 
-Roots and paths are relative patterns. Absolute paths and `..` segments are rejected. A leading `./`, extra `/` separators, and `.` segments are normalized. Service names starting with a dot are excluded.
+Roots and paths are relative patterns. Absolute paths and `..` segments are rejected. A leading `./`, extra `/` separators, and `.` segments are normalized.
 
 Names of arbitrary placeholders must match `[a-z_][a-z0-9_]*`, and each value occupies one path segment. Repeated occurrences of a placeholder must match the same value. Glob characters are treated literally.
 
@@ -166,7 +172,7 @@ Each entry in `exclude` is a nonempty condition map. Conditions can use `service
 
 Conditions use exact matching: keys within a map are combined with AND, and entries in the array are combined with OR. Omitted keys impose no restriction. A condition requiring a captured value that the matched root does not capture does not match there. For example, `project: sandbox` excludes only the targets under a root such as `gcp/{project}/{service}`.
 
-Condition values must be nonempty strings representing one path segment, so `/`, `.`, and `..` are not allowed. Service names cannot start with a dot. Values are literal and do not expand placeholders.
+Condition values must be nonempty strings representing one path segment, so `/`, `.`, and `..` are not allowed. A `service` condition must be a [valid service name](#service-names), so `service: a.b` is a configuration error. Values are literal and do not expand placeholders.
 
 The `environment` condition depends on how the stack gets its environments. With `environments`, it can name only the stack's declared environments. A stack that discovers environments can name a directory value that does not exist yet. A stack with neither `environments` nor `{environment}` in `path` can omit `environment` or set it to `null`. Other condition values cannot be `null`.
 

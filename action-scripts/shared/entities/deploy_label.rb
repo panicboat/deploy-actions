@@ -4,7 +4,6 @@
 module Entities
   class DeployLabel
     DEFAULT_PREFIX = 'deploy:'.freeze
-    SERVICE_PATTERN = /\A[a-zA-Z0-9\-_]+\z/
 
     attr_reader :service, :prefix
 
@@ -12,11 +11,6 @@ module Entities
       @raw_label = raw_label
       @prefixes = prefixes
       parse_label!
-    end
-
-    # Check if this is deploy:all label
-    def deploy_all?
-      service == 'all'
     end
 
     # Factory method to create deploy label from service name
@@ -35,7 +29,7 @@ module Entities
 
     # Check if the deploy label is valid
     def valid?
-      !service.nil? && service.match?(SERVICE_PATTERN)
+      Service.valid_name?(service)
     end
 
     # Equality comparison
@@ -59,7 +53,7 @@ module Entities
       return unless @raw_label
 
       @prefix = @prefixes.find do |prefix|
-        @raw_label.start_with?(prefix) && @raw_label.delete_prefix(prefix).match?(SERVICE_PATTERN)
+        @raw_label.start_with?(prefix) && Service.valid_name?(@raw_label.delete_prefix(prefix))
       end
       @service = @raw_label.delete_prefix(@prefix) if @prefix
     end

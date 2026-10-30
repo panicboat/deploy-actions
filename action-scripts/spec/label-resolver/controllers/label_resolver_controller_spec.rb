@@ -51,18 +51,16 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
 
   describe '#targets' do
     let(:stack) { Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first }
-    let(:candidate) { Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}) }
-    let(:service_targets) { Entities::ServiceTargets.new(targets: [candidate.to_deployment_target], candidates: [candidate.to_listed_target]) }
+    let(:candidate) { Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {}) }
+    let(:targets) { [candidate.to_deployment_target] }
 
-    it 'presents the targets and candidates the use case lists' do
-      allow(list_service_targets).to receive(:execute).with(service: 'demo', environments: ['develop']).and_return(Entities::Result.success(service_targets))
+    it 'presents the targets the use case lists' do
+      allow(list_service_targets).to receive(:execute).with(service: 'demo', environments: ['develop']).and_return(Entities::Result.success(targets))
 
       result = controller.targets(service: 'demo', environments: ['develop'])
 
-      expect(result.value).to eq(service_targets)
-      expect(presenter).to have_received(:present_service_targets).with(
-        service: 'demo', target_environments: ['develop'], targets: service_targets.targets, candidates: service_targets.candidates
-      )
+      expect(result.value).to eq(targets)
+      expect(presenter).to have_received(:present_service_targets).with(service: 'demo', target_environments: ['develop'], targets: targets)
     end
 
     it 'presents the failure and skips the targets' do
@@ -76,14 +74,14 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
     end
 
     it 'does not rescue presenter errors' do
-      allow(list_service_targets).to receive(:execute).and_return(Entities::Result.success(service_targets))
+      allow(list_service_targets).to receive(:execute).and_return(Entities::Result.success(targets))
       allow(presenter).to receive(:present_service_targets).and_raise(RuntimeError, 'GITHUB_OUTPUT is not set')
 
       expect { controller.targets(service: 'demo', environments: []) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
     end
 
     it 'does not build the label reader' do
-      allow(list_service_targets).to receive(:execute).and_return(Entities::Result.success(service_targets))
+      allow(list_service_targets).to receive(:execute).and_return(Entities::Result.success(targets))
       controller = described_class.new(get_labels: -> { raise 'label reader built' }, generate_matrix: generate_matrix, list_service_targets: list_service_targets, presenter: presenter)
 
       expect(controller.targets(service: 'demo', environments: [])).to be_success

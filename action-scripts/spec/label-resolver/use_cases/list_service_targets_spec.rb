@@ -9,10 +9,10 @@ RSpec.describe UseCases::LabelResolver::ListServiceTargets do
       { 'id' => 'alb', 'path' => 'alb', 'exclude' => [{ 'service' => 'demo' }] }
     ] }])
   end
-  let(:included) { Entities::TargetCandidate.new(stack: stack_config.stacks[0], service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}) }
-  let(:excluded) { Entities::TargetCandidate.new(stack: stack_config.stacks[1], service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/alb', captures: {}) }
+  let(:included) { Entities::TargetCandidate.new(stack: stack_config.stacks[0], service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {}) }
+  let(:excluded) { Entities::TargetCandidate.new(stack: stack_config.stacks[1], service: 'demo', environment: nil, working_directory: 'demo/alb', captures: {}) }
   let(:unbuildable_stack) { Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [{ 'service' => 'demo' }]) }
-  let(:unbuildable) { Entities::TargetCandidate.new(stack: unbuildable_stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}) }
+  let(:unbuildable) { Entities::TargetCandidate.new(stack: unbuildable_stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {}) }
 
   context 'with a stubbed candidate list' do
     let(:list_candidates) { instance_double(UseCases::Shared::ListCandidates) }
@@ -27,42 +27,37 @@ RSpec.describe UseCases::LabelResolver::ListServiceTargets do
       expect(list_candidates).to have_received(:execute).with(services: ['demo'], environments: ['develop'])
     end
 
-    it 'carries the targets that are not excluded and every candidate with its exclusion and root' do
+    it 'carries the targets that are not excluded' do
       allow(list_candidates).to receive(:execute).and_return(Entities::Result.success([included, excluded]))
 
-      value = use_case.execute(service: 'demo', environments: []).value
-
-      expect(value.targets).to eq([included.to_deployment_target])
-      expect(value.candidates).to eq([included.to_listed_target, excluded.to_listed_target])
-      expect(value.candidates.map(&:excluded?)).to eq([false, true])
+      expect(use_case.execute(service: 'demo', environments: []).value).to eq([included.to_deployment_target])
     end
 
     it 'carries no targets when every candidate is excluded' do
       allow(list_candidates).to receive(:execute).and_return(Entities::Result.success([excluded]))
 
-      value = use_case.execute(service: 'demo', environments: []).value
-
-      expect(value.targets).to eq([])
-      expect(value.candidates).to eq([excluded.to_listed_target])
+      expect(use_case.execute(service: 'demo', environments: []).value).to eq([])
     end
 
-    it 'treats all as every service' do
-      allow(list_candidates).to receive(:execute).and_return(Entities::Result.success([included]))
+    it 'looks up all as a service named all' do
+      allow(list_candidates).to receive(:execute).and_return(Entities::Result.success([]))
 
       result = use_case.execute(service: 'all', environments: [])
 
       expect(result).to be_success
-      expect(list_candidates).to have_received(:execute).with(services: nil, environments: [])
+      expect(list_candidates).to have_received(:execute).with(services: ['all'], environments: [])
     end
 
-    it 'rejects a service name outside [a-zA-Z0-9_-]+ before listing candidates' do
-      allow(list_candidates).to receive(:execute)
+    ['demo/aws', 'a.b', '.hidden', "demo\n"].each do |name|
+      it "rejects the service name #{name.inspect} before listing candidates" do
+        allow(list_candidates).to receive(:execute)
 
-      result = use_case.execute(service: 'demo/aws', environments: [])
+        result = use_case.execute(service: name, environments: [])
 
-      expect(result).to be_failure
-      expect(result.error_message).to eq('Invalid service name: "demo/aws" (use all or a name matching [a-zA-Z0-9_-]+)')
-      expect(list_candidates).not_to have_received(:execute)
+        expect(result).to be_failure
+        expect(result.error_message).to eq("Invalid service name: #{name.inspect} (use a name matching [a-zA-Z0-9_-]+)")
+        expect(list_candidates).not_to have_received(:execute)
+      end
     end
 
     it 'returns the failure of the candidate list as it is' do
@@ -125,25 +120,32 @@ RSpec.describe UseCases::LabelResolver::ListServiceTargets do
     it 'lists the targets of a service apart from the excluded candidates' do
       value = use_case.execute(service: 'demo', environments: ['develop']).value
 
-      expect(value.targets.map(&:to_matrix_item)).to eq([
+      expect(value.map(&:to_matrix_item)).to eq([
         { service: 'demo', environment: nil, stack: 'container', working_directory: 'apps/demo' },
         { service: 'demo', environment: 'develop', stack: 'kustomize', working_directory: 'apps/demo/overlays/develop' }
       ])
-      expect(value.candidates.map { |listed| [listed.target.stack, listed.excluded?, listed.root] }).to contain_exactly(['container', false, 'apps/demo'], ['kustomize', false, 'apps/demo'], ['alb', true, 'apps/demo'])
     end
 
-    it 'lists every service for all' do
-      value = use_case.execute(service: 'all', environments: []).value
+    it 'lists nothing for all when no directory is named all' do
+      result = use_case.execute(service: 'all', environments: [])
 
-      expect(value.targets.map(&:service).uniq).to eq(%w[api demo])
+      expect(result).to be_success
+      expect(result.value).to eq([])
+    end
+
+    it 'lists only the directory named all for all' do
+      FileUtils.mkdir_p(File.join(@root, 'apps/all'))
+
+      expect(use_case.execute(service: 'all', environments: []).value.map(&:to_matrix_item)).to eq([
+        { service: 'all', environment: nil, stack: 'container', working_directory: 'apps/all' }
+      ])
     end
 
     it 'lists nothing for an unknown service' do
       result = use_case.execute(service: 'missing', environments: [])
 
       expect(result).to be_success
-      expect(result.value.targets).to eq([])
-      expect(result.value.candidates).to eq([])
+      expect(result.value).to eq([])
     end
 
     it 'fails for an environment outside the union of declared and discovered environments' do

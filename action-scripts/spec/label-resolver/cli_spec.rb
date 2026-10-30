@@ -131,20 +131,27 @@ RSpec.describe 'LabelResolverCLI' do
         outputs = File.read(output_path).lines.map(&:strip)
         expect(outputs[0]).to eq('targets=[{"service":"demo","environment":null,"stack":"container","working_directory":"apps/demo"},{"service":"demo","environment":"develop","stack":"kustomize","working_directory":"apps/demo/overlays/develop"}]')
         expect(outputs[1]).to eq('has-targets=true')
-        expect(outputs[2]).to start_with('candidates=[{"target":{"service":"demo"')
+        expect(outputs.length).to eq(2)
         expect(stdout).to include('Service: demo')
       end
 
-      it 'resolves every service for all' do
+      it 'writes empty outputs for all when no directory is named all' do
         _stdout, stderr, status = run_resolver('targets', 'all', env: actions_env)
         expect(status.exitstatus).to eq(0), stderr
-        expect(JSON.parse(File.read(output_path)[/^targets=(.*)$/, 1]).map { |item| item['service'] }).to eq(%w[api demo demo])
+        expect(File.read(output_path).lines.map(&:strip)).to eq(['targets=[]', 'has-targets=false'])
+      end
+
+      it 'resolves only the directory named all for all' do
+        FileUtils.mkdir_p(File.join(@root, 'apps/all'))
+        _stdout, stderr, status = run_resolver('targets', 'all', env: actions_env)
+        expect(status.exitstatus).to eq(0), stderr
+        expect(File.read(output_path).lines.map(&:strip)).to eq(['targets=[{"service":"all","environment":null,"stack":"container","working_directory":"apps/all"}]', 'has-targets=true'])
       end
 
       it 'writes empty outputs for an unknown service' do
         _stdout, stderr, status = run_resolver('targets', 'missing', env: actions_env)
         expect(status.exitstatus).to eq(0), stderr
-        expect(File.read(output_path).lines.map(&:strip)).to eq(['targets=[]', 'has-targets=false', 'candidates=[]'])
+        expect(File.read(output_path).lines.map(&:strip)).to eq(['targets=[]', 'has-targets=false'])
       end
 
       it 'exits 1 for an environment outside the union of declared and discovered environments' do
@@ -154,10 +161,14 @@ RSpec.describe 'LabelResolverCLI' do
         expect(File.exist?(output_path)).to be(false)
       end
 
-      it 'exits 1 for a service name outside [a-zA-Z0-9_-]+' do
-        stdout, _stderr, status = run_resolver('targets', 'demo/aws', env: actions_env)
-        expect(status.exitstatus).to eq(1)
-        expect(stdout).to include('::error::', 'demo/aws')
+      ['demo/aws', 'a.b'].each do |name|
+        it "exits 1 for the service name #{name} with a message naming the format" do
+          FileUtils.mkdir_p(File.join(@root, 'apps/a.b'))
+          stdout, _stderr, status = run_resolver('targets', name, env: actions_env)
+          expect(status.exitstatus).to eq(1)
+          expect(stdout).to include("::error::Invalid service name: \"#{name}\" (use a name matching [a-zA-Z0-9_-]+)")
+          expect(File.exist?(output_path)).to be(false)
+        end
       end
 
       it 'exits 1 when targets is called without a service' do

@@ -30,7 +30,7 @@ RSpec.describe UseCases::Shared::ListCandidates do
     FileUtils.mkdir_p(File.join(@root, path))
   end
 
-  def list(services: nil, environments: nil)
+  def list(services:, environments: nil)
     result = use_case.execute(services: services, environments: environments)
     expect(result).to be_success
     result.value
@@ -41,11 +41,6 @@ RSpec.describe UseCases::Shared::ListCandidates do
     expect(list(services: ['demo']).map { |candidate| [candidate.stack.id, candidate.environment, candidate.excluded?] }).to eq([
       ['kustomize', 'develop', false], ['kustomize', 'production', true], ['container', nil, false]
     ])
-  end
-
-  it 'lists every service when services is nil' do
-    %w[dystopia/demo dystopia/api].each { |path| directory(path) }
-    expect(list.map(&:service)).to eq(%w[api demo])
   end
 
   it 'limits candidates to the given services and environments' do

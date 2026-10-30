@@ -1,12 +1,15 @@
 module Entities
   Service = Data.define(:id, :roots, :ignore, :stacks) do
-    def self.hidden_name?(name)
-      name.start_with?('.')
+    def self.name_format
+      '[a-zA-Z0-9_-]+'
     end
 
-    def self.hidden_captures?(captures)
-      service = captures['service']
-      !service.nil? && hidden_name?(service)
+    def self.valid_name?(name)
+      /\A#{name_format}\z/.match?(name)
+    end
+
+    def self.captures_invalid_name?(captures)
+      captures.key?('service') && !valid_name?(captures['service'])
     end
 
     def initialize(**fields)

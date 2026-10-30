@@ -40,7 +40,7 @@ action は `repository` を全履歴つきで自分で checkout するので、j
 
 変更ファイルがいずれかの root の下にあれば、そのサービスにラベルが付きます。dispatcher は Pull Request の base と head を three-dot diff で比較し、すべての変更ファイルをすべての root に対して次の順で評価します。
 
-1. ファイルが root の下にない場合、または `{service}` の取得値がドットで始まる場合はスキップします。
+1. ファイルが root の下にない場合、または `{service}` の取得値が[正しいサービス名](../config-manager/README-ja.md#service-names)でない場合はスキップします。
 2. root からの相対パスが `ignore` のパターンに一致する場合はスキップします。
 3. ファイルが stack のディレクトリ（root に `path` を続けた場所）の下にある場合は、[Label Resolver と同じ方法](../label-resolver/README-ja.md#how-targets-are-built)で候補ターゲットを作ります。`exclude` が候補をすべて除外しない限り、サービスにラベルを付けます。
 4. `modules/` や `Makefile` のようにどの stack のディレクトリの下にもない場合は、サービスにラベルを付けます。こうした共有ファイルに `exclude` は効かないので、スキップするには `ignore` を使います。
@@ -55,7 +55,7 @@ action は `repository` を全履歴つきで自分で checkout するので、j
 - 別の stack のディレクトリの下にあり、その候補がすべて除外されるファイルには、やはりラベルが付きません。
 - `environments` を持つ stack では、`{environment}` の位置にある定義外のディレクトリは stack のディレクトリの外として扱います。
 
-関係のないトップレベルのディレクトリがサービスとみなされないよう、root は十分に絞ります。たとえば `{service}` だけの root では、トップレベルのディレクトリすべてがサービスになります。
+関係のないトップレベルのディレクトリがサービスとみなされないよう、root は十分に絞ります。たとえば `{service}` だけの root では、名前が正しいサービス名であるトップレベルのディレクトリすべてがサービスになります。
 
 共有ファイルの変更で、解決できるターゲットのないサービスにラベルが付くこともあります。唯一の環境が除外されている場合などです。ラベルは付きますが、Label Resolver が返すターゲットは空です。
 
@@ -128,9 +128,9 @@ labels:
 
 prefix は区切り文字を含めてそのまま使われるので、`:` で終わる prefix は YAML で引用符を付けます。prefix は空でない文字列でなければなりません。ある prefix が別の prefix で始まることは許されません。Label Dispatcher が重なった prefix のラベルまで外してしまうためです。
 
-`<prefix>all` は Label Resolver で全サービスを対象にします。dispatcher がこれを作るのは `{service}` の位置に `all` というディレクトリがある場合だけなので、普通は手で付けます。ただし `prefix` のラベルを手で付けても次の push で外れます。`extra_prefixes` で始まるラベルには一切触らないので、`manual/all` や `manual/api` は以後の push でも残ります。
+`prefix` のラベルを手で付けても次の push で外れます。`extra_prefixes` で始まるラベルには一切触らないので、`manual/api` は以後の push でも残ります。
 
-`{service}` の位置のディレクトリには名前を問わずラベルが付きますが、Label Resolver は `[a-zA-Z0-9_-]+` に一致する名前[だけを読みます](../label-resolver/README-ja.md#from-labels-to-targets)。そのため `a.b` のようなディレクトリには、何にも解決されないラベルが付きます。
+ラベルが付くのは[正しいサービス名](../config-manager/README-ja.md#service-names)だけです。`a.b` のようなディレクトリはサービスではないので、その下を変更してもラベルは付きません。`all` というディレクトリは普通のサービスで `<prefix>all` が付き、[Label Resolver はそれを](../label-resolver/README-ja.md#from-labels-to-targets)その 1 つのサービスとして読みます。
 
 ## Commands
 

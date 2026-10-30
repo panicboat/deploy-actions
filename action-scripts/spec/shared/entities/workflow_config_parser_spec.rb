@@ -466,11 +466,29 @@ RSpec.describe Entities::WorkflowConfigParser do
     end
   end
 
-  [nil, 1, [], '', 'a/b', '.', '..', '.hidden'].each do |value|
+  [nil, 1, [], '', 'a/b', '.', '..', '.hidden', 'a.b', 'a b', "demo\n"].each do |value|
     it "rejects invalid service conditions #{value.inspect}" do
       stack['exclude'] = [{ 'service' => value }]
       expect { config }.to raise_error(ArgumentError, /services\[0\]\.stacks\[0\]\.exclude\[0\]\.service/)
     end
+  end
+
+  it 'names the service name format for a service condition that fails it' do
+    stack['exclude'] = [{ 'service' => 'a.b' }]
+    expect { config }.to raise_error(ArgumentError, 'Configuration validation failed: services[0].stacks[0].exclude[0].service: service must match [a-zA-Z0-9_-]+')
+  end
+
+  %w[demo all my_service Demo-1].each do |value|
+    it "accepts the service condition #{value}" do
+      stack['exclude'] = [{ 'service' => value }]
+      expect { config }.not_to raise_error
+    end
+  end
+
+  it 'keeps dotted values for other placeholder conditions' do
+    service['roots'] = ['teams/{team}/{service}']
+    stack['exclude'] = [{ 'team' => 'a.b' }]
+    expect { config }.not_to raise_error
   end
 
   [nil, 'preview', 1].each do |value|

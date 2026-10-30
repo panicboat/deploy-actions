@@ -29,7 +29,7 @@ services:
           type: kustomize
 ```
 
-サービスは `roots` の下にあるファイルを持ち、`{service}` の位置のディレクトリ名がサービス名になります。stack はサービスの中のデプロイ元ディレクトリです。この設定では、`apps/api/src/main.rb` を変更すると Pull Request に `deploy:api` が付き、`apps/api/kubernetes/overlays/develop` ディレクトリがあれば次のターゲットが作られます。
+サービスは `roots` の下にあるファイルを持ち、`{service}` の位置のディレクトリ名がサービス名になります。[サービス名](action-scripts/config-manager/README-ja.md#service-names)に使えるのは ASCII の英字、数字、`_`、`-` だけで、`a.b` や `.github` のようにそれ以外の文字を含むディレクトリはサービスではありません。stack はサービスの中のデプロイ元ディレクトリです。この設定では、`apps/api/src/main.rb` を変更すると Pull Request に `deploy:api` が付き、`apps/api/kubernetes/overlays/develop` ディレクトリがあれば次のターゲットが作られます。
 
 ```json
 {

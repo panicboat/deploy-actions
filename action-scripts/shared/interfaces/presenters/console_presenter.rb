@@ -11,8 +11,8 @@ module Interfaces
         print_lines(TextFormat.deployment_matrix(deployment_targets: deployment_targets, deploy_labels: deploy_labels, target_environments: target_environments, pr_number: pr_number), heading_color: :green)
       end
 
-      def present_service_targets(service:, target_environments:, targets:, candidates:)
-        print_lines(TextFormat.service_targets(service: service, target_environments: target_environments, targets: targets, candidates: candidates), heading_color: :green)
+      def present_service_targets(service:, target_environments:, targets:)
+        print_lines(TextFormat.service_targets(service: service, target_environments: target_environments, targets: targets), heading_color: :green)
       end
 
       def present_config_validation_result(valid:, errors: [], summary: nil)
