@@ -80,6 +80,10 @@ runs:
           echo "Service: $SERVICE"
           bundle exec ruby label-resolver/bin/resolver targets "$SERVICE" "$ENVIRONMENTS"
         else
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error::Set service or pr-number"
+            exit 1
+          fi
           echo "PR: $PR_NUMBER"
           bundle exec ruby label-resolver/bin/resolver resolve "$PR_NUMBER" "$ENVIRONMENTS"
         fi
@@ -98,6 +102,7 @@ runs:
       env:
         REPOSITORY: ${{ inputs.repository }}
         PR_NUMBER: ${{ inputs.pr-number }}
+        SERVICE: ${{ inputs.service }}
         TARGET_ENVIRONMENTS: ${{ inputs.environments }}
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
         HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
@@ -105,7 +110,7 @@ runs:
         script: |
           core.info('📊 Label Resolver completed');
           core.info(`Repository: ${process.env.REPOSITORY}`);
-          core.info(`PR Number: ${process.env.PR_NUMBER}`);
+          core.info(process.env.SERVICE ? `Service: ${process.env.SERVICE}` : `PR Number: ${process.env.PR_NUMBER}`);
           core.info(`Target Environments: ${process.env.TARGET_ENVIRONMENTS || 'all'}`);
           core.info(`Deployment Targets: ${process.env.DEPLOYMENT_TARGETS || '[]'}`);
           core.info(`Has Targets: ${process.env.HAS_TARGETS || 'false'}`);
