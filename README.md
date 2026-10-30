@@ -462,10 +462,12 @@ bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref
 bundle exec ruby config-manager/bin/config-manager test api develop
 ```
 
-- Without refs, `dispatcher test` uses staged and unstaged changes. With refs, it stops with an error when a ref does not exist, without falling back to working-tree changes.
+- Without refs, `dispatcher test` uses staged and unstaged changes.
+- With `--base-ref` and `--head-ref`, it diffs the two refs; with `--base-ref` alone, it diffs the base ref against the working tree; `--head-ref` alone is an error.
+- With refs, it stops with an error when a ref does not exist, without falling back to working-tree changes.
 - `dispatch` always syncs the labels of the PR, and `dispatch` and `resolve` need `GITHUB_TOKEN` and `GITHUB_REPOSITORY`.
-- The repository root is `SOURCE_REPO_PATH` when it holds `.git`; otherwise it is the nearest ancestor of the current directory that holds `.git`.
-- `WORKFLOW_CONFIG_PATH` selects the configuration file and defaults to `workflow-config.yaml`.
+- The repository root is `SOURCE_REPO_PATH` when it holds `.git`; otherwise the search starts at the current directory itself and returns the nearest directory that holds `.git`.
+- `WORKFLOW_CONFIG_PATH` selects the configuration file, relative to the current directory, and defaults to `workflow-config.yaml`.
 
 ## License
 

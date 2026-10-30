@@ -84,15 +84,19 @@ The Label Dispatcher follows a clean architecture pattern:
 ### Infrastructure
 
 - `GitHubClient`: GitHub API interactions
-- `FileSystemClient`: Git operations and file analysis
+- `GitClient`: Lists the changed files with `git diff --name-only`
 - `ConfigClient`: Configuration management
+- `RepositoryRoot`: Locates the repository root that `git diff` runs in
+- `Composition`: Builds the clients and the presenter from the environment variables
 
-## Required Environment Variables
+## Environment Variables
 
-- `GITHUB_TOKEN`: Required for GitHub API access
-- `GITHUB_REPOSITORY`: Repository name (owner/repo format)
+- `SOURCE_REPO_PATH`: Repository root, used when it holds `.git`; otherwise the root is the current directory or its nearest ancestor that holds `.git`
+- `WORKFLOW_CONFIG_PATH`: Path to the configuration file, relative to the current directory (defaults to `workflow-config.yaml`)
+- `GITHUB_TOKEN`: GitHub API token, required by `dispatch`
+- `GITHUB_REPOSITORY`: Repository name in owner/repo format, required by `dispatch`
 - `GITHUB_ACTIONS`: Enables GitHub Actions output format
-- `WORKFLOW_CONFIG_PATH`: Path to configuration file (optional, defaults to workflow-config.yaml)
+- `GITHUB_OUTPUT`: Step output file, required in GitHub Actions
 
 ## Detection Results
 
@@ -103,7 +107,7 @@ Detection results include labels, changed files, and affected services. GitHub A
 The dispatcher provides comprehensive error handling:
 
 - **API Failures**: Retries with exponential backoff
-- **Git Operations**: Handles missing refs gracefully
+- **Git Operations**: Stops with an error when a ref is missing or invalid; `--head-ref` requires `--base-ref`
 - **Configuration Issues**: Provides detailed error messages
 - **Permission Errors**: Clear guidance for token permissions
 
@@ -154,6 +158,5 @@ The prefix is configurable; see the root [Labels](../../README.md#labels) sectio
 
 - **Change Validation**: Ensures only relevant changes trigger deployments
 - **Configuration Validation**: Validates configuration before processing
-- **Permission Checks**: Verifies GitHub token permissions
 - **Exclusion Respect**: Apply exclusion conditions to each match
 - **Audit Trail**: Logs all label operations for troubleshooting

@@ -84,15 +84,19 @@ Label Dispatcherはクリーンアーキテクチャパターンに従います�
 ### インフラストラクチャ
 
 - `GitHubClient`: GitHub APIとのやり取り
-- `FileSystemClient`: Git操作とファイル分析
+- `GitClient`: `git diff --name-only` で変更ファイルを列挙
 - `ConfigClient`: 設定管理
+- `RepositoryRoot`: `git diff` を実行するリポジトリのルートを特定
+- `Composition`: 環境変数からクライアントとプレゼンターを組み立てる
 
 ## 実行環境の設定
 
-- `GITHUB_TOKEN`: GitHub API アクセスに必要
-- `GITHUB_REPOSITORY`: リポジトリ名（owner/repo 形式）
+- `SOURCE_REPO_PATH`: リポジトリのルート。`.git` を持つ場合に使い、それ以外は現在のディレクトリ自身または `.git` を持つ最も近い祖先をルートにする
+- `WORKFLOW_CONFIG_PATH`: 設定ファイルのパス。現在のディレクトリからの相対パスで、既定は `workflow-config.yaml`
+- `GITHUB_TOKEN`: GitHub API のトークン。`dispatch` で必須
+- `GITHUB_REPOSITORY`: リポジトリ名（owner/repo 形式）。`dispatch` で必須
 - `GITHUB_ACTIONS`: GitHub Actions 出力フォーマットを有効化
-- `WORKFLOW_CONFIG_PATH`: 設定ファイルのパス（オプション、デフォルトは workflow-config.yaml）
+- `GITHUB_OUTPUT`: ステップ出力のファイル。GitHub Actions で必須
 
 ## 検出結果
 
@@ -103,7 +107,7 @@ Label Dispatcherはクリーンアーキテクチャパターンに従います�
 ディスパッチャーは包括的なエラーハンドリングを提供します：
 
 - **API障害**: 指数バックオフで再試行
-- **Git操作**: 不足しているリファレンスを適切に処理
+- **Git操作**: リファレンスが存在しないか不正な場合はエラーで止まる。`--head-ref` には `--base-ref` が必要
 - **設定問題**: 詳細なエラーメッセージを提供
 - **権限エラー**: トークン権限の明確なガイダンス
 
@@ -154,6 +158,5 @@ prefix は設定で変更できます。ルートの [Labels](../../README-ja.md
 
 - **変更検証**: 関連する変更のみがデプロイをトリガーすることを確保
 - **設定検証**: 処理前の設定検証
-- **権限チェック**: GitHubトークンの権限を確認
 - **除外条件の適用**: 各照合の除外条件を適用
 - **監査証跡**: トラブルシューティング用のすべてのラベル操作をログ記録

@@ -462,10 +462,12 @@ bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref
 bundle exec ruby config-manager/bin/config-manager test api develop
 ```
 
-- ref を指定しない `dispatcher test` は、ステージ済みと未ステージの変更を使います。ref を指定して存在しない場合は、作業ツリーの変更に切り替えずにエラーで止まります。
+- ref を指定しない `dispatcher test` は、ステージ済みと未ステージの変更を使います。
+- `--base-ref` と `--head-ref` を指定すると 2 つの ref の差分を使います。`--base-ref` だけを指定すると base の ref と作業ツリーの差分を使います。`--head-ref` だけの指定はエラーです。
+- ref を指定して存在しない場合は、作業ツリーの変更に切り替えずにエラーで止まります。
 - `dispatch` は常に PR のラベルを同期します。`dispatch` と `resolve` には `GITHUB_TOKEN` と `GITHUB_REPOSITORY` が必要です。
-- リポジトリのルートは、`SOURCE_REPO_PATH` が `.git` を持つ場合はそのパス、それ以外は現在のディレクトリから最も近い `.git` を持つ祖先です。
-- `WORKFLOW_CONFIG_PATH` で設定ファイルを選びます。既定は `workflow-config.yaml` です。
+- リポジトリのルートは、`SOURCE_REPO_PATH` が `.git` を持つ場合はそのパスです。それ以外は現在のディレクトリ自身から探し始め、`.git` を持つ最も近いディレクトリです。
+- `WORKFLOW_CONFIG_PATH` で設定ファイルを選びます。現在のディレクトリからの相対パスで、既定は `workflow-config.yaml` です。
 
 ## ライセンス
 
