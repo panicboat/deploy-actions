@@ -49,7 +49,17 @@ RSpec.describe UseCases::Shared::EnumerateTargets do
   end
 
   it 'skips hidden services' do
-    allow(scanner).to receive(:resolve).and_return([{ working_directory: 'dystopia/.hidden', captures: { 'service' => '.hidden' } }])
+    directory('dystopia/.hidden/overlays/develop')
     expect(enumerate).to eq([])
+  end
+
+  it 'enumerates targets next to an unreadable hidden service' do
+    directory('dystopia/demo/overlays/develop')
+    directory('dystopia/.cache/overlays/develop')
+    path = File.join(@root, 'dystopia/.cache')
+    File.chmod(0, path)
+    expect(enumerate.map(&:working_directory)).to eq(['dystopia/demo/overlays/develop', 'dystopia/demo'])
+  ensure
+    File.chmod(0o755, path) if path
   end
 end

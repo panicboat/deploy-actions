@@ -273,7 +273,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   it 'returns failures without partial targets for enumeration errors' do
     directory('dystopia/demo/aws/develop')
     allow(directory_scanner).to receive(:resolve).and_call_original
-    allow(directory_scanner).to receive(:resolve).with(pattern: 'system-components/{service}/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }).and_raise(Errno::EACCES)
+    allow(directory_scanner).to receive(:resolve).with(pattern: 'system-components/{service}/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }, skip: Entities::Service.method(:hidden_captures?)).and_raise(Errno::EACCES)
     result = generate
     expect(result).to be_failure
     expect(result.error_message).to include('Permission denied')

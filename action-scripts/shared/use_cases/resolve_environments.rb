@@ -19,9 +19,8 @@ module UseCases
       def discovered_environment_names(config)
         config.stacks.select(&:discovers_environments?).flat_map do |stack|
           stack.paths.flat_map do |pattern|
-            @directory_scanner.resolve(pattern: pattern, values: {}).filter_map do |match|
-              captures = match.fetch(:captures)
-              captures.fetch('environment') unless Entities::Service.hidden_name?(captures.fetch('service'))
+            @directory_scanner.resolve(pattern: pattern, values: {}, skip: Entities::Service.method(:hidden_captures?)).map do |match|
+              match.fetch(:captures).fetch('environment')
             end
           end
         end

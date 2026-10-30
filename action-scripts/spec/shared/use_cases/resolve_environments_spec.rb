@@ -73,9 +73,20 @@ RSpec.describe UseCases::Shared::ResolveEnvironments do
 
   it 'ignores environments found only under hidden services' do
     hidden = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'kustomize', 'path' => 'overlays/{environment}' }] }])
-    allow(scanner).to receive(:resolve).and_return([{ working_directory: 'dystopia/.hidden/overlays/qa', captures: { 'service' => '.hidden', 'environment' => 'qa' } }])
+    directory('dystopia/.hidden/overlays/qa')
     expect(resolve(nil, with: hidden).value).not_to include('qa')
     expect(resolve(['qa'], with: hidden)).to be_failure
+  end
+
+  it 'resolves environments next to an unreadable hidden service' do
+    discovered = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'kustomize', 'path' => 'overlays/{environment}' }] }])
+    directory('dystopia/demo/overlays/develop')
+    directory('dystopia/.cache/overlays/qa')
+    path = File.join(@root, 'dystopia/.cache')
+    File.chmod(0, path)
+    expect(resolve(nil, with: discovered).value).to eq(['develop'])
+  ensure
+    File.chmod(0o755, path) if path
   end
 
   it 'returns no environments when inferred directories are absent' do

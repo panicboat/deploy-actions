@@ -63,4 +63,18 @@ RSpec.describe Entities::Service do
       expect(described_class.hidden_name?('demo.v2')).to be(false)
     end
   end
+
+  describe '.hidden_captures?' do
+    it 'treats captures with a hidden service as hidden' do
+      expect(described_class.hidden_captures?('team' => 'platform', 'service' => '.hidden')).to be(true)
+    end
+
+    it 'treats captures with a visible service as visible' do
+      expect(described_class.hidden_captures?('team' => '.platform', 'service' => 'demo')).to be(false)
+    end
+
+    it 'treats captures without a service as visible' do
+      expect(described_class.hidden_captures?('team' => '.platform')).to be(false)
+    end
+  end
 end

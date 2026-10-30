@@ -14,11 +14,9 @@ module UseCases
               values = { 'environment' => environment }
               values['service'] = service if service
               stack.paths.each do |pattern|
-                @directory_scanner.resolve(pattern: pattern, values: values).each do |match|
+                @directory_scanner.resolve(pattern: pattern, values: values, skip: Entities::Service.method(:hidden_captures?)).each do |match|
                   captures = match.fetch(:captures)
-                  name = captures.fetch('service')
-                  next if Entities::Service.hidden_name?(name)
-                  candidates.add(stack: stack, service: name, environment: environment, working_directory: match.fetch(:working_directory), captures: captures)
+                  candidates.add(stack: stack, service: captures.fetch('service'), environment: environment, working_directory: match.fetch(:working_directory), captures: captures)
                 end
               end
             end

@@ -70,11 +70,26 @@ RSpec.describe Infrastructure::DirectoryScanner do
     ])
   end
 
-  it 'returns dot-prefixed services' do
+  it 'returns dot-prefixed services when no skip is given' do
     directory('teams/platform/.hidden/aws')
     expect(scanner.resolve(pattern: 'teams/{team}/{service}/aws')).to eq([
       { working_directory: 'teams/platform/.hidden/aws', captures: { 'team' => 'platform', 'service' => '.hidden' } }
     ])
+  end
+
+  it 'does not traverse candidates pruned by skip' do
+    directory('teams/platform/.hidden/aws')
+    directory('teams/platform/demo/aws')
+    path = File.join(@root, 'teams/platform/.hidden')
+    File.chmod(0, path)
+    seen = []
+    prune = ->(captures) { seen << captures; captures['service'] == '.hidden' }
+    expect(scanner.resolve(pattern: 'teams/{team}/{service}/aws', skip: prune)).to eq([
+      { working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform', 'service' => 'demo' } }
+    ])
+    expect(seen).to include({ 'team' => 'platform' }, { 'team' => 'platform', 'service' => '.hidden' })
+  ensure
+    File.chmod(0o755, path) if path
   end
 
   it 'does not traverse repeated-placeholder mismatches or unselected services' do

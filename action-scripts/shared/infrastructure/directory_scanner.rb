@@ -4,7 +4,7 @@ module Infrastructure
       @repository_root = repository_root
     end
 
-    def resolve(pattern:, values: {})
+    def resolve(pattern:, values: {}, skip: nil)
       candidates = [{ working_directory: '', captures: {} }]
       parts = pattern.split('/')
       parts.each_index do |index|
@@ -14,6 +14,7 @@ module Infrastructure
             path = [parent.fetch(:working_directory), name].reject(&:empty?).join('/')
             captures = Entities::PatternMatcher.extract(prefix, path)
             next unless captures && captures.all? { |key, value| !values.key?(key) || value == values[key] }
+            next if skip&.call(captures)
             next unless directory_exists?(File.join(@repository_root, path))
             { working_directory: path, captures: captures }
           end

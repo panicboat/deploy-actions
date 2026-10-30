@@ -4,6 +4,11 @@ module Entities
       name.start_with?('.')
     end
 
+    def self.hidden_captures?(captures)
+      service = captures['service']
+      !service.nil? && hidden_name?(service)
+    end
+
     def initialize(**fields)
       super(**Ractor.make_shareable(fields, copy: true))
     end
