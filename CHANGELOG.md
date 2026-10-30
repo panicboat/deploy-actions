@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/panicboat/deploy-actions/compare/v3.0.0...v3.1.0) (2026-10-30)
+
+
+### Features
+
+* resolve targets by service name ([#376](https://github.com/panicboat/deploy-actions/issues/376)) ([0bfd11d](https://github.com/panicboat/deploy-actions/commit/0bfd11d6c4b01426811bc9bb9010080177cab331))
+
 ## [3.0.0](https://github.com/panicboat/deploy-actions/compare/v2.1.0...v3.0.0) (2026-10-30)
 
 
