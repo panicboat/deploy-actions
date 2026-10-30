@@ -1,6 +1,6 @@
 module UseCases
   module ConfigManagement
-    Validation = Data.define(:config, :summary)
+    Validation = Data.define(:summary)
 
     class ValidateConfig
       def initialize(config_client:)
@@ -15,7 +15,7 @@ module UseCases
           "stacks: #{config.stacks.length} configured",
           "environments: #{config.declared_environment_names.length} configured"
         ].join("\n")
-        Entities::Result.success(Validation.new(config: config, summary: summary))
+        Entities::Result.success(Validation.new(summary: summary))
       rescue StandardError => error
         Entities::Result.failure(error.message)
       end

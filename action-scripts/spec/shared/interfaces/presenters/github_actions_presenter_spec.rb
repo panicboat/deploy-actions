@@ -78,6 +78,22 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
     expect(File.read(@output_path)).to eq('')
   end
 
+  it 'annotates each validation error after the shared text' do
+    expect { presenter.present_config_validation_result(valid: false, errors: ['first', 'second']) }.to output("❌ Configuration validation failed\n  - first\n  - second\n::error::first\n::error::second\n").to_stdout
+  end
+
+  it 'prints the shared text of a valid configuration without annotations' do
+    expect { presenter.present_config_validation_result(valid: true, summary: 'ok') }.to output("✅ Configuration is valid\nSummary:\nok\n").to_stdout
+  end
+
+  it 'accepts only the validation fields' do
+    expect(described_class.instance_method(:present_config_validation_result).parameters.map(&:last)).to eq(%i[valid errors summary])
+  end
+
+  it 'does not present service discovery results' do
+    expect(presenter).not_to respond_to(:present_service_discovery_result)
+  end
+
   it 'shows complete diagnostic targets and their exclusion status' do
     stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws', 'attributes' => { 'token' => nil }, 'exclude' => [{ 'team' => 'platform' }] }] }]).stacks.first
     candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' })

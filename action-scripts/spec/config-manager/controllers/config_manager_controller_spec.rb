@@ -9,14 +9,14 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
 
   describe '#validate' do
     it 'presents the summary of a valid configuration and returns the success Result' do
-      validation = UseCases::ConfigManagement::Validation.new(config: build(:workflow_config), summary: 'Configuration validation successful')
+      validation = UseCases::ConfigManagement::Validation.new(summary: 'Configuration validation successful')
       allow(validate_config).to receive(:execute).and_return(Entities::Result.success(validation))
 
       result = controller.validate
 
       expect(result).to be_success
       expect(result.value).to eq(validation)
-      expect(presenter).to have_received(:present_config_validation_result).with(valid: true, config: validation.config, summary: 'Configuration validation successful')
+      expect(presenter).to have_received(:present_config_validation_result).with(valid: true, summary: 'Configuration validation successful')
     end
 
     it 'presents the errors of an invalid configuration and returns the failure Result' do

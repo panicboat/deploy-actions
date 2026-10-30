@@ -18,16 +18,14 @@ module Interfaces
         lines
       end
 
-      def deployment_matrix(deployment_targets:, deploy_labels:, target_environment: nil, target_environments: nil, merged_pr_number: nil, pr_number: nil)
+      def deployment_matrix(deployment_targets:, deploy_labels:, target_environments: nil, pr_number: nil)
         lines = ['🚀 Deployment Matrix']
         if target_environments && target_environments.length > 1
           lines << "Target Environments: #{target_environments.join(', ')}"
-        elsif target_environment
-          lines << "Target Environment: #{target_environment}"
         elsif target_environments && target_environments.length == 1
           lines << "Target Environment: #{target_environments.first}"
         end
-        lines << "PR Number: ##{merged_pr_number || pr_number}" if merged_pr_number || pr_number
+        lines << "PR Number: ##{pr_number}" if pr_number
         lines << ''
         lines << "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
         lines << "Deployment Targets: #{deployment_targets.length}"
@@ -39,6 +37,14 @@ module Interfaces
           end
         end
         lines << ''
+      end
+
+      def config_validation(valid:, errors:, summary:)
+        return ['❌ Configuration validation failed', *errors.map { |error| "  - #{error}" }] unless valid
+
+        lines = ['✅ Configuration is valid']
+        lines.push('Summary:', summary) if summary
+        lines
       end
 
       def service_test_result(service_name:, candidates:)

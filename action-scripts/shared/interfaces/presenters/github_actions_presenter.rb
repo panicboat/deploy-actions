@@ -30,21 +30,9 @@ module Interfaces
       end
 
       # Present configuration validation results for GitHub Actions
-      def present_config_validation_result(valid:, errors: [], config: nil, summary: nil)
-        if valid
-          puts "✅ Configuration is valid"
-          if summary
-            puts "Summary:"
-            if summary.is_a?(String)
-              puts summary
-            else
-              summary.each { |key, value| puts "  #{key}: #{value}" }
-            end
-          end
-        else
-          puts "❌ Configuration validation failed"
-          errors.each { |error| puts "  - #{error}" }
-        end
+      def present_config_validation_result(valid:, errors: [], summary: nil)
+        puts TextFormat.config_validation(valid: valid, errors: errors, summary: summary)
+        errors.each { |error| puts "::error::#{error}" } unless valid
       end
 
       def present_service_test_result(service_name:, candidates:)
@@ -54,13 +42,6 @@ module Interfaces
       # Present error results for GitHub Actions
       def present_error(message)
         puts "::error::#{message}"
-      end
-
-      # Present service discovery results
-      def present_service_discovery_result(discovered_services:, method:)
-        puts "🔍 Service Discovery Results"
-        puts "Discovery Method: #{method}"
-        puts "Discovered Services: #{discovered_services.join(', ')}"
       end
 
       private

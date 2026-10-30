@@ -1,6 +1,5 @@
 module Entities
   Stack = Data.define(:id, :service_id, :path, :paths, :attributes, :environments, :exclude) do
-    # Copying all fields in one call keeps a value shared by attributes and environments as one object, which to_yaml prints as an anchor.
     def initialize(**fields)
       super(**Ractor.make_shareable(fields, copy: true))
     end

@@ -12,7 +12,7 @@ module Interfaces
       def validate
         result = @validate_config.execute
         if result.success?
-          @presenter.present_config_validation_result(valid: true, config: result.value.config, summary: result.value.summary)
+          @presenter.present_config_validation_result(valid: true, summary: result.value.summary)
         else
           @presenter.present_config_validation_result(valid: false, errors: [result.error_message])
         end

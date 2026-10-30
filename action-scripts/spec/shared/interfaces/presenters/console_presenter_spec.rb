@@ -36,6 +36,19 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
     expect(described_class.instance_method(:present_deployment_matrix).parameters.map(&:last)).to eq(%i[deployment_targets deploy_labels target_environments pr_number])
   end
 
+  it 'colors the validation heading by the result' do
+    expect { described_class.new.present_config_validation_result(valid: true, summary: 'ok') }.to output("#{'✅ Configuration is valid'.colorize(:green)}\nSummary:\nok\n").to_stdout
+    expect { described_class.new.present_config_validation_result(valid: false, errors: ['boom']) }.to output("#{'❌ Configuration validation failed'.colorize(:red)}\n  - boom\n").to_stdout
+  end
+
+  it 'accepts only the validation fields' do
+    expect(described_class.instance_method(:present_config_validation_result).parameters.map(&:last)).to eq(%i[valid errors summary])
+  end
+
+  it 'does not present service discovery results' do
+    expect(described_class.new).not_to respond_to(:present_service_discovery_result)
+  end
+
   it 'shows complete diagnostic targets and their exclusion status' do
     stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws', 'attributes' => { 'token' => nil }, 'exclude' => [{ 'team' => 'platform' }] }] }]).stacks.first
     candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' })

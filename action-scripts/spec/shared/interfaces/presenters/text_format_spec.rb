@@ -26,8 +26,23 @@ RSpec.describe Interfaces::Presenters::TextFormat do
     end
 
     it 'names a single target environment' do
-      expect(described_class.deployment_matrix(deployment_targets: [], deploy_labels: [], target_environment: 'develop')).to include('Target Environment: develop')
       expect(described_class.deployment_matrix(deployment_targets: [], deploy_labels: [], target_environments: ['develop'])).to include('Target Environment: develop')
+    end
+
+    it 'accepts only the matrix fields' do
+      expect(described_class.method(:deployment_matrix).parameters.map(&:last)).to eq(%i[deployment_targets deploy_labels target_environments pr_number])
+    end
+  end
+
+  describe '.config_validation' do
+    it 'shows the summary of a valid configuration' do
+      lines = described_class.config_validation(valid: true, errors: [], summary: "Configuration validation successful\nservices: 1 configured")
+      expect(lines).to eq(['✅ Configuration is valid', 'Summary:', "Configuration validation successful\nservices: 1 configured"])
+    end
+
+    it 'lists the errors of an invalid configuration' do
+      lines = described_class.config_validation(valid: false, errors: ['first', 'second'], summary: nil)
+      expect(lines).to eq(['❌ Configuration validation failed', '  - first', '  - second'])
     end
   end
 

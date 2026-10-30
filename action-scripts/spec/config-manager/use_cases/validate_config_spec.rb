@@ -14,7 +14,6 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
     result = use_case.execute
     expect(result).to be_success
     expect(result.value).to be_a(UseCases::ConfigManagement::Validation)
-    expect(result.value.config).to be_a(Entities::WorkflowConfig)
     expect(result.value.summary.lines.map(&:chomp)).to include('services: 1 configured', 'stacks: 2 configured', 'environments: 2 configured')
   end
 
@@ -44,7 +43,11 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
     client = Infrastructure::ConfigClient.new(config_path: File.expand_path('../../../workflow-config.yaml', __dir__))
     result = described_class.new(config_client: client).execute
     expect(result).to be_success
-    expect(result.value.config.stacks.map(&:id)).to include('aws', 'dockerfile', 'kustomize')
+    expect(result.value.summary).to start_with('Configuration validation successful')
+  end
+
+  it 'carries only the summary' do
+    expect(UseCases::ConfigManagement::Validation.members).to eq([:summary])
   end
 
   it 'returns a failed result for missing files' do
