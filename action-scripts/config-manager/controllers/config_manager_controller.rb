@@ -55,25 +55,25 @@ module Interfaces
         end
         candidates = {}
         config.stacks.each do |stack|
-          environments = if stack.key?('environments')
-            stack['environments'].keys
-          elsif stack['common']
+          environments = if stack.declares_environments?
+            stack.environments.keys
+          elsif stack.common?
             [nil]
           else
             available
           end
-          environments &= [environment] if environment && !stack['common']
+          environments &= [environment] if environment && !stack.common?
           environments.each do |selected|
             values = { 'service' => service_name, 'environment' => selected }
-            stack['paths'].each do |pattern|
+            stack.paths.each do |pattern|
               @file_client.resolve_directories(pattern: pattern, values: values).each do |match|
                 captures = match.fetch(:captures)
-                next if captures.fetch('service').start_with?('.')
+                next if Entities::Service.hidden_name?(captures.fetch('service'))
                 directory = match.fetch(:working_directory)
                 custom = captures.reject { |key, _| %w[service environment].include?(key) }
-                identity = [service_name, stack['id'], selected, directory]
+                identity = [service_name, stack.id, selected, directory]
                 if candidates.key?(identity) && candidates[identity][:captures] != custom
-                  raise "Conflicting captures for stack '#{stack['id']}' at '#{directory}'"
+                  raise "Conflicting captures for stack '#{stack.id}' at '#{directory}'"
                 end
                 candidates[identity] = { stack: stack, environment: selected, working_directory: directory, captures: custom }
               end
@@ -84,9 +84,9 @@ module Interfaces
           stack = candidate.fetch(:stack)
           selected = candidate.fetch(:environment)
           captures = candidate.fetch(:captures)
-          attributes = config.target_attributes(stack, selected)
-          target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack['id'], working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
-          { target: target, excluded: config.excluded?(stack, captures.merge('service' => service_name, 'environment' => selected)) }
+          attributes = stack.target_attributes(selected)
+          target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack.id, working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
+          { target: target, excluded: stack.excluded?(captures.merge('service' => service_name, 'environment' => selected)) }
         end
         @presenter.present_service_test_result(service_name: service_name, matches: matches)
       rescue => error

@@ -4,7 +4,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   let(:stack) { { 'id' => 'terragrunt', 'path' => 'aws/{environment}', 'environments' => { 'develop' => {}, 'production' => {} }, 'exclude' => [{ 'team' => 'platform', 'service' => 'demo', 'environment' => 'production' }] } }
   let(:service) { { 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [stack] } }
   let(:config_hash) { { 'services' => [service] } }
-  let(:config) { Entities::WorkflowConfig.new(config_hash) }
+  let(:config) { Entities::WorkflowConfigParser.parse(config_hash) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
   let(:changed_files) { ['teams/platform/demo/aws/production/main.tf'] }
   let(:file_client) { instance_double(Infrastructure::FileSystemClient, get_changed_files: changed_files) }
@@ -105,7 +105,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     stack['path'] = 'aws'
     expect(services).to eq(['demo'])
     stack['exclude'] = [{ 'environment' => 'develop' }, { 'environment' => 'production' }]
-    allow(config_client).to receive(:load_workflow_config).and_return(Entities::WorkflowConfig.new(config_hash))
+    allow(config_client).to receive(:load_workflow_config).and_return(Entities::WorkflowConfigParser.parse(config_hash))
     expect(services).to eq([])
   end
 

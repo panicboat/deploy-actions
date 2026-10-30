@@ -27,7 +27,7 @@ RSpec.describe UseCases::LabelResolver::DetermineTargetEnvironment do
   end
 
   it 'selects no environment for a common-only configuration' do
-    config = Entities::WorkflowConfig.new('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.' }] }])
+    config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.' }] }])
     allow(client).to receive(:load_workflow_config).and_return(config)
     expect(use_case.execute(target_environments: nil).value).to eq([])
   end
@@ -38,7 +38,7 @@ RSpec.describe UseCases::LabelResolver::DetermineTargetEnvironment do
       FileUtils.mkdir_p(File.join(root, '.git'))
       FileUtils.mkdir_p(File.join(root, 'apps/demo/preview'))
       ENV['SOURCE_REPO_PATH'] = root
-      discovered = Entities::WorkflowConfig.new('services' => [
+      discovered = Entities::WorkflowConfigParser.parse('services' => [
         { 'id' => 'plain', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws', 'environments' => { 'production' => {} } }] },
         { 'id' => 'apps', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }
       ])

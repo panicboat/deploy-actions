@@ -81,7 +81,7 @@ FactoryBot.define do
       }
     end
 
-    initialize_with { new(config_hash) }
+    initialize_with { Entities::WorkflowConfigParser.parse(config_hash) }
 
     trait :with_target_exclusions do
       config_hash do

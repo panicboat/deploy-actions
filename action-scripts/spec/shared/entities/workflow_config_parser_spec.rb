@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-RSpec.describe Entities::WorkflowConfig do
+RSpec.describe Entities::WorkflowConfigParser do
   let(:stack) do
     {
       'id' => 'aws',
@@ -10,34 +10,34 @@ RSpec.describe Entities::WorkflowConfig do
   end
   let(:service) { { 'id' => 'app', 'roots' => ['dystopia/{service}', 'system-components/{service}'], 'stacks' => [stack] } }
   let(:config_hash) { { 'services' => [service] } }
-  subject(:config) { described_class.new(config_hash) }
+  subject(:config) { Entities::WorkflowConfigParser.parse(config_hash) }
 
   it 'joins every root with the stack path' do
-    expect(config.stacks.first['paths']).to eq(['dystopia/{service}/aws/{environment}', 'system-components/{service}/aws/{environment}'])
-    expect(config.stacks.first['service_id']).to eq('app')
+    expect(config.stacks.first.paths).to eq(['dystopia/{service}/aws/{environment}', 'system-components/{service}/aws/{environment}'])
+    expect(config.stacks.first.service_id).to eq('app')
   end
 
   it 'uses the root itself for a dot path and marks it common' do
     service['stacks'] = [{ 'id' => 'container', 'path' => './', 'attributes' => { 'type' => 'container' } }]
-    expect(config.stacks.first).to include('paths' => ['dystopia/{service}', 'system-components/{service}'], 'common' => true, 'attributes' => { 'type' => 'container' })
+    expect(config.stacks.first).to have_attributes(paths: ['dystopia/{service}', 'system-components/{service}'], common?: true, attributes: { 'type' => 'container' })
   end
 
   it 'gives discovered stacks their attributes' do
     service['stacks'] = [{ 'id' => 'kustomize', 'path' => 'overlays/{environment}', 'attributes' => { 'type' => 'kustomize' } }]
-    expect(config.stacks.first).to include('common' => false, 'attributes' => { 'type' => 'kustomize' })
-    expect(config.stacks.first).not_to have_key('environments')
+    expect(config.stacks.first).to have_attributes(common?: false, attributes: { 'type' => 'kustomize' })
+    expect(config.stacks.first.environments).to be_nil
   end
 
   it 'merges stack attributes, profiles, and inline attributes into each environment' do
     config_hash['profiles'] = { 'aws-develop' => { 'iam_role_plan' => 'plan' } }
     stack['attributes'] = { 'type' => 'terragrunt' }
     stack['environments']['develop'] = { 'use' => ['aws-develop'], 'gcp_project' => 'foo-develop' }
-    expect(config.target_attributes(config.stacks.first, 'develop')).to eq('type' => 'terragrunt', 'iam_role_plan' => 'plan', 'gcp_project' => 'foo-develop')
+    expect(config.stacks.first.target_attributes('develop')).to eq('type' => 'terragrunt', 'iam_role_plan' => 'plan', 'gcp_project' => 'foo-develop')
   end
 
   it 'returns the stack attributes as target attributes without environments' do
     service['stacks'] = [{ 'id' => 'kustomize', 'path' => 'overlays/{environment}', 'attributes' => { 'type' => 'kustomize' } }]
-    expect(config.target_attributes(config.stacks.first, 'develop')).to eq('type' => 'kustomize')
+    expect(config.stacks.first.target_attributes('develop')).to eq('type' => 'kustomize')
   end
 
   it 'rejects an attribute defined twice' do
@@ -81,10 +81,10 @@ RSpec.describe Entities::WorkflowConfig do
         { 'id' => 'container', 'path' => '.' }
       ]
       aws, kustomize, container = config.stacks
-      expect(config.target_attributes(aws, 'develop')).to eq('owner' => 'platform', 'type' => 'terragrunt', 'iam_role_plan' => 'plan')
-      expect(config.target_attributes(aws, 'production')).to eq('owner' => 'platform', 'type' => 'terragrunt')
-      expect(config.target_attributes(kustomize, 'develop')).to eq('owner' => 'platform', 'type' => 'kustomize')
-      expect(config.target_attributes(container, nil)).to eq('owner' => 'platform')
+      expect(aws.target_attributes('develop')).to eq('owner' => 'platform', 'type' => 'terragrunt', 'iam_role_plan' => 'plan')
+      expect(aws.target_attributes('production')).to eq('owner' => 'platform', 'type' => 'terragrunt')
+      expect(kustomize.target_attributes('develop')).to eq('owner' => 'platform', 'type' => 'kustomize')
+      expect(container.target_attributes(nil)).to eq('owner' => 'platform')
     end
 
     it 'rejects a service attribute that is also a stack attribute' do
@@ -191,21 +191,21 @@ RSpec.describe Entities::WorkflowConfig do
   end
 
   it 'rejects the legacy top-level stacks' do
-    expect { described_class.new('stacks' => []) }.to raise_error(ArgumentError, /\AConfiguration validation failed: configuration\.stacks: unknown field; use services\z/)
+    expect { Entities::WorkflowConfigParser.parse('stacks' => []) }.to raise_error(ArgumentError, /\AConfiguration validation failed: configuration\.stacks: unknown field; use services\z/)
   end
 
   it 'exposes services with normalized roots and ignore patterns' do
     service['roots'] = ['./dystopia//{service}/']
     service['ignore'] = ['**/README.md']
     expect(config.services).to eq([
-      { 'id' => 'app', 'roots' => ['dystopia/{service}'], 'ignore' => ['**/README.md'], 'stacks' => config.stacks }
+      Entities::Service.new(id: 'app', roots: ['dystopia/{service}'], ignore: ['**/README.md'], stacks: config.stacks)
     ])
   end
 
   it 'normalizes ignore patterns without changing the input' do
     service['ignore'] = ['./docs/**', './/**/README.md']
-    expect(config.services.first['ignore']).to eq(['docs/**', '**/README.md'])
-    expect(config.ignored?(config.services.first, 'docs/a/b.md')).to be(true)
+    expect(config.services.first.ignore).to eq(['docs/**', '**/README.md'])
+    expect(config.services.first.ignored?('docs/a/b.md')).to be(true)
     expect(service['ignore']).to eq(['./docs/**', './/**/README.md'])
   end
 
@@ -220,47 +220,9 @@ RSpec.describe Entities::WorkflowConfig do
   end
 
   it 'defaults ignore to an empty array and accepts an empty array' do
-    expect(config.services.first['ignore']).to eq([])
+    expect(config.services.first.ignore).to eq([])
     service['ignore'] = []
-    expect(described_class.new(config_hash).services.first['ignore']).to eq([])
-  end
-
-  describe '#ignored?' do
-    def ignored?(patterns, relative_path)
-      service['ignore'] = patterns
-      fresh = described_class.new(config_hash)
-      fresh.ignored?(fresh.services.first, relative_path)
-    end
-
-    it 'matches nothing without ignore patterns' do
-      expect(config.ignored?(config.services.first, 'README.md')).to be(false)
-    end
-
-    it 'matches zero or more directories with **/' do
-      expect(ignored?(['**/README.md'], 'README.md')).to be(true)
-      expect(ignored?(['**/README.md'], 'aws/modules/README.md')).to be(true)
-    end
-
-    it 'does not let * cross directories' do
-      expect(ignored?(['*.md'], 'NOTES.md')).to be(true)
-      expect(ignored?(['*.md'], 'aws/NOTES.md')).to be(false)
-    end
-
-    it 'matches every file below a directory with a trailing /**' do
-      expect(ignored?(['docs/**'], 'docs/a.md')).to be(true)
-      expect(ignored?(['docs/**'], 'docs/a/b.md')).to be(true)
-      expect(ignored?(['docs/**'], 'aws/docs/a.md')).to be(false)
-    end
-
-    it 'matches files starting with a dot' do
-      expect(ignored?(['*'], '.terraform-version')).to be(true)
-      expect(ignored?(['**/*.md'], '.github/a.md')).to be(true)
-    end
-
-    it 'matches when any pattern matches' do
-      expect(ignored?(['*.txt', '**/*.md'], 'aws/a.md')).to be(true)
-      expect(ignored?(['*.txt', '**/*.md'], 'aws/main.tf')).to be(false)
-    end
+    expect(Entities::WorkflowConfigParser.parse(config_hash).services.first.ignore).to eq([])
   end
 
   [nil, 'README.md', {}, [nil], [''], [1]].each do |value|
@@ -272,30 +234,30 @@ RSpec.describe Entities::WorkflowConfig do
 
   it 'lists stacks of every service in order' do
     config_hash['services'] << { 'id' => 'kubernetes', 'roots' => ['kubernetes/{service}'], 'stacks' => [{ 'id' => 'helmfile', 'path' => '{environment}' }] }
-    expect(config.stacks.map { |entry| [entry['service_id'], entry['id']] }).to eq([%w[app aws], %w[kubernetes helmfile]])
+    expect(config.stacks.map { |entry| [entry.service_id, entry.id] }).to eq([%w[app aws], %w[kubernetes helmfile]])
   end
 
   it 'collects environment names from every stack without duplicates' do
     service['stacks'] << { 'id' => 'kubernetes', 'path' => 'kubernetes', 'environments' => { 'production' => {}, 'preview' => {} } }
-    expect(config.environment_names).to eq(%w[develop production preview])
+    expect(config.declared_environment_names).to eq(%w[develop production preview])
   end
 
   it 'normalizes relative paths without changing the input' do
     stack['path'] = './aws/./{environment}/'
-    expect(config.stacks.first['path']).to eq('aws/{environment}')
-    expect(config.stacks.first['paths'].first).to eq('dystopia/{service}/aws/{environment}')
+    expect(config.stacks.first.path).to eq('aws/{environment}')
+    expect(config.stacks.first.paths.first).to eq('dystopia/{service}/aws/{environment}')
     expect(stack['path']).to eq('./aws/./{environment}/')
     expect(stack).not_to have_key('service_id')
   end
 
   it 'normalizes a dot path to an empty path' do
     stack['path'] = '.'
-    expect(config.stacks.first['path']).to eq('')
+    expect(config.stacks.first.path).to eq('')
   end
 
   it 'preserves attributes with different keys and value types' do
     stack['environments']['production'] = { 'token' => nil, 'enabled' => false, 'count' => 2, 'regions' => ['west'] }
-    expect(config.stacks.first['environments']).to eq(
+    expect(config.stacks.first.environments).to eq(
       'develop' => { 'aws_region' => 'ap-northeast-1' },
       'production' => { 'token' => nil, 'enabled' => false, 'count' => 2, 'regions' => ['west'] }
     )
@@ -311,8 +273,8 @@ RSpec.describe Entities::WorkflowConfig do
     stack.delete('environments')
     stack['exclude'] = [{ 'environment' => 'preview' }]
     expect { config }.not_to raise_error
-    expect(config.stacks.first).to include('common' => false, 'attributes' => {}, 'exclude' => [{ 'environment' => 'preview' }])
-    expect(config.stacks.first).not_to have_key('environments')
+    expect(config.stacks.first).to have_attributes(common?: false, attributes: {}, exclude: [{ 'environment' => 'preview' }])
+    expect(config.stacks.first.environments).to be_nil
   end
 
   [nil, '', 1, [], 'a/b', '.', '..'].each do |value|
@@ -327,7 +289,7 @@ RSpec.describe Entities::WorkflowConfig do
     stack['path'] = 'aws'
     stack['attributes'] = { 'state' => '{service}-{environment}' }
     expect { config }.not_to raise_error
-    expect(config.stacks.first['common']).to be(false)
+    expect(config.stacks.first.common?).to be(false)
   end
 
   it 'rejects attribute templates that cannot be resolved by every root' do
@@ -353,18 +315,18 @@ RSpec.describe Entities::WorkflowConfig do
       { 'team' => 'sandbox' }
     ]
     entry = config.stacks.first
-    expect(config.excluded?(entry, 'team' => 'platform', 'service' => 'demo', 'environment' => 'production')).to be(true)
-    expect(config.excluded?(entry, 'team' => 'platform', 'service' => 'demo', 'environment' => 'develop')).to be(false)
-    expect(config.excluded?(entry, 'team' => 'platform', 'service' => 'api', 'environment' => 'production')).to be(false)
-    expect(config.excluded?(entry, 'team' => 'sandbox', 'service' => 'api', 'environment' => 'develop')).to be(true)
-    expect(config.excluded?(entry, 'service' => 'demo', 'environment' => 'production')).to be(false)
+    expect(entry.excluded?('team' => 'platform', 'service' => 'demo', 'environment' => 'production')).to be(true)
+    expect(entry.excluded?('team' => 'platform', 'service' => 'demo', 'environment' => 'develop')).to be(false)
+    expect(entry.excluded?('team' => 'platform', 'service' => 'api', 'environment' => 'production')).to be(false)
+    expect(entry.excluded?('team' => 'sandbox', 'service' => 'api', 'environment' => 'develop')).to be(true)
+    expect(entry.excluded?('service' => 'demo', 'environment' => 'production')).to be(false)
   end
 
   it 'matches a service condition across environments' do
     stack['exclude'] = [{ 'service' => 'demo' }]
     %w[develop production].each do |environment|
-      expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'environment' => environment)).to be(true)
-      expect(config.excluded?(config.stacks.first, 'service' => 'api', 'environment' => environment)).to be(false)
+      expect(config.stacks.first.excluded?('service' => 'demo', 'environment' => environment)).to be(true)
+      expect(config.stacks.first.excluded?('service' => 'api', 'environment' => environment)).to be(false)
     end
   end
 
@@ -372,21 +334,21 @@ RSpec.describe Entities::WorkflowConfig do
     stack['path'] = 'aws'
     stack['exclude'] = [{ 'environment' => 'production' }]
     %w[demo api].each do |name|
-      expect(config.excluded?(config.stacks.first, 'service' => name, 'environment' => 'production')).to be(true)
-      expect(config.excluded?(config.stacks.first, 'service' => name, 'environment' => 'develop')).to be(false)
+      expect(config.stacks.first.excluded?('service' => name, 'environment' => 'production')).to be(true)
+      expect(config.stacks.first.excluded?('service' => name, 'environment' => 'develop')).to be(false)
     end
   end
 
   it 'allows custom keys from the union of roots without matching missing captures' do
     service['roots'] << 'teams/{team}/{service}'
     stack['exclude'] = [{ 'team' => 'sandbox' }]
-    expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'environment' => 'production')).to be(false)
+    expect(config.stacks.first.excluded?('service' => 'demo', 'environment' => 'production')).to be(false)
   end
 
   it 'allows custom keys from the stack path' do
     stack['path'] = '{region}/{environment}'
     stack['exclude'] = [{ 'region' => 'us-east-1' }]
-    expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'region' => 'us-east-1', 'environment' => 'develop')).to be(true)
+    expect(config.stacks.first.excluded?('service' => 'demo', 'region' => 'us-east-1', 'environment' => 'develop')).to be(true)
   end
 
   it 'allows another stack to use an attribute named after a placeholder' do
@@ -399,20 +361,20 @@ RSpec.describe Entities::WorkflowConfig do
     let(:stack) { { 'id' => 'container', 'path' => '.' } }
 
     it 'derives an empty environment list and empty attributes' do
-      expect(config.environment_names).to eq([])
-      expect(config.stacks.first).to include('common' => true, 'attributes' => {})
+      expect(config.declared_environment_names).to eq([])
+      expect(config.stacks.first).to have_attributes(common?: true, attributes: {})
     end
 
     it 'matches service rules without an environment condition' do
       stack['exclude'] = [{ 'service' => 'demo' }]
-      expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'environment' => nil)).to be(true)
-      expect(config.excluded?(config.stacks.first, 'service' => 'api', 'environment' => nil)).to be(false)
+      expect(config.stacks.first.excluded?('service' => 'demo', 'environment' => nil)).to be(true)
+      expect(config.stacks.first.excluded?('service' => 'api', 'environment' => nil)).to be(false)
     end
 
     it 'distinguishes a null environment from an absent key' do
       stack['exclude'] = [{ 'environment' => nil }]
-      expect(config.excluded?(config.stacks.first, 'service' => 'demo', 'environment' => nil)).to be(true)
-      expect(config.excluded?(config.stacks.first, 'service' => 'demo')).to be(false)
+      expect(config.stacks.first.excluded?('service' => 'demo', 'environment' => nil)).to be(true)
+      expect(config.stacks.first.excluded?('service' => 'demo')).to be(false)
     end
 
     it 'rejects a named environment in a common exclusion' do
@@ -430,7 +392,7 @@ RSpec.describe Entities::WorkflowConfig do
 
   [nil, [], {}, { 'services' => nil }, { 'services' => {} }, { 'services' => [] }, { 'services' => [nil] }].each do |value|
     it "rejects invalid configuration structure #{value.inspect}" do
-      expect { described_class.new(value) }.to raise_error(ArgumentError, /configuration|services/)
+      expect { Entities::WorkflowConfigParser.parse(value) }.to raise_error(ArgumentError, /configuration|services/)
     end
   end
 

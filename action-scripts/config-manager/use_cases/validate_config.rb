@@ -13,7 +13,7 @@ module UseCases
           "Configuration validation successful",
           "services: #{config.services.length} configured",
           "stacks: #{config.stacks.length} configured",
-          "environments: #{config.environment_names.length} configured"
+          "environments: #{config.declared_environment_names.length} configured"
         ].join("\n")
         Entities::Result.success(Validation.new(config: config, summary: summary))
       rescue StandardError => error

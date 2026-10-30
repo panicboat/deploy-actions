@@ -4,7 +4,7 @@ require 'fileutils'
 
 RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   let(:config_hash) { attributes_for(:workflow_config).fetch(:config_hash) }
-  let(:config) { Entities::WorkflowConfig.new(config_hash) }
+  let(:config) { Entities::WorkflowConfigParser.parse(config_hash) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
   let(:file_client) { Infrastructure::FileSystemClient.new }
   subject(:use_case) { described_class.new(config_client: config_client, file_client: file_client) }

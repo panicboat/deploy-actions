@@ -34,7 +34,7 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
   end
   describe '#present_config_details' do
     let(:config) do
-      Entities::WorkflowConfig.new(
+      Entities::WorkflowConfigParser.parse(
         'profiles' => { 'aws-develop' => { 'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan' } },
         'services' => [
           { 'id' => 'app', 'roots' => ['dystopia/{service}', 'system-components/{service}'], 'ignore' => ['**/README.md'], 'stacks' => [

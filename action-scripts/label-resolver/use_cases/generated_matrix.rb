@@ -17,27 +17,20 @@ module UseCases
         services = labels.any?(&:deploy_all?) ? [nil] : labels.map(&:service).uniq
         candidates = {}
         config.stacks.each do |stack|
-          selected = if stack.key?('environments')
-            environments & stack['environments'].keys
-          elsif stack['common']
-            [nil]
-          else
-            environments
-          end
-          selected.each do |environment|
+          stack.target_environments(environments).each do |environment|
             services.each do |service|
               values = { 'environment' => environment }
               values['service'] = service if service
-              stack['paths'].each do |pattern|
+              stack.paths.each do |pattern|
                 @file_client.resolve_directories(pattern: pattern, values: values).each do |match|
                   captures = match.fetch(:captures)
                   name = captures.fetch('service')
-                  next if name.start_with?('.')
+                  next if Entities::Service.hidden_name?(name)
                   directory = match.fetch(:working_directory)
                   custom = captures.reject { |key, _| %w[service environment].include?(key) }
-                  identity = [name, stack['id'], environment, directory]
+                  identity = [name, stack.id, environment, directory]
                   if candidates.key?(identity) && candidates[identity][:captures] != custom
-                    raise "Conflicting captures for stack '#{stack['id']}' at '#{directory}'"
+                    raise "Conflicting captures for stack '#{stack.id}' at '#{directory}'"
                   end
                   candidates[identity] = { stack: stack, environment: environment, service: name, working_directory: directory, captures: custom }
                 end
@@ -50,10 +43,10 @@ module UseCases
           stack = candidate.fetch(:stack)
           environment = candidate.fetch(:environment)
           values = candidate.fetch(:captures).merge('service' => candidate.fetch(:service), 'environment' => environment)
-          next if config.excluded?(stack, values)
-          attributes = config.target_attributes(stack, environment)
+          next if stack.excluded?(values)
+          attributes = stack.target_attributes(environment)
           Entities::DeploymentTarget.new(
-            service: candidate.fetch(:service), environment: environment, stack: stack['id'],
+            service: candidate.fetch(:service), environment: environment, stack: stack.id,
             working_directory: candidate.fetch(:working_directory), captures: candidate.fetch(:captures), attributes: attributes
           )
         end

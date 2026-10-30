@@ -71,12 +71,12 @@ module Infrastructure
 
     def environment_names(config:)
       discovered = config.stacks.flat_map do |stack|
-        next [] if stack.key?('environments') || stack['common']
-        stack['paths'].flat_map do |pattern|
+        next [] unless stack.discovers_environments?
+        stack.paths.flat_map do |pattern|
           resolve_directories(pattern: pattern).map { |match| match.fetch(:captures).fetch('environment') }
         end
       end
-      (config.environment_names + discovered).uniq
+      (config.declared_environment_names + discovered).uniq
     end
 
     private

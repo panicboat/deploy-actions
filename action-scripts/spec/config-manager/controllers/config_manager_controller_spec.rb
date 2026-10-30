@@ -7,7 +7,7 @@ require 'fileutils'
 RSpec.describe Interfaces::Controllers::ConfigManagerController do
   let(:validate_config_use_case) { double('ValidateConfig') }
   let(:config_hash) { attributes_for(:workflow_config).fetch(:config_hash) }
-  let(:config) { Entities::WorkflowConfig.new(config_hash) }
+  let(:config) { Entities::WorkflowConfigParser.parse(config_hash) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
   let(:file_client) { Infrastructure::FileSystemClient.new }
   let(:presenter) { double('Presenter') }
@@ -285,7 +285,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'generates a template that passes validation' do
-      expect { Entities::WorkflowConfig.new(template_hash) }.not_to raise_error
+      expect { Entities::WorkflowConfigParser.parse(template_hash) }.not_to raise_error
     end
 
     it 'defines profiles and one service with roots, ignore, and the dockerfile, kustomize, and aws stacks' do
@@ -317,8 +317,8 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'accepts the repository sample with the same model' do
-      config = Entities::WorkflowConfig.new(YAML.safe_load(File.read(File.expand_path('../../../workflow-config.yaml', __dir__))))
-      expect(config.stacks.map { |stack| stack['id'] }).to include('aws', 'dockerfile', 'kustomize')
+      config = Entities::WorkflowConfigParser.parse(YAML.safe_load(File.read(File.expand_path('../../../workflow-config.yaml', __dir__))))
+      expect(config.stacks.map(&:id)).to include('aws', 'dockerfile', 'kustomize')
     end
   end
 end

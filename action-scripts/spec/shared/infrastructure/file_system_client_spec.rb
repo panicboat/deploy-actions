@@ -59,7 +59,7 @@ RSpec.describe Infrastructure::FileSystemClient do
 
   it 'combines declared and discovered environments without applying exclusions' do
     %w[teams/platform/demo/production teams/platform/demo/.preview teams/sandbox/api/production teams/platform/.hidden/hidden].each { |path| directory(path) }
-    config = Entities::WorkflowConfig.new('services' => [
+    config = Entities::WorkflowConfigParser.parse('services' => [
       { 'id' => 'plain', 'roots' => ['{service}'], 'stacks' => [
         { 'id' => 'aws', 'path' => 'aws', 'environments' => { 'production' => {}, 'develop' => {} } },
         { 'id' => 'container', 'path' => '.' }
@@ -72,7 +72,7 @@ RSpec.describe Infrastructure::FileSystemClient do
   end
 
   it 'returns no environments when inferred directories are absent' do
-    config = Entities::WorkflowConfig.new('services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
+    config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
     expect(client.environment_names(config: config)).to eq([])
   end
 
@@ -80,7 +80,7 @@ RSpec.describe Infrastructure::FileSystemClient do
     directory('blocked/demo/production')
     path = File.join(@root, 'blocked')
     File.chmod(0, path)
-    config = Entities::WorkflowConfig.new('services' => [{ 'id' => 'app', 'roots' => ['blocked/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
+    config = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['blocked/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => '{environment}' }] }])
     expect { client.environment_names(config: config) }.to raise_error(Errno::EACCES)
   ensure
     File.chmod(0o755, path) if path
