@@ -38,13 +38,13 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     result.value
   end
 
-  it 'returns target candidates for every environment when the environment is omitted' do
+  it 'returns listed targets for every environment when the environment is omitted' do
     %w[dystopia/demo/aws/develop dystopia/demo/aws/production system-components/demo/aws/develop system-components/demo/aws/production].each { |path| directory(path) }
     rows = candidates
-    expect(rows).to all(be_a(Entities::TargetCandidate))
+    expect(rows).to all(be_a(Entities::ListedTarget))
     expect(rows.length).to eq(6)
-    expect(rows.map(&:working_directory).uniq.length).to eq(6)
-    expect(rows.count { |row| row.environment.nil? }).to eq(2)
+    expect(rows.map { |row| row.target.working_directory }.uniq.length).to eq(6)
+    expect(rows.count { |row| row.target.environment.nil? }).to eq(2)
     expect(rows.map(&:excluded?).uniq).to eq([false])
   end
 
@@ -52,10 +52,10 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     config_hash['services'].first['stacks'].first['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
     directory('dystopia/demo/aws/production')
     rows = candidates(environment: 'production')
-    aws = rows.find { |row| row.stack.id == 'aws' }
+    aws = rows.find { |row| row.target.stack == 'aws' }
     expect(aws.excluded?).to be(true)
-    expect(aws.to_deployment_target.attributes).to eq('type' => 'terragrunt', 'aws_region' => 'us-west-2')
-    expect(rows.find { |row| row.stack.id == 'container' }.excluded?).to be(false)
+    expect(aws.target.attributes).to eq('type' => 'terragrunt', 'aws_region' => 'us-west-2')
+    expect(rows.find { |row| row.target.stack == 'container' }.excluded?).to be(false)
   end
 
   it 'retains distinct identities and captures at the same directory' do
@@ -65,9 +65,9 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     ])
     directory('teams/platform/demo')
     rows = candidates
-    expect(rows.map { |row| row.stack.id }).to eq(%w[aws stripe])
-    expect(rows.map(&:captures)).to eq([{ 'team' => 'platform' }] * 2)
-    expect(rows.first.to_deployment_target.attributes).to eq('token' => nil)
+    expect(rows.map { |row| row.target.stack }).to eq(%w[aws stripe])
+    expect(rows.map { |row| row.target.captures }).to eq([{ 'team' => 'platform' }] * 2)
+    expect(rows.first.target.attributes).to eq('token' => nil)
   end
 
   it 'returns dot-prefixed environment and custom placeholder values' do
@@ -75,7 +75,7 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     directory('teams/.platform/demo/.preview')
     rows = candidates(environment: '.preview')
     expect(rows.length).to eq(1)
-    expect(rows.first.to_deployment_target.to_matrix_item).to include(team: '.platform', environment: '.preview')
+    expect(rows.first.target.to_matrix_item).to include(team: '.platform', environment: '.preview')
     expect(rows.first.excluded?).to be(true)
   end
 
@@ -87,9 +87,9 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     %w[teams/payments/demo/production teams/payments/demo/preview].each { |path| directory(path) }
     rows = candidates(environment: 'production')
     expect(rows.length).to eq(2)
-    expect(rows.find { |row| row.stack.id == 'kubernetes' }.excluded?).to be(true)
-    expect(rows.find { |row| row.stack.id == 'container' }.to_deployment_target.attributes).to eq('repository' => 'ghcr.io/payments/demo')
-    expect(candidates.map(&:environment)).to contain_exactly('production', 'preview', nil)
+    expect(rows.find { |row| row.target.stack == 'kubernetes' }.excluded?).to be(true)
+    expect(rows.find { |row| row.target.stack == 'container' }.target.attributes).to eq('repository' => 'ghcr.io/payments/demo')
+    expect(candidates.map { |row| row.target.environment }).to contain_exactly('production', 'preview', nil)
   end
 
   it 'returns an empty list when no directory matches' do
@@ -121,6 +121,23 @@ RSpec.describe UseCases::ConfigManagement::TestService do
     result = use_case.execute(service_name: 'demo', environment: nil)
     expect(result).to be_failure
     expect(result.error_message).to eq('Failed to test service configuration: Permission denied')
+  end
+
+  it 'carries the root of each target' do
+    directory('dystopia/demo/aws/develop')
+    expect(candidates.map(&:root)).to all(eq('dystopia/demo'))
+  end
+
+  it 'fails for an attribute that references a placeholder with no value' do
+    stack = Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [])
+    unbuildable = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {})
+    list_candidates = instance_double(UseCases::Shared::ListCandidates, execute: Entities::Result.success([unbuildable]))
+
+    result = described_class.new(list_candidates: list_candidates).execute(service_name: 'demo', environment: nil)
+
+    expect(result).to be_failure
+    expect(result.error_message).to start_with('Failed to test service configuration: ')
+    expect(result.error_message).to include('team')
   end
 
   it 'fails with the configuration error' do
