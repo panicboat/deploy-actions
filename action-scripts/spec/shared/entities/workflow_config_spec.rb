@@ -57,6 +57,18 @@ RSpec.describe Entities::WorkflowConfig do
     expect { config }.to raise_error(ArgumentError, /services\[0\]\.stacks\[0\]\.environments\.develop\.use\[0\]: profile 'missing' is not defined/)
   end
 
+  it 'rejects use in stack attributes' do
+    config_hash['profiles'] = { 'p' => {} }
+    stack['attributes'] = { 'use' => ['p'] }
+    expect { config }.to raise_error(ArgumentError, /services\[0\]\.stacks\[0\]\.attributes\.use: use can only be set in environments/)
+  end
+
+  it 'rejects use in profiles' do
+    config_hash['profiles'] = { 'p' => { 'use' => 'x' } }
+    stack['environments']['develop'] = { 'use' => ['p'] }
+    expect { config }.to raise_error(ArgumentError, /profiles\.p\.use: use can only be set in environments/)
+  end
+
   it 'allows unused profiles' do
     config_hash['profiles'] = { 'unused' => {} }
     expect { config }.not_to raise_error

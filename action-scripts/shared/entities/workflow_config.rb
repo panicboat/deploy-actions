@@ -68,7 +68,7 @@ module Entities
 
     def validate_profiles!(profiles)
       validate_map!(profiles, 'profiles')
-      profiles.each { |name, attributes| validate_attributes!(attributes, "profiles.#{name}") }
+      profiles.each { |name, attributes| validate_attributes!(attributes, "profiles.#{name}", reserve_use: true) }
     end
 
     def validate_service!(service, position)
@@ -94,7 +94,7 @@ module Entities
       path_names = validate_pattern!(stack['path'], path_position)
       invalid!(path_position, '{service} cannot be used in stack paths') if path_names.include?('service')
       attributes = stack.fetch('attributes', {})
-      validate_attributes!(attributes, "#{position}.attributes")
+      validate_attributes!(attributes, "#{position}.attributes", reserve_use: true)
       environments = compose_environments(stack, position, attributes, profiles) if stack.key?('environments')
       common = environments.nil? && !path_names.include?('environment')
 
@@ -216,8 +216,9 @@ module Entities
       end
     end
 
-    def validate_attributes!(attributes, position)
+    def validate_attributes!(attributes, position, reserve_use: false)
       validate_map!(attributes, position)
+      invalid!("#{position}.use", 'use can only be set in environments') if reserve_use && attributes.key?('use')
       attributes.each_key do |key|
         invalid!("#{position}.#{key}", 'collides with a matrix key') if MATRIX_KEYS.include?(key)
       end
