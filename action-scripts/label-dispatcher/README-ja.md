@@ -150,7 +150,7 @@ Label Dispatcherは以下と統合します：
 
 - `deploy:service-name` - 特定サービスのデプロイ
 - `deploy:all` - 全サービスのデプロイ（特殊ケース）
-- ラベルは自動的に管理・同期される
+- 実行のたびに deploy ラベルを外してから必要なラベルを付け直す。push のたびに `labeled` イベントを起こし、resolver を起動するため
 
 prefix は設定で変更できます。ルートの [Labels](../../README-ja.md#labels) を参照してください。
 
