@@ -29,12 +29,11 @@ module Interfaces
         puts TextFormat.deployment_matrix(deployment_targets: deployment_targets, deploy_labels: deploy_labels, target_environments: target_environments, pr_number: pr_number)
       end
 
-      def present_service_targets(service:, target_environments:, candidates:)
+      def present_service_targets(service:, target_environments:, targets:, candidates:)
         entries = candidates.map { |listed| { target: listed.target.to_matrix_item, excluded: listed.excluded?, root: listed.root } }
-        targets = entries.reject { |entry| entry[:excluded] }.map { |entry| entry[:target] }
-        write_outputs('targets' => targets.to_json, 'has-targets' => targets.any?.to_s, 'candidates' => entries.to_json)
+        write_outputs('targets' => targets.map(&:to_matrix_item).to_json, 'has-targets' => targets.any?.to_s, 'candidates' => entries.to_json)
 
-        puts TextFormat.service_targets(service: service, target_environments: target_environments, candidates: candidates)
+        puts TextFormat.service_targets(service: service, target_environments: target_environments, targets: targets, candidates: candidates)
       end
 
       # Present configuration validation results for GitHub Actions

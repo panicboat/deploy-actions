@@ -40,6 +40,8 @@ class LabelResolverContainer
       UseCases::LabelResolver::GetLabels.new(github_client: resolve(:github_client), config_client: resolve(:config_client))
     when :generate_matrix
       UseCases::LabelResolver::GenerateMatrix.new(list_candidates: resolve(:list_candidates))
+    when :list_service_targets
+      UseCases::LabelResolver::ListServiceTargets.new(list_candidates: resolve(:list_candidates))
     when :presenter then Composition.presenter
     when :label_resolver_controller
       Interfaces::Controllers::LabelResolverController.new(
@@ -47,7 +49,7 @@ class LabelResolverContainer
         # A builder instead of an instance keeps `targets` runnable without GitHub credentials.
         get_labels: -> { resolve(:get_labels) },
         generate_matrix: resolve(:generate_matrix),
-        list_candidates: resolve(:list_candidates)
+        list_service_targets: resolve(:list_service_targets)
       )
     else
       raise KeyError, "Unknown dependency: #{name}"

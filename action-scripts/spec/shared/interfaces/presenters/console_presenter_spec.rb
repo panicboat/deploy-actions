@@ -39,14 +39,14 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
   it 'colors the heading of the service targets text' do
     stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first
     candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}).to_listed_target
-    lines = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], candidates: [candidate])
+    lines = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], targets: [candidate.target], candidates: [candidate])
     expect do
-      described_class.new.present_service_targets(service: 'demo', target_environments: [], candidates: [candidate])
+      described_class.new.present_service_targets(service: 'demo', target_environments: [], targets: [candidate.target], candidates: [candidate])
     end.to output("#{lines.first.colorize(:green)}\n#{lines.drop(1).map { |line| "#{line}\n" }.join}").to_stdout
   end
 
   it 'accepts only the service target fields' do
-    expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments candidates])
+    expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments targets candidates])
   end
 
   it 'colors the validation heading by the result' do

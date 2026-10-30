@@ -39,14 +39,14 @@ module Interfaces
         lines << ''
       end
 
-      def service_targets(service:, target_environments:, candidates:)
+      def service_targets(service:, target_environments:, targets:, candidates:)
         lines = ['🎯 Service Targets', "Service: #{service}"]
         if target_environments.length > 1
           lines << "Target Environments: #{target_environments.join(', ')}"
         elsif target_environments.length == 1
           lines << "Target Environment: #{target_environments.first}"
         end
-        lines << "Targets: #{candidates.reject(&:excluded?).length} of #{candidates.length} candidates"
+        lines << "Targets: #{targets.length} of #{candidates.length} candidates"
         candidates.each do |listed|
           target = listed.target
           environment = target.environment && " (#{target.environment})"

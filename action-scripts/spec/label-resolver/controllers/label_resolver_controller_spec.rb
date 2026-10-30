@@ -5,10 +5,10 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
   let(:deployment_targets) { [build(:deployment_target)] }
   let(:get_labels) { instance_double(UseCases::LabelResolver::GetLabels) }
   let(:generate_matrix) { instance_double(UseCases::LabelResolver::GenerateMatrix) }
-  let(:list_candidates) { instance_double(UseCases::Shared::ListCandidates) }
+  let(:list_service_targets) { instance_double(UseCases::LabelResolver::ListServiceTargets) }
   let(:presenter) { instance_double(Interfaces::Presenters::ConsolePresenter, present_deployment_matrix: nil, present_service_targets: nil, present_error: nil) }
 
-  subject(:controller) { described_class.new(get_labels: -> { get_labels }, generate_matrix: generate_matrix, list_candidates: list_candidates, presenter: presenter) }
+  subject(:controller) { described_class.new(get_labels: -> { get_labels }, generate_matrix: generate_matrix, list_service_targets: list_service_targets, presenter: presenter) }
 
   describe '#resolve' do
     before { allow(get_labels).to receive(:execute).with(pr_number: 123).and_return(Entities::Result.success(deploy_labels)) }
@@ -51,53 +51,22 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
 
   describe '#targets' do
     let(:stack) { Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first }
-    let(:candidates) { [Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {})] }
-    let(:listed_targets) { candidates.map(&:to_listed_target) }
-    let(:unbuildable_stack) { Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [{ 'service' => 'demo' }]) }
-    let(:unbuildable) { Entities::TargetCandidate.new(stack: unbuildable_stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}) }
+    let(:candidate) { Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}) }
+    let(:service_targets) { Entities::ServiceTargets.new(targets: [candidate.to_deployment_target], candidates: [candidate.to_listed_target]) }
 
-    it 'presents every candidate for a service' do
-      allow(list_candidates).to receive(:execute).with(services: ['demo'], environments: ['develop']).and_return(Entities::Result.success(candidates))
+    it 'presents the targets and candidates the use case lists' do
+      allow(list_service_targets).to receive(:execute).with(service: 'demo', environments: ['develop']).and_return(Entities::Result.success(service_targets))
 
       result = controller.targets(service: 'demo', environments: ['develop'])
 
-      expect(result.value).to eq(listed_targets)
-      expect(presenter).to have_received(:present_service_targets).with(service: 'demo', target_environments: ['develop'], candidates: listed_targets)
+      expect(result.value).to eq(service_targets)
+      expect(presenter).to have_received(:present_service_targets).with(
+        service: 'demo', target_environments: ['develop'], targets: service_targets.targets, candidates: service_targets.candidates
+      )
     end
 
-    it 'treats all as every service' do
-      allow(list_candidates).to receive(:execute).with(services: nil, environments: []).and_return(Entities::Result.success(candidates))
-
-      controller.targets(service: 'all', environments: [])
-
-      expect(list_candidates).to have_received(:execute).with(services: nil, environments: [])
-      expect(presenter).to have_received(:present_service_targets).with(service: 'all', target_environments: [], candidates: listed_targets)
-    end
-
-    it 'rejects a service name outside [a-zA-Z0-9_-]+' do
-      allow(list_candidates).to receive(:execute)
-
-      result = controller.targets(service: 'demo/aws', environments: [])
-
-      expect(result).to be_failure
-      expect(result.error_message).to include('demo/aws')
-      expect(presenter).to have_received(:present_error).with(result.error_message)
-      expect(presenter).not_to have_received(:present_service_targets)
-      expect(list_candidates).not_to have_received(:execute)
-    end
-
-    it 'returns no targets for an unknown service' do
-      allow(list_candidates).to receive(:execute).with(services: ['missing'], environments: []).and_return(Entities::Result.success([]))
-
-      result = controller.targets(service: 'missing', environments: [])
-
-      expect(result).to be_success
-      expect(result.value).to eq([])
-      expect(presenter).to have_received(:present_service_targets).with(service: 'missing', target_environments: [], candidates: [])
-    end
-
-    it 'presents the failure for an unknown environment' do
-      allow(list_candidates).to receive(:execute).and_return(Entities::Result.failure('Target environments not found in configuration: preview'))
+    it 'presents the failure and skips the targets' do
+      allow(list_service_targets).to receive(:execute).and_return(Entities::Result.failure('Target environments not found in configuration: preview'))
 
       result = controller.targets(service: 'demo', environments: ['preview'])
 
@@ -106,38 +75,16 @@ RSpec.describe Interfaces::Controllers::LabelResolverController do
       expect(presenter).not_to have_received(:present_service_targets)
     end
 
-    it 'presents an enumeration error as a failure' do
-      allow(list_candidates).to receive(:execute).and_raise(RuntimeError, "Conflicting captures for stack 'aws' at 'demo/aws'")
-
-      result = controller.targets(service: 'demo', environments: [])
-
-      expect(result.error_message).to eq("Failed to resolve service targets: Conflicting captures for stack 'aws' at 'demo/aws'")
-      expect(presenter).to have_received(:present_error).with(result.error_message)
-      expect(presenter).not_to have_received(:present_service_targets)
-    end
-
-    it 'presents a target that cannot be built as a failure instead of raising' do
-      allow(list_candidates).to receive(:execute).and_return(Entities::Result.success(candidates + [unbuildable]))
-
-      result = nil
-      expect { result = controller.targets(service: 'demo', environments: []) }.not_to raise_error
-
-      expect(result).to be_failure
-      expect(result.error_message).to match(/\AFailed to resolve service targets: .*\{team\}/)
-      expect(presenter).to have_received(:present_error).with(result.error_message)
-      expect(presenter).not_to have_received(:present_service_targets)
-    end
-
     it 'does not rescue presenter errors' do
-      allow(list_candidates).to receive(:execute).and_return(Entities::Result.success(candidates))
+      allow(list_service_targets).to receive(:execute).and_return(Entities::Result.success(service_targets))
       allow(presenter).to receive(:present_service_targets).and_raise(RuntimeError, 'GITHUB_OUTPUT is not set')
 
       expect { controller.targets(service: 'demo', environments: []) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
     end
 
     it 'does not build the label reader' do
-      allow(list_candidates).to receive(:execute).and_return(Entities::Result.success(candidates))
-      controller = described_class.new(get_labels: -> { raise 'label reader built' }, generate_matrix: generate_matrix, list_candidates: list_candidates, presenter: presenter)
+      allow(list_service_targets).to receive(:execute).and_return(Entities::Result.success(service_targets))
+      controller = described_class.new(get_labels: -> { raise 'label reader built' }, generate_matrix: generate_matrix, list_service_targets: list_service_targets, presenter: presenter)
 
       expect(controller.targets(service: 'demo', environments: [])).to be_success
     end

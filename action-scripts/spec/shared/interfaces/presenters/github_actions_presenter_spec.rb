@@ -53,8 +53,8 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
     let(:included_item) { '{"service":"demo","environment":null,"stack":"aws","working_directory":"demo/aws"}' }
     let(:excluded_item) { '{"service":"demo","environment":null,"stack":"alb","working_directory":"aws/alb/alb"}' }
 
-    it 'writes the included targets, their presence, and every candidate with its exclusion and root' do
-      expect { presenter.present_service_targets(service: 'demo', target_environments: [], candidates: [included, excluded]) }.to output.to_stdout
+    it 'writes the given targets, their presence, and every candidate with its exclusion and root' do
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [included.target], candidates: [included, excluded]) }.to output.to_stdout
       expect(File.read(@output_path).lines.map(&:strip)).to eq([
         "targets=[#{included_item}]",
         'has-targets=true',
@@ -62,27 +62,32 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
       ])
     end
 
-    it 'writes false when every candidate is excluded' do
-      expect { presenter.present_service_targets(service: 'demo', target_environments: [], candidates: [excluded]) }.to output.to_stdout
+    it 'writes false when no target is given' do
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [], candidates: [excluded]) }.to output.to_stdout
       expect(File.read(@output_path).lines.map(&:strip).first(2)).to eq(['targets=[]', 'has-targets=false'])
     end
 
+    it 'does not filter the given targets by exclusion' do
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [excluded.target], candidates: [excluded]) }.to output.to_stdout
+      expect(File.read(@output_path).lines.map(&:strip).first(2)).to eq(["targets=[#{excluded_item}]", 'has-targets=true'])
+    end
+
     it 'writes empty outputs when no candidates exist' do
-      expect { presenter.present_service_targets(service: 'missing', target_environments: [], candidates: []) }.to output.to_stdout
+      expect { presenter.present_service_targets(service: 'missing', target_environments: [], targets: [], candidates: []) }.to output.to_stdout
       expect(File.read(@output_path).lines.map(&:strip)).to eq(['targets=[]', 'has-targets=false', 'candidates=[]'])
     end
 
     it 'prints the shared text without color' do
-      expected = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], candidates: [included]).map { |line| "#{line}\n" }.join
-      expect { presenter.present_service_targets(service: 'demo', target_environments: [], candidates: [included]) }.to output(expected).to_stdout
+      expected = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], targets: [included.target], candidates: [included]).map { |line| "#{line}\n" }.join
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], targets: [included.target], candidates: [included]) }.to output(expected).to_stdout
     end
 
     it 'accepts only the service target fields' do
-      expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments candidates])
+      expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments targets candidates])
     end
 
     it 'raises when GITHUB_OUTPUT is not set' do
-      expect { described_class.new(output_path: nil).present_service_targets(service: 'demo', target_environments: [], candidates: []) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
+      expect { described_class.new(output_path: nil).present_service_targets(service: 'demo', target_environments: [], targets: [], candidates: []) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
     end
   end
 

@@ -71,7 +71,7 @@ RSpec.describe Interfaces::Presenters::TextFormat do
     end
 
     it 'shows the service, the environments, and each target with its root and exclusion status' do
-      lines = described_class.service_targets(service: 'demo', target_environments: %w[develop production], candidates: candidates)
+      lines = described_class.service_targets(service: 'demo', target_environments: %w[develop production], targets: candidates.reject(&:excluded?).map(&:target), candidates: candidates)
       expect(lines).to eq([
         '🎯 Service Targets', 'Service: demo', 'Target Environments: develop, production', 'Targets: 2 of 3 candidates',
         '', '  demo:kustomize (develop) -> demo/overlays/develop', '    root: demo', '    excluded: false',
@@ -81,8 +81,8 @@ RSpec.describe Interfaces::Presenters::TextFormat do
     end
 
     it 'names a single target environment and omits the line when none is requested' do
-      expect(described_class.service_targets(service: 'all', target_environments: ['develop'], candidates: [])).to include('Target Environment: develop')
-      expect(described_class.service_targets(service: 'all', target_environments: [], candidates: [])).to eq(['🎯 Service Targets', 'Service: all', 'Targets: 0 of 0 candidates'])
+      expect(described_class.service_targets(service: 'all', target_environments: ['develop'], targets: [], candidates: [])).to include('Target Environment: develop')
+      expect(described_class.service_targets(service: 'all', target_environments: [], targets: [], candidates: [])).to eq(['🎯 Service Targets', 'Service: all', 'Targets: 0 of 0 candidates'])
     end
   end
 end

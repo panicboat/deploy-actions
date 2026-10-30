@@ -3,10 +3,10 @@
 module Interfaces
   module Controllers
     class LabelResolverController
-      def initialize(get_labels:, generate_matrix:, list_candidates:, presenter:)
+      def initialize(get_labels:, generate_matrix:, list_service_targets:, presenter:)
         @get_labels = get_labels
         @generate_matrix = generate_matrix
-        @list_candidates = list_candidates
+        @list_service_targets = list_service_targets
         @presenter = presenter
       end
 
@@ -27,25 +27,19 @@ module Interfaces
       end
 
       def targets(service:, environments:)
-        return failure(Entities::Result.failure("Invalid service name: #{service.inspect} (use all or a name matching [a-zA-Z0-9_-]+)")) unless service.match?(Entities::DeployLabel::SERVICE_PATTERN)
-
-        targets_result = list_targets(services: service == 'all' ? nil : [service], environments: environments)
+        targets_result = @list_service_targets.execute(service: service, environments: environments)
         return failure(targets_result) if targets_result.failure?
 
-        @presenter.present_service_targets(service: service, target_environments: environments, candidates: targets_result.value)
+        @presenter.present_service_targets(
+          service: service,
+          target_environments: environments,
+          targets: targets_result.value.targets,
+          candidates: targets_result.value.candidates
+        )
         targets_result
       end
 
       private
-
-      def list_targets(services:, environments:)
-        candidates_result = @list_candidates.execute(services: services, environments: environments)
-        return candidates_result if candidates_result.failure?
-
-        Entities::Result.success(candidates_result.value.map(&:to_listed_target))
-      rescue => error
-        Entities::Result.failure("Failed to resolve service targets: #{error.message}")
-      end
 
       def failure(result)
         @presenter.present_error(result.error_message)
