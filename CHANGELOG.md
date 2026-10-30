@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/panicboat/deploy-actions/compare/v2.0.1...v2.1.0) (2026-10-29)
+
+
+### Features
+
+* make deploy label prefixes configurable ([#363](https://github.com/panicboat/deploy-actions/issues/363)) ([814b97d](https://github.com/panicboat/deploy-actions/commit/814b97de447bcf07003a56f85e69de991927c497))
+
 ## [2.0.1](https://github.com/panicboat/deploy-actions/compare/v2.0.0...v2.0.1) (2026-10-09)
 
 
