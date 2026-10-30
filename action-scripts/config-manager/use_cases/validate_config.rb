@@ -9,6 +9,7 @@ module UseCases
         config = @config_client.load_workflow_config
         summary = [
           "Configuration validation successful",
+          "services: #{config.services.length} configured",
           "stacks: #{config.stacks.length} configured",
           "environments: #{config.environment_names.length} configured"
         ].join("\n")

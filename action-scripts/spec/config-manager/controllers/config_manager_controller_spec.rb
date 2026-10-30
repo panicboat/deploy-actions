@@ -300,14 +300,40 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   end
 
   describe '#generate_config_template' do
-    it 'generates a template accepted by the configuration model' do
+    let(:template) { controller.send(:build_config_template) }
+    let(:template_hash) { YAML.safe_load(template, aliases: true) }
+
+    it 'presents the template it builds' do
       allow(presenter).to receive(:present_config_template)
       controller.generate_config_template
-      expect(presenter).to have_received(:present_config_template) do |args|
-        config = Entities::WorkflowConfig.new(YAML.safe_load(args.fetch(:template)))
-        expect(config.stacks.map { |stack| stack['id'] }).to include('aws', 'container')
-        expect(config.environment_names).to include('develop', 'production')
-      end
+      expect(presenter).to have_received(:present_config_template).with(template: template)
+    end
+
+    it 'generates a template that passes validation' do
+      expect { Entities::WorkflowConfig.new(template_hash) }.not_to raise_error
+    end
+
+    it 'defines profiles and one service with roots, ignore, and the dockerfile, kustomize, and aws stacks' do
+      service = template_hash.fetch('services').first
+      expect(template_hash.fetch('profiles').keys).to eq(%w[aws-develop aws-production])
+      expect(service.slice('id', 'roots', 'ignore')).to eq('id' => 'app', 'roots' => ['dystopia/{service}', 'system-components/{service}'], 'ignore' => ['**/README.md'])
+      expect(service.fetch('stacks').map { |stack| stack['id'] }).to eq(%w[dockerfile kustomize aws])
+    end
+
+    it 'names the tool in the type attribute of every stack' do
+      stacks = template_hash.fetch('services').first.fetch('stacks')
+      expect(stacks.to_h { |stack| [stack['id'], stack.dig('attributes', 'type')] }).to eq('dockerfile' => 'container', 'kustomize' => 'kustomize', 'aws' => 'terragrunt')
+    end
+
+    it 'discovers kustomize environments and declares aws environments from profiles' do
+      kustomize, aws = template_hash.fetch('services').first.fetch('stacks').values_at(1, 2)
+      expect(kustomize).not_to have_key('environments')
+      expect(aws.fetch('environments')).to eq('develop' => { 'use' => ['aws-develop'] }, 'production' => { 'use' => ['aws-production'] })
+    end
+
+    it 'uses the placeholder account id' do
+      expect(template).to include('arn:aws:iam::123456789012:role/')
+      expect(template).not_to match(/arn:aws:iam::(?!123456789012:)/)
     end
 
     it 'accepts the repository sample with the same model' do

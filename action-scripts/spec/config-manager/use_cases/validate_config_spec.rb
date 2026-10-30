@@ -8,14 +8,14 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
 
   after { file.close! }
 
-  it 'summarizes validated stacks and their environment union' do
+  it 'summarizes validated services, stacks, and their environment union' do
     file.write(default_test_config)
     file.flush
     result = use_case.execute
     expect(result).to be_success
     expect(result.valid).to be(true)
     expect(result.config).to be_a(Entities::WorkflowConfig)
-    expect(result.validation_summary).to include('stacks: 2', 'environments: 2')
+    expect(result.validation_summary.lines.map(&:chomp)).to include('services: 1 configured', 'stacks: 2 configured', 'environments: 2 configured')
   end
 
   it 'accepts configurations with only common stacks' do

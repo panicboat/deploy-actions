@@ -164,16 +164,32 @@ module Interfaces
           profiles:
             aws-develop:
               aws_region: ap-northeast-1
+              iam_role_plan: arn:aws:iam::123456789012:role/github-oidc-auth-develop-github-actions-plan-role
+              iam_role_apply: arn:aws:iam::123456789012:role/github-oidc-auth-develop-github-actions-apply-role
             aws-production:
-              aws_region: us-west-2
+              aws_region: ap-northeast-1
+              iam_role_plan: arn:aws:iam::123456789012:role/github-oidc-auth-production-github-actions-plan-role
+              iam_role_apply: arn:aws:iam::123456789012:role/github-oidc-auth-production-github-actions-apply-role
+
           services:
             - id: app
               roots:
                 - "dystopia/{service}"
                 - "system-components/{service}"
+              ignore:
+                - "**/README.md"
               stacks:
+                - id: dockerfile
+                  path: "."
+                  attributes:
+                    type: container
+                    repository: ghcr.io/panicboat/monorepo/{service}
+                - id: kustomize
+                  path: "kubernetes/overlays/{environment}"
+                  attributes:
+                    type: kustomize
                 - id: aws
-                  path: "aws/{environment}"
+                  path: "infrastructure/aws/{environment}"
                   attributes:
                     type: terragrunt
                   environments:
@@ -182,13 +198,7 @@ module Interfaces
                     production:
                       use: [aws-production]
                   exclude:
-                    - service: demo
-                      environment: production
-                - id: container
-                  path: "."
-                  attributes:
-                    type: container
-                    repository: registry.example.com/{service}
+                    - environment: production
         YAML
       end
     end
