@@ -110,7 +110,11 @@ runs:
         script: |
           core.info('📊 Label Resolver completed');
           core.info(`Repository: ${process.env.REPOSITORY}`);
-          core.info(process.env.SERVICE ? `Service: ${process.env.SERVICE}` : `PR Number: ${process.env.PR_NUMBER}`);
+          if (process.env.SERVICE) {
+            core.info(`Service: ${process.env.SERVICE}`);
+          } else if (process.env.PR_NUMBER) {
+            core.info(`PR Number: ${process.env.PR_NUMBER}`);
+          }
           core.info(`Target Environments: ${process.env.TARGET_ENVIRONMENTS || 'all'}`);
           core.info(`Deployment Targets: ${process.env.DEPLOYMENT_TARGETS || '[]'}`);
           core.info(`Has Targets: ${process.env.HAS_TARGETS || 'false'}`);
