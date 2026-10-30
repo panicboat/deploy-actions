@@ -12,4 +12,9 @@ RSpec.describe UseCases::LabelResolver::GetLabels do
     expect(result).to be_success
     expect(result.value.map(&:to_s)).to eq(['release/api', 'manual:web'])
   end
+
+  it 'prefixes errors from reading the pull request' do
+    allow(github_client).to receive(:get_pr_info).and_raise(StandardError, 'Not Found')
+    expect(use_case.execute(pr_number: 1).error_message).to eq('Failed to retrieve PR labels: Not Found')
+  end
 end

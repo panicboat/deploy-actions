@@ -21,8 +21,8 @@ RSpec.describe Interfaces::Presenters::TextFormat do
   describe '.deployment_matrix' do
     it 'shows the context and the targets grouped by environment with their attributes' do
       target = Entities::DeploymentTarget.new(service: 'demo', environment: 'develop', stack: 'aws', working_directory: 'demo/aws', attributes: { 'type' => 'terragrunt' })
-      lines = described_class.deployment_matrix(deployment_targets: [target], deploy_labels: [Entities::DeployLabel.new('deploy:demo')], target_environments: %w[develop production], pr_number: 12, safety_status: 'passed')
-      expect(lines).to eq(['🚀 Deployment Matrix', 'Target Environments: develop, production', 'PR Number: #12', 'Safety Status: passed', '', 'Deploy Labels: deploy:demo', 'Deployment Targets: 1', '', '  Environment: develop', '    demo:aws -> demo/aws', '      type: terragrunt', ''])
+      lines = described_class.deployment_matrix(deployment_targets: [target], deploy_labels: [Entities::DeployLabel.new('deploy:demo')], target_environments: %w[develop production], pr_number: 12)
+      expect(lines).to eq(['🚀 Deployment Matrix', 'Target Environments: develop, production', 'PR Number: #12', '', 'Deploy Labels: deploy:demo', 'Deployment Targets: 1', '', '  Environment: develop', '    demo:aws -> demo/aws', '      type: terragrunt', ''])
     end
 
     it 'names a single target environment' do

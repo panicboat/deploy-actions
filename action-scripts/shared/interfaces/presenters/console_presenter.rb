@@ -12,8 +12,8 @@ module Interfaces
       end
 
       # Present deployment matrix results
-      def present_deployment_matrix(**fields)
-        print_lines(TextFormat.deployment_matrix(**fields), heading_color: :green)
+      def present_deployment_matrix(deployment_targets:, deploy_labels:, target_environments:, pr_number:)
+        print_lines(TextFormat.deployment_matrix(deployment_targets: deployment_targets, deploy_labels: deploy_labels, target_environments: target_environments, pr_number: pr_number), heading_color: :green)
       end
 
       # Present configuration validation results

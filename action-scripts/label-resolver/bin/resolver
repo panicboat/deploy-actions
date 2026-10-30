@@ -6,62 +6,17 @@ require_relative '../application'
 require 'thor'
 
 class LabelResolverCLI < Thor
+  # Thor exits 0 on a missing PR number unless this is true.
+  def self.exit_on_failure?
+    true
+  end
+
   desc "resolve PR_NUMBER [ENVIRONMENTS]", "Resolve deployment matrix for specified environments (comma-separated, empty=all)"
 
   def resolve(pr_number, environments = nil)
     controller = LabelResolverContainer.resolve(:label_resolver_controller)
-    target_environments = parse_environments(environments)
 
-    result = controller.resolve_from_labels(pr_number: pr_number.to_i, target_environments: target_environments)
-    exit 1 if result.failure?
-  end
-
-  desc "test PR_NUMBER [ENVIRONMENTS]", "Test deployment workflow without execution"
-
-  def test(pr_number, environments = nil)
-    controller = LabelResolverContainer.resolve(:label_resolver_controller)
-    target_environments = parse_environments(environments)
-    result = controller.test_deployment_workflow(pr_number: pr_number.to_i, target_environments: target_environments)
-    exit 1 if result.failure?
-  end
-
-  desc "simulate PR_NUMBER [ENVIRONMENTS]", "Simulate GitHub Actions environment locally"
-
-  def simulate(pr_number, environments = nil)
-    controller = LabelResolverContainer.resolve(:label_resolver_controller)
-    target_environments = parse_environments(environments)
-    result = controller.simulate_github_actions(pr_number: pr_number.to_i, target_environments: target_environments)
-    exit 1 if result.failure?
-  end
-
-  desc "validate_env", "Validate environment configuration for deployments"
-
-  def validate_env
-    required_vars = %w[GITHUB_TOKEN GITHUB_REPOSITORY]
-    missing_vars = required_vars.reject { |var| ENV[var] }
-
-    if missing_vars.any?
-      puts "::error::Missing required environment variables: #{missing_vars.join(', ')}"
-      exit 1
-    end
-
-    puts "✅ Environment is properly configured for deployments"
-    puts "Repository: #{ENV['GITHUB_REPOSITORY']}"
-    puts "Token present: #{ENV['GITHUB_TOKEN'] ? 'Yes' : 'No'}"
-    puts "Current branch: #{`git branch --show-current`.strip rescue 'unknown'}"
-  end
-
-  desc "debug PR_NUMBER [ENVIRONMENTS]", "Debug deployment workflow step by step"
-
-  def debug(pr_number, environments = nil)
-    target_environments = parse_environments(environments)
-    puts "🔍 Debug Mode: Label Resolver Workflow"
-    puts "PR Number: #{pr_number}"
-    puts "Target Environments: #{target_environments.join(', ')}"
-    puts ""
-
-    controller = LabelResolverContainer.resolve(:label_resolver_controller)
-    result = controller.debug_deployment_workflow(pr_number: pr_number.to_i, target_environments: target_environments)
+    result = controller.resolve(pr_number: pr_number.to_i, environments: parse_environments(environments))
     exit 1 if result.failure?
   end
 

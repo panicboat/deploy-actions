@@ -28,8 +28,17 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
 
   it 'writes the matrix outputs' do
     target = Entities::DeploymentTarget.new(service: 'demo', environment: 'develop', stack: 'aws', working_directory: 'demo/aws')
-    expect { presenter.present_deployment_matrix(deployment_targets: [target], deploy_labels: [], target_environments: ['develop'], safety_status: 'passed') }.to output.to_stdout
-    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('targets=[{"service":"demo","environment":"develop","stack":"aws","working_directory":"demo/aws"}]', 'has-targets=true', 'safety-status=passed')
+    expect { presenter.present_deployment_matrix(deployment_targets: [target], deploy_labels: [], target_environments: ['develop'], pr_number: 12) }.to output.to_stdout
+    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('targets=[{"service":"demo","environment":"develop","stack":"aws","working_directory":"demo/aws"}]', 'has-targets=true')
+  end
+
+  it 'writes false and an empty matrix when no targets are resolved' do
+    expect { presenter.present_deployment_matrix(deployment_targets: [], deploy_labels: [], target_environments: [], pr_number: 12) }.to output.to_stdout
+    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('targets=[]', 'has-targets=false')
+  end
+
+  it 'accepts only the matrix fields' do
+    expect(described_class.instance_method(:present_deployment_matrix).parameters.map(&:last)).to eq(%i[deployment_targets deploy_labels target_environments pr_number])
   end
 
   it 'prints the shared text without color' do

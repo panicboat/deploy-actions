@@ -35,8 +35,6 @@ module Infrastructure
         number: pr.number,
         html_url: pr.html_url
       }
-    rescue Octokit::Error => error
-      raise "Failed to get PR info: #{error.message}"
     end
 
     # Add a label to a PR
@@ -59,23 +57,11 @@ module Infrastructure
     def ensure_label_exists(label_name)
       @client.label(@repository, label_name)
     rescue Octokit::NotFound
-      color = determine_label_color(label_name)
-      @client.add_label(@repository, label_name, color, {
+      @client.add_label(@repository, label_name, '0052cc', {
         description: 'Auto-generated deployment label'
       })
     rescue Octokit::Error => error
       raise "Failed to ensure label exists #{label_name}: #{error.message}"
-    end
-
-    private
-
-    # Determine label color based on environment
-    def determine_label_color(label_name)
-      if label_name.include?('production')
-        'ff0000'  # Red for production
-      else
-        '0052cc'  # Blue for others
-      end
     end
   end
 end

@@ -20,12 +20,17 @@ RSpec.describe Infrastructure::GitHubClient do
     expect(client.get_pr_info(1)[:labels]).to eq(%w[release/api manual/web enhancement])
   end
 
-  { 'production-api' => 'ff0000', 'release/production' => 'ff0000', 'deploy:api' => '0052cc', 'staging:api' => '0052cc' }.each do |name, color|
-    it "creates #{name} with color #{color}" do
+  it 'lets the caller prefix errors from reading PR information' do
+    allow(octokit).to receive(:pull_request).and_raise(Octokit::NotFound)
+    expect { client.get_pr_info(1) }.to raise_error(Octokit::NotFound)
+  end
+
+  %w[production-api release/production deploy:api].each do |name|
+    it "creates #{name} with color 0052cc" do
       allow(octokit).to receive(:label).and_raise(Octokit::NotFound)
       allow(octokit).to receive(:add_label)
       client.ensure_label_exists(name)
-      expect(octokit).to have_received(:add_label).with('owner/repo', name, color, description: 'Auto-generated deployment label')
+      expect(octokit).to have_received(:add_label).with('owner/repo', name, '0052cc', description: 'Auto-generated deployment label')
     end
   end
 end

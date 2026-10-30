@@ -31,6 +31,10 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
   it 'accepts only the dispatch result fields' do
     expect(described_class.instance_method(:present_label_dispatch_result).parameters.map(&:last)).to eq(%i[deploy_labels labels_added labels_removed changed_files])
   end
+
+  it 'accepts only the matrix fields' do
+    expect(described_class.instance_method(:present_deployment_matrix).parameters.map(&:last)).to eq(%i[deployment_targets deploy_labels target_environments pr_number])
+  end
   describe '#present_config_details' do
     let(:config) do
       Entities::WorkflowConfigParser.parse(

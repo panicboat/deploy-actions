@@ -20,15 +20,13 @@ module Interfaces
       end
 
       # Present deployment matrix for GitHub Actions
-      def present_deployment_matrix(**fields)
-        deployment_targets = fields.fetch(:deployment_targets)
+      def present_deployment_matrix(deployment_targets:, deploy_labels:, target_environments:, pr_number:)
         write_outputs(
           'targets' => deployment_targets.map(&:to_matrix_item).to_json,
-          'has-targets' => deployment_targets.any?.to_s,
-          'safety-status' => fields[:safety_status]
+          'has-targets' => deployment_targets.any?.to_s
         )
 
-        puts TextFormat.deployment_matrix(**fields)
+        puts TextFormat.deployment_matrix(deployment_targets: deployment_targets, deploy_labels: deploy_labels, target_environments: target_environments, pr_number: pr_number)
       end
 
       # Present configuration validation results for GitHub Actions
