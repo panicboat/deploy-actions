@@ -18,8 +18,8 @@ Run commands from the `action-scripts` directory.
 
 | Command | Result |
 |---|---|
-| `bundle exec ruby config-manager/bin/config-manager validate` | Validation result and stack/declared environment counts |
-| `bundle exec ruby config-manager/bin/config-manager show` | All paths, environment or shared attributes, and exclusions for each stack ID |
+| `bundle exec ruby config-manager/bin/config-manager validate` | Validation result and service, stack, and declared environment counts |
+| `bundle exec ruby config-manager/bin/config-manager show` | Roots and ignore patterns for each service, and all paths, environment or shared attributes, and exclusions for each of its stacks |
 | `bundle exec ruby config-manager/bin/config-manager environments` | Union of declared and discovered environment names |
 | `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | All existing matching targets and their exclusion status |
 | `bundle exec ruby config-manager/bin/config-manager diagnostics` | Diagnostics for configuration, environment variables, Git state, and the configuration file |
@@ -50,7 +50,7 @@ Unknown environments, invalid configuration, directory enumeration failures, and
 
 ### Validation Flow
 
-Loads YAML, validates structure and consistency through the configuration model, and displays the validation result with stack/declared environment counts. Validation and configuration display do not enumerate directories; use `environments` or service diagnosis to discover environment names from existing directories. See [Configuration](../../README.md#configuration) for the validation rules.
+Loads YAML, validates structure and consistency through the configuration model, and displays the validation result with service, stack, and declared environment counts. Validation and configuration display do not enumerate directories; use `environments` or service diagnosis to discover environment names from existing directories. See [Configuration](../../README.md#configuration) for the validation rules.
 
 ## Error Handling
 

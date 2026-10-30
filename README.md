@@ -157,7 +157,7 @@ A stack runs in each root followed by `path`: root `aws/{service}` with path `{e
 Targets are built in this order:
 
 1. With `environments`, one target is built for each declared environment, even when `path` does not contain `{environment}`. When it does, only the declared names match, so a directory such as `modules/` never becomes a target.
-2. Without `environments`, when `path` contains `{environment}`, environment names are discovered from existing directories at that position.
+2. Without `environments`, when `path` contains `{environment}`, environment names are discovered from existing directories at that position. Directories at that position that are not environments, such as `modules/`, are also discovered as environments, so declare `environments` when such directories sit beside the environment directories.
 3. With neither, one target with `environment: null` is built per directory, regardless of environment selection.
 
 `attributes` attach to every target of the stack, however it was built. In case 3 they cannot reference `{environment}`.
@@ -204,7 +204,9 @@ Label Dispatcher labels a service when a changed file is below one of its roots,
 3. When the file is below a stack's directory (root followed by `path`), candidate targets are built as Label Resolver builds them. The service is labeled unless `exclude` removes every candidate.
 4. When the file is below no stack's directory, such as `modules/` or `Makefile`, the service is labeled. `exclude` does not apply to these shared files; use `ignore` to skip them.
 
-A stack with `path: "."` has the root itself as its directory, so every file below the root is inside it and rule 4 never applies to that service. For a stack with `environments`, a directory at the `{environment}` position that is not a declared environment is outside the stack's directory.
+A stack with `path: "."` has the root itself as its directory, but it does not count as a stack's directory for rule 4. Its candidates label the service as in rule 3; when `exclude` removes all of them, rule 4 still applies unless the file is below another stack's directory. A file below another stack's directory whose candidates are all excluded is still not labeled. For a stack with `environments`, a directory at the `{environment}` position that is not a declared environment is outside the stack's directory.
+
+Choose roots narrow enough that unrelated top-level directories are not taken as services; for example, avoid a bare `{service}` root, which makes every top-level directory a service.
 
 `ignore` patterns are globs relative to the root: for root `dystopia/{service}`, the file `dystopia/api/docs/guide.md` is matched as `docs/guide.md`. `*` does not cross `/`, and `**/` matches zero or more directories. A trailing `/**` matches every file below that directory. Files starting with a dot match, and `?`, `[...]`, and `{a,b}` work as in shell globs. `ignore` affects change detection only; Label Resolver still generates targets under ignored paths.
 

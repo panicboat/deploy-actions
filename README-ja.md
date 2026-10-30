@@ -157,7 +157,7 @@ stack は各 root に `path` を連結したディレクトリで実行します
 対象は次の順で作ります。
 
 1. `environments` があれば、`path` に `{environment}` がなくても、宣言した環境ごとに対象を作ります。`path` に `{environment}` がある場合は宣言した名前だけに一致するため、`modules/` のようなディレクトリは対象になりません。
-2. `environments` がなく `path` に `{environment}` があれば、その位置にある実在ディレクトリから環境名を探索します。
+2. `environments` がなく `path` に `{environment}` があれば、その位置にある実在ディレクトリから環境名を探索します。その位置にある環境ではないディレクトリ（`modules/` など）も環境として探索するため、環境ディレクトリの隣にそうしたディレクトリがある場合は `environments` を宣言します。
 3. どちらもなければ、環境選択にかかわらず、ディレクトリごとに `environment: null` の対象を 1 つ作ります。
 
 `attributes` は、どの作り方でも、その stack のすべての対象に付きます。3 の対象では `{environment}` を参照できません。
@@ -204,7 +204,9 @@ Label Dispatcher は、変更ファイルがいずれかの root の配下にあ
 3. ファイルが stack のディレクトリ（root に `path` を連結したもの）の配下にあれば、Label Resolver と同じ規則で候補の対象を作ります。`exclude` がすべての候補を除外しない限り、service にラベルを付けます。
 4. ファイルがどの stack のディレクトリの配下にもなければ（`modules/` や `Makefile` などの共通部品）、service にラベルを付けます。これらの共通部品には `exclude` を適用しません。対象外にするには `ignore` を使います。
 
-`path: "."` の stack は root そのものがディレクトリなので、root 配下のすべてのファイルがその stack の配下になり、その service に規則 4 は適用されません。`environments` を持つ stack では、`{environment}` の位置にあるディレクトリが宣言した環境でなければ、stack のディレクトリの外です。
+`path: "."` の stack は root そのものがディレクトリですが、規則 4 の判定では stack のディレクトリに数えません。その stack の候補は規則 3 と同じく service にラベルを付けますが、`exclude` がすべての候補を除外した場合は、ファイルがほかの stack のディレクトリの配下になければ規則 4 を適用します。ほかの stack のディレクトリの配下にあり、候補がすべて除外されたファイルには、引き続きラベルを付けません。`environments` を持つ stack では、`{environment}` の位置にあるディレクトリが宣言した環境でなければ、stack のディレクトリの外です。
+
+関係のない最上位ディレクトリが service として扱われないよう、root は十分に絞り込みます。たとえば、最上位のディレクトリをすべて service にしてしまう `{service}` だけの root は避けます。
 
 `ignore` は root からの相対 glob です。root `dystopia/{service}` では、`dystopia/api/docs/guide.md` を `docs/guide.md` として照合します。`*` は `/` をまたがず、`**/` は 0 個以上のディレクトリに当たります。末尾の `/**` はそのディレクトリ配下のすべてのファイルに当たります。ドットで始まるファイルにも当たり、`?`、`[...]`、`{a,b}` はシェルの glob と同じように使えます。`ignore` は変更検知にだけ効き、Label Resolver は無視したパスの配下でも対象を生成します。
 
