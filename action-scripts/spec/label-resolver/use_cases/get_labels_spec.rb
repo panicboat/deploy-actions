@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 RSpec.describe UseCases::LabelResolver::GetLabels do
-  let(:config) { Entities::WorkflowConfig.new('labels' => { 'prefix' => 'release/', 'extra_prefixes' => ['manual:'] }, 'stacks' => [{ 'name' => 'container', 'paths' => ['{service}'], 'attributes' => {} }]) }
+  let(:config) { Entities::WorkflowConfig.new('labels' => { 'prefix' => 'release/', 'extra_prefixes' => ['manual:'] }, 'services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.' }] }]) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
   let(:github_client) { instance_double(Infrastructure::GitHubClient) }
   subject(:use_case) { described_class.new(github_client: github_client, config_client: config_client) }

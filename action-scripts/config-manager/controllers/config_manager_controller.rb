@@ -56,12 +56,12 @@ module Interfaces
         config.stacks.each do |stack|
           environments = if stack.key?('environments')
             stack['environments'].keys
-          elsif stack.key?('attributes')
+          elsif stack['common']
             [nil]
           else
             available
           end
-          environments &= [environment] if environment && !stack.key?('attributes')
+          environments &= [environment] if environment && !stack['common']
           environments.each do |selected|
             values = { 'service' => service_name, 'environment' => selected }
             stack['paths'].each do |pattern|
@@ -83,8 +83,8 @@ module Interfaces
           stack = candidate.fetch(:stack)
           selected = candidate.fetch(:environment)
           captures = candidate.fetch(:captures)
-          attributes = stack.key?('environments') ? stack['environments'].fetch(selected) : stack.fetch('attributes', {})
-          target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack['name'], stack_id: stack['id'], working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
+          attributes = config.target_attributes(stack, selected)
+          target = Entities::DeploymentTarget.new(service: service_name, environment: selected, stack: stack['id'], working_directory: candidate.fetch(:working_directory), attributes: attributes, captures: captures)
           { target: target, excluded: config.excluded?(stack, captures.merge('service' => service_name, 'environment' => selected)) }
         end
         @presenter.present_service_test_result(service_name: service_name, matches: matches)
@@ -161,26 +161,44 @@ module Interfaces
 
       def build_config_template
         <<~YAML
-          stacks:
-            - name: terragrunt
-              id: aws
-              paths:
-                - "dystopia/{service}/aws/{environment}"
-                - "system-components/{service}/infrastructure/aws/{environment}"
-              environments:
-                develop:
-                  aws_region: ap-northeast-1
-                production:
-                  aws_region: us-west-2
-              exclude:
-                - service: demo
-                  environment: production
-            - name: container
-              paths:
+          profiles:
+            aws-develop:
+              aws_region: ap-northeast-1
+              iam_role_plan: arn:aws:iam::123456789012:role/github-oidc-auth-develop-github-actions-plan-role
+              iam_role_apply: arn:aws:iam::123456789012:role/github-oidc-auth-develop-github-actions-apply-role
+            aws-production:
+              aws_region: ap-northeast-1
+              iam_role_plan: arn:aws:iam::123456789012:role/github-oidc-auth-production-github-actions-plan-role
+              iam_role_apply: arn:aws:iam::123456789012:role/github-oidc-auth-production-github-actions-apply-role
+
+          services:
+            - id: app
+              roots:
                 - "dystopia/{service}"
                 - "system-components/{service}"
-              attributes:
-                repository: registry.example.com/{service}
+              ignore:
+                - "**/README.md"
+              stacks:
+                - id: dockerfile
+                  path: "."
+                  attributes:
+                    type: container
+                    repository: registry.example.com/{service}
+                - id: kustomize
+                  path: "kubernetes/overlays/{environment}"
+                  attributes:
+                    type: kustomize
+                - id: aws
+                  path: "infrastructure/aws/{environment}"
+                  attributes:
+                    type: terragrunt
+                  environments:
+                    develop:
+                      use: [aws-develop]
+                    production:
+                      use: [aws-production]
+                  exclude:
+                    - environment: production
         YAML
       end
     end

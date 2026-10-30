@@ -2,7 +2,9 @@ require 'spec_helper'
 require 'tempfile'
 
 RSpec.describe Infrastructure::ConfigClient do
-  let(:content) { { 'stacks' => [{ 'name' => 'container', 'paths' => ['apps/{service}'], 'attributes' => { 'repository' => 'registry.example.com/app' } }] }.to_yaml }
+  let(:content) do
+    { 'services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [{ 'id' => 'container', 'path' => '.', 'attributes' => { 'repository' => 'registry.example.com/app' } }] }] }.to_yaml
+  end
   let(:file) { Tempfile.new(['workflow-config', '.yaml']) }
   let(:client) { described_class.new(config_path: file.path) }
 
@@ -33,6 +35,26 @@ RSpec.describe Infrastructure::ConfigClient do
     expect(described_class.new.load_workflow_config.stacks.first['id']).to eq('container')
   end
 
+  it 'loads anchors and merge keys' do
+    File.write(file.path, <<~YAML)
+      profiles:
+        aws-develop: &aws_develop
+          aws_region: ap-northeast-1
+      services:
+        - id: app
+          roots: ["apps/{service}"]
+          stacks:
+            - id: aws
+              path: "aws/{environment}"
+              environments:
+                develop:
+                  <<: *aws_develop
+                  gcp_project: foo
+    YAML
+    config = described_class.new(config_path: file.path).load_workflow_config
+    expect(config.target_attributes(config.stacks.first, 'develop')).to eq('aws_region' => 'ap-northeast-1', 'gcp_project' => 'foo')
+  end
+
   it 'reports the missing file path' do
     expect { described_class.new(config_path: "#{file.path}.missing").load_workflow_config }.to raise_error(/not found.*\.missing/)
   end
@@ -43,7 +65,7 @@ RSpec.describe Infrastructure::ConfigClient do
   end
 
   context 'with malformed YAML' do
-    let(:content) { "stacks: [\n  {name: container\n" }
+    let(:content) { "services: [\n  {id: app\n" }
 
     it 'reports the YAML line number' do
       expect { client.load_workflow_config }.to raise_error(/YAML.*line \d+/)
@@ -51,10 +73,10 @@ RSpec.describe Infrastructure::ConfigClient do
   end
 
   context 'with an invalid configuration' do
-    let(:content) { "stacks:\n  - name: container\n    paths: []\n" }
+    let(:content) { "services:\n  - id: app\n    roots: []\n" }
 
     it 'preserves the validation position and file path' do
-      expect { client.load_workflow_config }.to raise_error(/#{Regexp.escape(file.path)}.*stacks\[0\].paths/)
+      expect { client.load_workflow_config }.to raise_error(/#{Regexp.escape(file.path)}.*services\[0\].roots/)
     end
   end
 

@@ -1,11 +1,11 @@
 module Entities
   class DeploymentTarget
-    FIXED_RESERVED_KEYS = %w[service environment stack stack_id working_directory].freeze
+    FIXED_RESERVED_KEYS = %w[service environment stack working_directory].freeze
 
-    attr_reader :service, :environment, :stack, :stack_id, :working_directory, :attributes, :captures
+    attr_reader :service, :environment, :stack, :working_directory, :attributes, :captures
 
-    def initialize(service:, stack:, stack_id:, working_directory:, environment: nil, attributes: {}, captures: {})
-      { service: service, stack: stack, stack_id: stack_id, working_directory: working_directory }.each do |key, value|
+    def initialize(service:, stack:, working_directory:, environment: nil, attributes: {}, captures: {})
+      { service: service, stack: stack, working_directory: working_directory }.each do |key, value|
         raise ArgumentError, "#{key} is required" unless value.is_a?(String) && !value.empty?
       end
       attribute_keys = attributes.keys.map(&:to_s)
@@ -18,7 +18,6 @@ module Entities
       @service = service
       @environment = environment
       @stack = stack
-      @stack_id = stack_id
       @working_directory = working_directory
       values = captures.transform_keys(&:to_s).merge('service' => service)
       values['environment'] = environment unless environment.nil?
@@ -27,17 +26,17 @@ module Entities
     end
 
     def to_matrix_item
-      { service: service, environment: environment, stack: stack, stack_id: stack_id, working_directory: working_directory }
+      { service: service, environment: environment, stack: stack, working_directory: working_directory }
         .merge(attributes.transform_keys(&:to_sym)).merge(captures.transform_keys(&:to_sym))
     end
 
     def ==(other)
       other.is_a?(DeploymentTarget) &&
-        [service, stack_id, environment, working_directory] == [other.service, other.stack_id, other.environment, other.working_directory]
+        [service, stack, environment, working_directory] == [other.service, other.stack, other.environment, other.working_directory]
     end
 
     def hash
-      [service, stack_id, environment, working_directory].hash
+      [service, stack, environment, working_directory].hash
     end
 
     alias eql? ==

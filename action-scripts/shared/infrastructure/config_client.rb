@@ -10,7 +10,7 @@ module Infrastructure
     def load_workflow_config
       return @config_cache if @config_cache
 
-      @config_cache = Entities::WorkflowConfig.new(YAML.safe_load(File.read(@config_path)))
+      @config_cache = Entities::WorkflowConfig.new(YAML.safe_load(File.read(@config_path), aliases: true))
     rescue Errno::ENOENT
       raise "Configuration file not found: #{@config_path}"
     rescue Errno::EACCES

@@ -12,6 +12,10 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   let(:file_client) { Infrastructure::FileSystemClient.new }
   let(:presenter) { double('Presenter') }
 
+  def use_service(roots:, stacks:)
+    config_hash['services'] = [{ 'id' => 'app', 'roots' => roots, 'stacks' => stacks }]
+  end
+
   subject(:controller) do
     described_class.new(
       validate_config_use_case: validate_config_use_case,
@@ -148,7 +152,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'diagnoses unregistered services across every shared product path and common stack' do
-      %w[dystopia/demo/aws/develop dystopia/demo/aws/production system-components/demo/infrastructure/aws/develop system-components/demo/infrastructure/aws/production].each { |path| directory(path) }
+      %w[dystopia/demo/aws/develop dystopia/demo/aws/production system-components/demo/aws/develop system-components/demo/aws/production].each { |path| directory(path) }
       rows = matches
       expect(rows.length).to eq(6)
       expect(rows.map { |row| row[:target].working_directory }.uniq.length).to eq(6)
@@ -157,29 +161,29 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'retains environment attributes and includes excluded targets for diagnosis' do
-      config_hash['stacks'].first['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
+      config_hash['services'].first['stacks'].first['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
       directory('dystopia/demo/aws/production')
       rows = matches(environment: 'production')
-      aws = rows.find { |row| row[:target].stack_id == 'aws' }
+      aws = rows.find { |row| row[:target].stack == 'aws' }
       expect(aws[:excluded]).to be(true)
-      expect(aws[:target].attributes).to eq('aws_region' => 'us-west-2')
-      expect(rows.find { |row| row[:target].stack_id == 'container' }[:excluded]).to be(false)
+      expect(aws[:target].attributes).to eq('type' => 'terragrunt', 'aws_region' => 'us-west-2')
+      expect(rows.find { |row| row[:target].stack == 'container' }[:excluded]).to be(false)
     end
 
     it 'retains distinct identities and captures at the same directory' do
-      config_hash['stacks'] = [
-        { 'name' => 'terragrunt', 'id' => 'aws', 'paths' => ['teams/{team}/{service}'], 'attributes' => { 'token' => nil } },
-        { 'name' => 'terragrunt', 'id' => 'stripe', 'paths' => ['teams/{team}/{service}'], 'attributes' => { 'repository' => 'registry.example.com' } }
-      ]
+      use_service(roots: ['teams/{team}/{service}'], stacks: [
+        { 'id' => 'aws', 'path' => '.', 'attributes' => { 'token' => nil } },
+        { 'id' => 'stripe', 'path' => '.', 'attributes' => { 'repository' => 'registry.example.com' } }
+      ])
       directory('teams/platform/demo')
       rows = matches
-      expect(rows.map { |row| row[:target].stack_id }).to eq(%w[aws stripe])
+      expect(rows.map { |row| row[:target].stack }).to eq(%w[aws stripe])
       expect(rows.map { |row| row[:target].captures }).to eq([{ 'team' => 'platform' }] * 2)
       expect(rows.first[:target].attributes).to eq('token' => nil)
     end
 
     it 'diagnoses dot-prefixed environment and custom placeholder values' do
-      config_hash['stacks'] = [{ 'name' => 'terragrunt', 'paths' => ['teams/{team}/{service}/{environment}'], 'environments' => { '.preview' => {} }, 'exclude' => [{ 'team' => '.platform', 'environment' => '.preview' }] }]
+      use_service(roots: ['teams/{team}/{service}'], stacks: [{ 'id' => 'terragrunt', 'path' => '{environment}', 'environments' => { '.preview' => {} }, 'exclude' => [{ 'team' => '.platform', 'environment' => '.preview' }] }])
       directory('teams/.platform/demo/.preview')
       rows = matches(environment: '.preview')
       expect(rows.length).to eq(1)
@@ -188,10 +192,10 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'diagnoses inferred environments and renders common attribute templates' do
-      config_hash['stacks'] = [
-        { 'name' => 'kubernetes', 'paths' => ['teams/{team}/{service}/{environment}'], 'exclude' => [{ 'environment' => 'production' }] },
-        { 'name' => 'container', 'paths' => ['teams/{team}/{service}'], 'attributes' => { 'repository' => 'ghcr.io/{team}/{service}' } }
-      ]
+      use_service(roots: ['teams/{team}/{service}'], stacks: [
+        { 'id' => 'kubernetes', 'path' => '{environment}', 'exclude' => [{ 'environment' => 'production' }] },
+        { 'id' => 'container', 'path' => '.', 'attributes' => { 'repository' => 'ghcr.io/{team}/{service}' } }
+      ])
       %w[teams/payments/demo/production teams/payments/demo/preview].each { |path| directory(path) }
       rows = matches(environment: 'production')
       expect(rows.length).to eq(2)
@@ -208,7 +212,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'deduplicates identical matches' do
-      config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['dystopia/{service}', 'dystopia/{service}'], 'attributes' => {} }]
+      use_service(roots: ['dystopia/{service}', 'dystopia/{service}'], stacks: [{ 'id' => 'container', 'path' => '.' }])
       directory('dystopia/demo')
       expect(matches.length).to eq(1)
     end
@@ -221,7 +225,7 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
     end
 
     it 'reports conflicting captures before exclusions' do
-      config_hash['stacks'] = [{ 'name' => 'container', 'paths' => ['teams/{team}/{service}', 'teams/{product}/{service}'], 'attributes' => {}, 'exclude' => [{ 'team' => 'platform' }] }]
+      use_service(roots: ['teams/{team}/{service}', 'teams/{product}/{service}'], stacks: [{ 'id' => 'container', 'path' => '.', 'exclude' => [{ 'team' => 'platform' }] }])
       directory('teams/platform/demo')
       allow(presenter).to receive(:present_error)
       expect(presenter).not_to receive(:present_service_test_result)
@@ -296,19 +300,50 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
   end
 
   describe '#generate_config_template' do
-    it 'generates a template accepted by the configuration model' do
+    let(:template) { controller.send(:build_config_template) }
+    let(:template_hash) { YAML.safe_load(template, aliases: true) }
+
+    it 'presents the template it builds' do
       allow(presenter).to receive(:present_config_template)
       controller.generate_config_template
-      expect(presenter).to have_received(:present_config_template) do |args|
-        config = Entities::WorkflowConfig.new(YAML.safe_load(args.fetch(:template)))
-        expect(config.stacks.map { |stack| stack['id'] }).to include('aws', 'container')
-        expect(config.environment_names).to include('develop', 'production')
-      end
+      expect(presenter).to have_received(:present_config_template).with(template: template)
+    end
+
+    it 'generates a template that passes validation' do
+      expect { Entities::WorkflowConfig.new(template_hash) }.not_to raise_error
+    end
+
+    it 'defines profiles and one service with roots, ignore, and the dockerfile, kustomize, and aws stacks' do
+      service = template_hash.fetch('services').first
+      expect(template_hash.fetch('profiles').keys).to eq(%w[aws-develop aws-production])
+      expect(service.slice('id', 'roots', 'ignore')).to eq('id' => 'app', 'roots' => ['dystopia/{service}', 'system-components/{service}'], 'ignore' => ['**/README.md'])
+      expect(service.fetch('stacks').map { |stack| stack['id'] }).to eq(%w[dockerfile kustomize aws])
+    end
+
+    it 'names the tool in the type attribute of every stack' do
+      stacks = template_hash.fetch('services').first.fetch('stacks')
+      expect(stacks.to_h { |stack| [stack['id'], stack.dig('attributes', 'type')] }).to eq('dockerfile' => 'container', 'kustomize' => 'kustomize', 'aws' => 'terragrunt')
+    end
+
+    it 'discovers kustomize environments and declares aws environments from profiles' do
+      kustomize, aws = template_hash.fetch('services').first.fetch('stacks').values_at(1, 2)
+      expect(kustomize).not_to have_key('environments')
+      expect(aws.fetch('environments')).to eq('develop' => { 'use' => ['aws-develop'] }, 'production' => { 'use' => ['aws-production'] })
+    end
+
+    it 'uses the placeholder registry' do
+      dockerfile = template_hash.fetch('services').first.fetch('stacks').first
+      expect(dockerfile.dig('attributes', 'repository')).to eq('registry.example.com/{service}')
+    end
+
+    it 'uses the placeholder account id' do
+      expect(template).to include('arn:aws:iam::123456789012:role/')
+      expect(template).not_to match(/arn:aws:iam::(?!123456789012:)/)
     end
 
     it 'accepts the repository sample with the same model' do
       config = Entities::WorkflowConfig.new(YAML.safe_load(File.read(File.expand_path('../../../workflow-config.yaml', __dir__))))
-      expect(config.stacks.map { |stack| stack['id'] }).to include('aws', 'container')
+      expect(config.stacks.map { |stack| stack['id'] }).to include('aws', 'dockerfile', 'kustomize')
     end
   end
 end

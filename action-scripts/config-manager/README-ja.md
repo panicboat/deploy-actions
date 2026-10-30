@@ -18,8 +18,8 @@ Config Manager は `config-manager/bin/config-manager` を通じて CLI イン�
 
 | コマンド | 結果 |
 |---|---|
-| `bundle exec ruby config-manager/bin/config-manager validate` | 設定の検証結果と stack・定義環境数 |
-| `bundle exec ruby config-manager/bin/config-manager show` | 各 stack ID の全パス、環境属性または共通属性、除外条件 |
+| `bundle exec ruby config-manager/bin/config-manager validate` | 設定の検証結果と service・stack・定義環境数 |
+| `bundle exec ruby config-manager/bin/config-manager show` | 各 service の roots と ignore、その各 stack の全パス、環境属性または共通属性、除外条件 |
 | `bundle exec ruby config-manager/bin/config-manager environments` | 定義環境と探索した環境名の和集合 |
 | `bundle exec ruby config-manager/bin/config-manager test SERVICE_NAME [ENVIRONMENT]` | 実在する全一致対象と除外状態 |
 | `bundle exec ruby config-manager/bin/config-manager diagnostics` | 設定、環境変数、Git 状態、設定ファイルの診断 |
@@ -50,7 +50,7 @@ bundle exec ruby config-manager/bin/config-manager test demo production
 
 ### 検証の流れ
 
-YAML を読み込み、設定モデルで構造と整合性を検証し、検証結果と stack・定義環境数を表示します。検証と設定表示ではディレクトリを列挙しません。実在ディレクトリの環境名は `environments` またはサービス診断で取得します。検証規則の詳細は [設定](../../README-ja.md#設定) を参照してください。
+YAML を読み込み、設定モデルで構造と整合性を検証し、検証結果と service・stack・定義環境数を表示します。検証と設定表示ではディレクトリを列挙しません。実在ディレクトリの環境名は `environments` またはサービス診断で取得します。検証規則の詳細は [設定](../../README-ja.md#設定) を参照してください。
 
 ## エラー処理
 

@@ -21,7 +21,6 @@ FactoryBot.define do
     service { "test-service" }
     environment { "develop" }
     stack { "terragrunt" }
-    stack_id { stack }
     working_directory { "test-service/terragrunt/develop" }
     attributes do
       {
@@ -36,7 +35,6 @@ FactoryBot.define do
         service: service,
         environment: environment,
         stack: stack,
-        stack_id: stack_id,
         working_directory: working_directory,
         attributes: attributes
       )
@@ -44,7 +42,6 @@ FactoryBot.define do
 
     trait :kubernetes do
       stack { "kubernetes" }
-      stack_id { "kubernetes" }
       working_directory { "test-service/kubernetes/overlays/develop" }
       attributes { {} }
     end
@@ -58,24 +55,27 @@ FactoryBot.define do
   factory :workflow_config, class: 'Entities::WorkflowConfig' do
     config_hash do
       {
-        'stacks' => [
+        'services' => [
           {
-            'name' => 'terragrunt',
-            'id' => 'aws',
-            'paths' => [
-              'dystopia/{service}/aws/{environment}',
-              'system-components/{service}/infrastructure/aws/{environment}'
-            ],
-            'environments' => {
-              'develop' => { 'aws_region' => 'ap-northeast-1' },
-              'production' => { 'aws_region' => 'us-west-2' }
-            },
-            'exclude' => []
-          },
-          {
-            'name' => 'container',
-            'paths' => ['dystopia/{service}', 'system-components/{service}'],
-            'attributes' => { 'repository' => 'registry.example.com/app' }
+            'id' => 'app',
+            'roots' => ['dystopia/{service}', 'system-components/{service}'],
+            'stacks' => [
+              {
+                'id' => 'aws',
+                'path' => 'aws/{environment}',
+                'attributes' => { 'type' => 'terragrunt' },
+                'environments' => {
+                  'develop' => { 'aws_region' => 'ap-northeast-1' },
+                  'production' => { 'aws_region' => 'us-west-2' }
+                },
+                'exclude' => []
+              },
+              {
+                'id' => 'container',
+                'path' => '.',
+                'attributes' => { 'type' => 'container', 'repository' => 'registry.example.com/app' }
+              }
+            ]
           }
         ]
       }
@@ -86,7 +86,7 @@ FactoryBot.define do
     trait :with_target_exclusions do
       config_hash do
         base_config = attributes_for(:workflow_config)[:config_hash]
-        base_config['stacks'].first['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
+        base_config['services'].first['stacks'].first['exclude'] = [{ 'service' => 'demo', 'environment' => 'production' }]
         base_config
       end
     end
