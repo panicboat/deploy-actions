@@ -23,13 +23,13 @@ module Interfaces
         pr_result = get_pr_labels_directly(pr_number)
         return @presenter.present_error(pr_result) if pr_result.failure?
 
-        deploy_labels = pr_result.deploy_labels
+        deploy_labels = pr_result.value
 
         # Step 2: Validate all target environments exist in configuration
         env_result = @determine_target_environment.execute(target_environments: target_environments)
         return @presenter.present_error(env_result) if env_result.failure?
 
-        validated_environments = env_result.target_environments
+        validated_environments = env_result.value
 
         # Step 3: Validate deployment safety
         safety_result = @validate_deployment_safety.execute(
@@ -47,11 +47,11 @@ module Interfaces
 
         # Present results
         @presenter.present_deployment_matrix(
-          deployment_targets: matrix_result.deployment_targets,
+          deployment_targets: matrix_result.value,
           deploy_labels: deploy_labels,
           pr_number: pr_number,
           target_environments: validated_environments,
-          safety_status: safety_result.safety_status
+          safety_status: safety_result.value
         )
       end
 
@@ -102,7 +102,8 @@ module Interfaces
           return
         end
         
-        puts "✅ Found #{pr_result.deploy_labels.length} deploy labels: #{pr_result.deploy_labels.map(&:to_s)}"
+        deploy_labels = pr_result.value
+        puts "✅ Found #{deploy_labels.length} deploy labels: #{deploy_labels.map(&:to_s)}"
         
         puts "\nStep 2: Validating target environments (#{target_environments.join(', ')})..."
         env_result = @determine_target_environment.execute(target_environments: target_environments)
@@ -111,12 +112,12 @@ module Interfaces
           return
         end
         
-        validated_environments = env_result.target_environments
+        validated_environments = env_result.value
         puts "✅ Validated environments: #{validated_environments.join(', ')}"
         
         puts "\nStep 3: Validating deployment safety..."
         safety_result = @validate_deployment_safety.execute(
-          deploy_labels: pr_result.deploy_labels,
+          deploy_labels: deploy_labels,
           pr_number: pr_number
         )
         if safety_result.failure?
@@ -124,11 +125,11 @@ module Interfaces
           return
         end
         
-        puts "✅ Safety validation passed: #{safety_result.safety_status}"
+        puts "✅ Safety validation passed: #{safety_result.value}"
         
         puts "\nStep 4: Generating deployment matrix for all environments..."
         matrix_result = @generate_matrix.execute(
-          deploy_labels: pr_result.deploy_labels,
+          deploy_labels: deploy_labels,
           target_environments: validated_environments
         )
         if matrix_result.failure?
@@ -136,10 +137,11 @@ module Interfaces
           return
         end
         
-        puts "✅ Generated #{matrix_result.deployment_targets.length} total targets"
+        deployment_targets = matrix_result.value
+        puts "✅ Generated #{deployment_targets.length} total targets"
         
-        puts "\n📊 Total deployment targets: #{matrix_result.deployment_targets.length}"
-        matrix_result.deployment_targets.each do |target|
+        puts "\n📊 Total deployment targets: #{deployment_targets.length}"
+        deployment_targets.each do |target|
           puts "  - #{target.service}:#{target.environment}:#{target.stack} (#{target.working_directory})"
         end
         
@@ -151,7 +153,7 @@ module Interfaces
       # Get PR labels directly without searching
       def get_pr_labels_directly(pr_number)
         unless @get_labels
-          return Entities::Result.failure(error_message: "GitHub client not available")
+          return Entities::Result.failure("GitHub client not available")
         end
 
         @get_labels.execute(pr_number: pr_number)

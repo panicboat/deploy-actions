@@ -8,20 +8,10 @@ module Entities
 
     attr_reader :service, :prefix
 
-    def initialize(label_string, prefixes: [DEFAULT_PREFIX])
-      @raw_label = label_string
+    def initialize(raw_label, prefixes: [DEFAULT_PREFIX])
+      @raw_label = raw_label
       @prefixes = prefixes
       parse_label!
-    end
-
-    # Get the original label string
-    def label_string
-      @raw_label
-    end
-
-    # Get the service name
-    def service_name
-      service
     end
 
     # Check if this is deploy:all label

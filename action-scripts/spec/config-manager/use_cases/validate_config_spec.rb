@@ -13,9 +13,9 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
     file.flush
     result = use_case.execute
     expect(result).to be_success
-    expect(result.valid).to be(true)
-    expect(result.config).to be_a(Entities::WorkflowConfig)
-    expect(result.validation_summary.lines.map(&:chomp)).to include('services: 1 configured', 'stacks: 2 configured', 'environments: 2 configured')
+    expect(result.value).to be_a(UseCases::ConfigManagement::Validation)
+    expect(result.value.config).to be_a(Entities::WorkflowConfig)
+    expect(result.value.summary.lines.map(&:chomp)).to include('services: 1 configured', 'stacks: 2 configured', 'environments: 2 configured')
   end
 
   it 'accepts configurations with only common stacks' do
@@ -29,15 +29,14 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
     file.flush
     result = use_case.execute
     expect(result).to be_success
-    expect(result.validation_summary).to include('environments: 0')
+    expect(result.value.summary).to include('environments: 0')
   end
 
-  it 'returns the original configuration error in validation errors' do
+  it 'returns the original configuration error as the failure message' do
     file.write("services:\n  - id: app\n    roots: []\n    stacks: []\n")
     file.flush
     result = use_case.execute
     expect(result).to be_failure
-    expect(result.validation_errors).to eq([result.error_message])
     expect(result.error_message).to include('services[0].roots')
   end
 
@@ -45,6 +44,6 @@ RSpec.describe UseCases::ConfigManagement::ValidateConfig do
     client = Infrastructure::ConfigClient.new(config_path: "#{file.path}.missing")
     result = described_class.new(config_client: client).execute
     expect(result).to be_failure
-    expect(result.validation_errors.first).to include('.missing')
+    expect(result.error_message).to include('.missing')
   end
 end

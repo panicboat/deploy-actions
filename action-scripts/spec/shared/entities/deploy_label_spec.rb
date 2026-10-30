@@ -8,7 +8,7 @@ RSpec.describe Entities::DeployLabel do
       subject(:label) { described_class.new('deploy:test-service') }
 
       it 'initializes with label string' do
-        expect(label.label_string).to eq('deploy:test-service')
+        expect(label.to_s).to eq('deploy:test-service')
       end
     end
 
@@ -16,7 +16,7 @@ RSpec.describe Entities::DeployLabel do
       subject(:label) { described_class.new('deploy:all') }
 
       it 'initializes with deploy:all label' do
-        expect(label.label_string).to eq('deploy:all')
+        expect(label.to_s).to eq('deploy:all')
       end
     end
 
@@ -24,7 +24,7 @@ RSpec.describe Entities::DeployLabel do
       subject(:label) { described_class.new('invalid-label') }
 
       it 'initializes with invalid label' do
-        expect(label.label_string).to eq('invalid-label')
+        expect(label.to_s).to eq('invalid-label')
       end
     end
   end
@@ -119,12 +119,12 @@ RSpec.describe Entities::DeployLabel do
     end
   end
 
-  describe '#service_name' do
+  describe '#service' do
     context 'with valid service label' do
       subject(:label) { described_class.new('deploy:test-service') }
 
       it 'returns service name' do
-        expect(label.service_name).to eq('test-service')
+        expect(label.service).to eq('test-service')
       end
     end
 
@@ -132,7 +132,7 @@ RSpec.describe Entities::DeployLabel do
       subject(:label) { described_class.new('deploy:all') }
 
       it 'returns "all"' do
-        expect(label.service_name).to eq('all')
+        expect(label.service).to eq('all')
       end
     end
 
@@ -140,7 +140,7 @@ RSpec.describe Entities::DeployLabel do
       subject(:label) { described_class.new('invalid-label') }
 
       it 'returns nil' do
-        expect(label.service_name).to be_nil
+        expect(label.service).to be_nil
       end
     end
 
@@ -148,8 +148,14 @@ RSpec.describe Entities::DeployLabel do
       subject(:label) { described_class.new('deploy:my-complex_service123') }
 
       it 'returns complex service name' do
-        expect(label.service_name).to eq('my-complex_service123')
+        expect(label.service).to eq('my-complex_service123')
       end
+    end
+
+    it 'does not expose alias accessors' do
+      label = described_class.new('deploy:test-service')
+      expect(label).not_to respond_to(:service_name)
+      expect(label).not_to respond_to(:label_string)
     end
   end
 
@@ -235,7 +241,7 @@ RSpec.describe Entities::DeployLabel do
       subject(:label) { described_class.new("deploy:#{long_name}") }
 
       it 'handles long service names' do
-        expect(label.service_name).to eq(long_name)
+        expect(label.service).to eq(long_name)
         expect(label).to be_valid
       end
     end
@@ -244,7 +250,7 @@ RSpec.describe Entities::DeployLabel do
       subject(:label) { described_class.new('deploy:a') }
 
       it 'handles single character service name' do
-        expect(label.service_name).to eq('a')
+        expect(label.service).to eq('a')
         expect(label).to be_valid
       end
     end
@@ -255,8 +261,8 @@ RSpec.describe Entities::DeployLabel do
 
       it 'treats different cases as different labels' do
         expect(label1).not_to eq(label2)
-        expect(label1.service_name).to eq('Service')
-        expect(label2.service_name).to eq('service')
+        expect(label1.service).to eq('Service')
+        expect(label2.service).to eq('service')
       end
     end
   end

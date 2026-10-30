@@ -10,6 +10,7 @@ RSpec.describe UseCases::LabelManagement::ManageLabels do
     allow(github_client).to receive(:get_deploy_labels).and_return(['release/old'], [])
     result = use_case.execute(pr_number: 1, required_labels: ['release/api'])
     expect(result).to be_success
+    expect(result.value).to eq(UseCases::LabelManagement::LabelSync.new(labels_added: ['release/api'], labels_removed: []))
     expect(github_client).to have_received(:get_deploy_labels).with(1, prefix: 'release/').twice
     expect(github_client).to have_received(:remove_label_from_pr).with(1, 'release/old')
     expect(github_client).not_to have_received(:remove_label_from_pr).with(1, start_with('manual/'))

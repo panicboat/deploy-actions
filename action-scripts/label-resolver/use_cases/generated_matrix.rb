@@ -11,7 +11,7 @@ module UseCases
         available = @file_client.environment_names(config: config)
         environments = target_environments.nil? || target_environments.empty? ? available : target_environments.uniq
         unknown = environments - available
-        return Entities::Result.failure(error_message: "Target environments not found in configuration: #{unknown.join(', ')}") unless unknown.empty?
+        return Entities::Result.failure("Target environments not found in configuration: #{unknown.join(', ')}") unless unknown.empty?
 
         labels = deploy_labels.select(&:valid?)
         services = labels.any?(&:deploy_all?) ? [nil] : labels.map(&:service).uniq
@@ -57,9 +57,9 @@ module UseCases
             working_directory: candidate.fetch(:working_directory), captures: candidate.fetch(:captures), attributes: attributes
           )
         end
-        Entities::Result.success(deployment_targets: targets, has_deployments: !targets.empty?, total_targets: targets.length)
+        Entities::Result.success(targets)
       rescue => error
-        Entities::Result.failure(error_message: "Failed to generate deployment matrix: #{error.message}")
+        Entities::Result.failure("Failed to generate deployment matrix: #{error.message}")
       end
     end
   end

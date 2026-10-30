@@ -3,6 +3,8 @@
 
 module UseCases
   module LabelManagement
+    LabelSync = Data.define(:labels_added, :labels_removed)
+
     class ManageLabels
       attr_reader :github_client
 
@@ -42,14 +44,9 @@ module UseCases
           @github_client.add_label_to_pr(pr_number, label)
         end
 
-        Entities::Result.success(
-          labels_added: labels_to_add,
-          labels_removed: labels_to_remove,
-          final_labels: required_labels,
-          current_labels: current_deploy_labels
-        )
+        Entities::Result.success(LabelSync.new(labels_added: labels_to_add, labels_removed: labels_to_remove))
       rescue => error
-        Entities::Result.failure(error_message: error.message)
+        Entities::Result.failure(error.message)
       end
     end
   end

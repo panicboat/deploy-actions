@@ -27,14 +27,8 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
 
   describe '#validate_configuration' do
     context 'with valid configuration' do
-      let(:validation_result) do
-        double(
-          'Result',
-          success?: true,
-          config: build(:workflow_config),
-          validation_summary: 'Configuration is valid'
-        )
-      end
+      let(:validation) { UseCases::ConfigManagement::Validation.new(config: build(:workflow_config), summary: 'Configuration is valid') }
+      let(:validation_result) { Entities::Result.success(validation) }
 
       it 'presents successful validation result' do
         allow(validate_config_use_case).to receive(:execute).and_return(validation_result)
@@ -44,21 +38,14 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
 
         expect(presenter).to have_received(:present_config_validation_result).with(
           valid: true,
-          config: validation_result.config,
+          config: validation.config,
           summary: 'Configuration is valid'
         )
       end
     end
 
     context 'with invalid configuration' do
-      let(:validation_result) do
-        double(
-          'Result',
-          success?: false,
-          validation_errors: ['Missing required field: stacks'],
-          error_message: 'Validation failed'
-        )
-      end
+      let(:validation_result) { Entities::Result.failure('Missing required field: stacks') }
 
       it 'presents validation errors' do
         allow(validate_config_use_case).to receive(:execute).and_return(validation_result)
@@ -69,29 +56,6 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
         expect(presenter).to have_received(:present_config_validation_result).with(
           valid: false,
           errors: ['Missing required field: stacks']
-        )
-      end
-    end
-
-    context 'with validation error but no specific errors' do
-      let(:validation_result) do
-        double(
-          'Result',
-          success?: false,
-          validation_errors: nil,
-          error_message: 'General validation error'
-        )
-      end
-
-      it 'uses error message as fallback' do
-        allow(validate_config_use_case).to receive(:execute).and_return(validation_result)
-        allow(presenter).to receive(:present_config_validation_result)
-
-        controller.validate_configuration
-
-        expect(presenter).to have_received(:present_config_validation_result).with(
-          valid: false,
-          errors: ['General validation error']
         )
       end
     end
@@ -279,6 +243,17 @@ RSpec.describe Interfaces::Controllers::ConfigManagerController do
           'Git Repository',
           'Configuration File'
         )
+      end
+    end
+
+    it 'reports the configuration error when validation fails' do
+      allow(validate_config_use_case).to receive(:execute).and_return(build(:result_failure, error_message: 'services[0].roots is empty'))
+
+      controller.run_diagnostics
+
+      expect(presenter).to have_received(:present_diagnostic_results) do |args|
+        validation_check = args[:results].find { |r| r[:check] == 'Configuration Validation' }
+        expect(validation_check).to include(status: 'FAIL', details: 'services[0].roots is empty')
       end
     end
 

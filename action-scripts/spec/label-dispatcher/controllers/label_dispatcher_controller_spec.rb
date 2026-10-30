@@ -19,17 +19,10 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     let(:pr_number) { 123 }
     let(:deploy_labels) { [build(:deploy_label, :valid_service)] }
     let(:changed_files) { ['services/test-service/main.tf'] }
+    let(:detection) { UseCases::LabelManagement::Detection.new(deploy_labels: deploy_labels, changed_files: changed_files) }
 
     context 'with successful detection and no GitHub Actions' do
-      let(:detection_result) do
-        double(
-          'Result',
-          success?: true,
-          failure?: false,
-          deploy_labels: deploy_labels,
-          changed_files: changed_files,
-        )
-      end
+      let(:detection_result) { Entities::Result.success(detection) }
 
       before do
         allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return(nil)
@@ -55,22 +48,10 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     end
 
     context 'with GitHub Actions environment and PR number' do
-      let(:detection_result) do
-        double(
-          'Result',
-          success?: true,
-          failure?: false,
-          deploy_labels: deploy_labels,
-          changed_files: changed_files,
-        )
-      end
+      let(:detection_result) { Entities::Result.success(detection) }
       let(:manage_result) do
-        double(
-          'Result',
-          success?: true,
-          failure?: false,
-          labels_added: ['deploy:test-service'],
-          labels_removed: ['deploy:old-service']
+        Entities::Result.success(
+          UseCases::LabelManagement::LabelSync.new(labels_added: ['deploy:test-service'], labels_removed: ['deploy:old-service'])
         )
       end
       before do
@@ -101,7 +82,7 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     end
 
     context 'when service detection fails' do
-      let(:detection_result) { double('Result', success?: false, failure?: true) }
+      let(:detection_result) { Entities::Result.failure('detection failed') }
 
       before do
         allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return(nil)
@@ -120,16 +101,8 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     end
 
     context 'when label management fails' do
-      let(:detection_result) do
-        double(
-          'Result',
-          success?: true,
-          failure?: false,
-          deploy_labels: deploy_labels,
-          changed_files: changed_files,
-        )
-      end
-      let(:manage_result) { double('Result', success?: false, failure?: true) }
+      let(:detection_result) { Entities::Result.success(detection) }
+      let(:manage_result) { Entities::Result.failure('label management failed') }
 
       before do
         allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return('true')
@@ -147,15 +120,7 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
     end
 
     context 'with API-provided refs' do
-      let(:detection_result) do
-        double(
-          'Result',
-          success?: true,
-          failure?: false,
-          deploy_labels: deploy_labels,
-          changed_files: changed_files,
-        )
-      end
+      let(:detection_result) { Entities::Result.success(detection) }
 
       before do
         allow(ENV).to receive(:[]).with('GITHUB_ACTIONS').and_return(nil)
@@ -183,15 +148,10 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
   describe '#test_detection' do
     let(:base_ref) { 'main' }
     let(:head_ref) { 'feature/test' }
-    let(:detection_result) do
-      double(
-        'Result',
-        success?: true,
-        failure?: false,
-        deploy_labels: [build(:deploy_label, :valid_service)],
-        changed_files: ['test-file.tf'],
-      )
+    let(:detection) do
+      UseCases::LabelManagement::Detection.new(deploy_labels: [build(:deploy_label, :valid_service)], changed_files: ['test-file.tf'])
     end
+    let(:detection_result) { Entities::Result.success(detection) }
 
     before do
       allow(detect_services_use_case).to receive(:execute).and_return(detection_result)
@@ -206,15 +166,15 @@ RSpec.describe Interfaces::Controllers::LabelDispatcherController do
         head_ref: head_ref
       )
       expect(presenter).to have_received(:present_label_dispatch_result).with(
-        deploy_labels: detection_result.deploy_labels,
+        deploy_labels: detection.deploy_labels,
         labels_added: [],
         labels_removed: [],
-        changed_files: detection_result.changed_files,
+        changed_files: detection.changed_files,
       )
     end
 
     context 'when detection fails' do
-      let(:detection_result) { double('Result', success?: false, failure?: true) }
+      let(:detection_result) { Entities::Result.failure('detection failed') }
 
       before do
         allow(presenter).to receive(:present_error)

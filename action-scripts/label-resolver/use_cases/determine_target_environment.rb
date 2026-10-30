@@ -11,11 +11,11 @@ module UseCases
         available = @file_client.environment_names(config: config)
         environments = target_environments.nil? || target_environments.empty? ? available : target_environments.uniq
         unknown = environments - available
-        return Entities::Result.failure(error_message: "Target environments not found in configuration: #{unknown.join(', ')}") unless unknown.empty?
+        return Entities::Result.failure("Target environments not found in configuration: #{unknown.join(', ')}") unless unknown.empty?
 
-        Entities::Result.success(target_environments: environments)
+        Entities::Result.success(environments)
       rescue => error
-        Entities::Result.failure(error_message: "Failed to determine target environments: #{error.message}")
+        Entities::Result.failure("Failed to determine target environments: #{error.message}")
       end
     end
   end

@@ -13,7 +13,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   def services
     result = use_case.execute
     expect(result).to be_success
-    result.services_detected
+    result.value.deploy_labels.map(&:service)
   end
 
   it 'omits services whose only match satisfies every exclusion condition' do
@@ -23,9 +23,9 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   it 'keeps services with a non-excluded environment match' do
     changed_files << 'teams/platform/demo/aws/develop/main.tf'
     result = use_case.execute(base_ref: 'base', head_ref: 'head')
-    expect(result.data.keys).to contain_exactly(:deploy_labels, :changed_files, :services_detected)
-    expect(result.deploy_labels.map(&:to_s)).to eq(['deploy:demo'])
-    expect(result.changed_files).to eq(changed_files)
+    expect(result.value).to be_a(UseCases::LabelManagement::Detection)
+    expect(result.value.deploy_labels.map(&:to_s)).to eq(['deploy:demo'])
+    expect(result.value.changed_files).to eq(changed_files)
     expect(file_client).to have_received(:get_changed_files).with(base_ref: 'base', head_ref: 'head')
   end
 
@@ -177,7 +177,7 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
       result = use_case.execute
       expect(result).to be_failure
       expect(result.error_message).to include('Conflicting captures', 'teams/platform/demo/aws')
-      expect(result.data).not_to have_key(:deploy_labels)
+      expect(result.value).to be_nil
     end
   end
 
@@ -194,6 +194,6 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
   it 'builds labels with the configured prefix' do
     config_hash['labels'] = { 'prefix' => 'release/' }
     changed_files.replace(['teams/platform/demo/aws/develop/main.tf'])
-    expect(use_case.execute.deploy_labels.map(&:to_s)).to eq(['release/demo'])
+    expect(use_case.execute.value.deploy_labels.map(&:to_s)).to eq(['release/demo'])
   end
 end

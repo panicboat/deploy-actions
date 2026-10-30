@@ -1,5 +1,7 @@
 module UseCases
   module LabelManagement
+    Detection = Data.define(:deploy_labels, :changed_files)
+
     class DetectChangedServices
       def initialize(file_client:, config_client:)
         @file_client = file_client
@@ -56,9 +58,9 @@ module UseCases
           candidate.fetch(:service) unless config.excluded?(candidate.fetch(:stack), values)
         end).uniq
         labels = services.map { |service| Entities::DeployLabel.from_service(service: service, prefix: config.label_prefix) }
-        Entities::Result.success(deploy_labels: labels, changed_files: changed_files, services_detected: services)
+        Entities::Result.success(Detection.new(deploy_labels: labels, changed_files: changed_files))
       rescue => error
-        Entities::Result.failure(error_message: error.message)
+        Entities::Result.failure(error.message)
       end
     end
   end

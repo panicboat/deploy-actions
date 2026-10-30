@@ -36,7 +36,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   def items(**options)
     result = generate(**options)
     expect(result).to be_success
-    result.deployment_targets.map(&:to_matrix_item)
+    result.value.map(&:to_matrix_item)
   end
 
   it 'attaches stack attributes to discovered environment targets' do
@@ -156,7 +156,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
   it 'returns empty targets when inferred directories are absent' do
     use_service(roots: ['dystopia/{service}'], stacks: [{ 'id' => 'kubernetes', 'path' => 'overlays/{environment}' }])
-    expect(generate.data).to eq(deployment_targets: [], has_deployments: false, total_targets: 0)
+    expect(generate.value).to eq([])
   end
 
   it 'reuses an environment-less directory across its declared environments' do
@@ -247,7 +247,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       result = generate
       expect(result).to be_failure
       expect(result.error_message).to include('Conflicting captures', 'teams/platform/demo/aws')
-      expect(result.data).not_to have_key(:deployment_targets)
+      expect(result.value).to be_nil
     end
   end
 
@@ -258,14 +258,14 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     result = generate
     expect(result).to be_failure
     expect(result.error_message).to include('Permission denied')
-    expect(result.data).not_to have_key(:deployment_targets)
+    expect(result.value).to be_nil
   end
 
   it 'returns failures for unknown environments even when no directory exists' do
     result = generate(environments: ['preview'])
     expect(result).to be_failure
     expect(result.error_message).to include('preview')
-    expect(result.data).not_to have_key(:deployment_targets)
+    expect(result.value).to be_nil
   end
 
   it 'deduplicates requested environments' do
@@ -275,7 +275,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
   it 'returns successful empty targets when directories are absent' do
     result = generate
-    expect(result.data).to eq(deployment_targets: [], has_deployments: false, total_targets: 0)
+    expect(result.value).to eq([])
   end
 
   it 'returns no targets for empty or invalid labels' do
@@ -292,7 +292,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     result = generate
     expect(result).to be_failure
     expect(result.error_message).to include('Permission denied')
-    expect(result.data).not_to have_key(:deployment_targets)
+    expect(result.value).to be_nil
   ensure
     File.chmod(0o755, path) if path
   end
@@ -302,8 +302,8 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     directory('teams/.platform/demo/.preview')
     allow(file_client).to receive(:get_changed_files).and_return(['teams/.platform/demo/.preview/main.tf'])
     detector = UseCases::LabelManagement::DetectChangedServices.new(config_client: config_client, file_client: file_client)
-    detection = detector.execute
-    expect(detection.services_detected).to eq(['demo'])
+    detection = detector.execute.value
+    expect(detection.deploy_labels.map(&:service)).to eq(['demo'])
     expect(items(labels: detection.deploy_labels.map(&:to_s))).to eq([
       { service: 'demo', stack: 'terragrunt', environment: '.preview', working_directory: 'teams/.platform/demo/.preview', team: '.platform', token: nil }
     ])

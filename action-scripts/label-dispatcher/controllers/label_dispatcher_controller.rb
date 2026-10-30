@@ -33,24 +33,26 @@ module Interfaces
         detection_result = @detect_services.execute(base_ref: base_ref, head_ref: head_ref)
         return @presenter.present_error(detection_result) if detection_result.failure?
 
+        detection = detection_result.value
+
         # Manage labels if in GitHub Actions and PR number provided
         if ENV['GITHUB_ACTIONS'] && pr_number && @manage_labels
-          required_labels = detection_result.deploy_labels.map(&:to_s)
+          required_labels = detection.deploy_labels.map(&:to_s)
           manage_result = @manage_labels.execute(pr_number: pr_number, required_labels: required_labels)
           return @presenter.present_error(manage_result) if manage_result.failure?
 
-          labels_added = manage_result.labels_added
-          labels_removed = manage_result.labels_removed
+          labels_added = manage_result.value.labels_added
+          labels_removed = manage_result.value.labels_removed
         else
           labels_added = []
           labels_removed = []
         end
 
         @presenter.present_label_dispatch_result(
-          deploy_labels: detection_result.deploy_labels,
+          deploy_labels: detection.deploy_labels,
           labels_added: labels_added,
           labels_removed: labels_removed,
-          changed_files: detection_result.changed_files
+          changed_files: detection.changed_files
         )
       end
 
@@ -61,11 +63,12 @@ module Interfaces
         detection_result = @detect_services.execute(base_ref: base_ref, head_ref: head_ref)
         return @presenter.present_error(detection_result) if detection_result.failure?
 
+        detection = detection_result.value
         @presenter.present_label_dispatch_result(
-          deploy_labels: detection_result.deploy_labels,
+          deploy_labels: detection.deploy_labels,
           labels_added: [],
           labels_removed: [],
-          changed_files: detection_result.changed_files
+          changed_files: detection.changed_files
         )
       end
 

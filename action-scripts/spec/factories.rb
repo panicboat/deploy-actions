@@ -93,14 +93,14 @@ FactoryBot.define do
   end
 
   factory :result_success, class: 'Entities::Result' do
-    data { { test: 'data' } }
-    
-    initialize_with { Entities::Result.success(**data) }
+    value { nil }
+
+    initialize_with { Entities::Result.success(value) }
   end
 
   factory :result_failure, class: 'Entities::Result' do
     error_message { "Test error message" }
-    
-    initialize_with { Entities::Result.failure(error_message: error_message) }
+
+    initialize_with { Entities::Result.failure(error_message) }
   end
 end

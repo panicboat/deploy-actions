@@ -21,15 +21,16 @@ module Interfaces
         validation_result = @validate_config.execute
 
         if validation_result.success?
+          validation = validation_result.value
           @presenter.present_config_validation_result(
             valid: true,
-            config: validation_result.config,
-            summary: validation_result.validation_summary
+            config: validation.config,
+            summary: validation.summary
           )
         else
           @presenter.present_config_validation_result(
             valid: false,
-            errors: validation_result.validation_errors || [validation_result.error_message]
+            errors: [validation_result.error_message]
           )
         end
       end
@@ -41,7 +42,7 @@ module Interfaces
           @presenter.present_config_details(config: config)
         rescue => error
           @presenter.present_error(
-            Entities::Result.failure(error_message: "Failed to load configuration: #{error.message}")
+            Entities::Result.failure("Failed to load configuration: #{error.message}")
           )
         end
       end
@@ -50,7 +51,7 @@ module Interfaces
         config = @config_client.load_workflow_config
         available = @file_client.environment_names(config: config)
         if environment && !available.include?(environment)
-          return @presenter.present_error(Entities::Result.failure(error_message: "Environment '#{environment}' not found in configuration"))
+          return @presenter.present_error(Entities::Result.failure("Environment '#{environment}' not found in configuration"))
         end
         candidates = {}
         config.stacks.each do |stack|
@@ -89,7 +90,7 @@ module Interfaces
         end
         @presenter.present_service_test_result(service_name: service_name, matches: matches)
       rescue => error
-        @presenter.present_error(Entities::Result.failure(error_message: "Failed to test service configuration: #{error.message}"))
+        @presenter.present_error(Entities::Result.failure("Failed to test service configuration: #{error.message}"))
       end
 
       # Diagnostic check for configuration and environment
@@ -105,7 +106,7 @@ module Interfaces
           status: validation_result.success? ? 'PASS' : 'FAIL',
           details: validation_result.success? ?
             "Configuration is valid" :
-            validation_result.validation_errors&.first || validation_result.error_message
+            validation_result.error_message
         }
 
         # Check 2: Environment variables

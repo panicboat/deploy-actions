@@ -10,7 +10,6 @@ RSpec.describe UseCases::LabelResolver::GetLabels do
     allow(github_client).to receive(:get_pr_info).with(1).and_return(labels: ['release/api', 'manual:web', 'deploy:db', 'enhancement', 'manual:a/b'])
     result = use_case.execute(pr_number: 1)
     expect(result).to be_success
-    expect(result.deploy_labels.map(&:to_s)).to eq(['release/api', 'manual:web'])
-    expect(result.raw_labels).to eq(['release/api', 'manual:web', 'manual:a/b'])
+    expect(result.value.map(&:to_s)).to eq(['release/api', 'manual:web'])
   end
 end
