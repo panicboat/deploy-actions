@@ -138,6 +138,44 @@ RSpec.describe Entities::WorkflowConfig do
     expect(described_class.new(config_hash).services.first['ignore']).to eq([])
   end
 
+  describe '#ignored?' do
+    def ignored?(patterns, relative_path)
+      service['ignore'] = patterns
+      fresh = described_class.new(config_hash)
+      fresh.ignored?(fresh.services.first, relative_path)
+    end
+
+    it 'matches nothing without ignore patterns' do
+      expect(config.ignored?(config.services.first, 'README.md')).to be(false)
+    end
+
+    it 'matches zero or more directories with **/' do
+      expect(ignored?(['**/README.md'], 'README.md')).to be(true)
+      expect(ignored?(['**/README.md'], 'aws/modules/README.md')).to be(true)
+    end
+
+    it 'does not let * cross directories' do
+      expect(ignored?(['*.md'], 'NOTES.md')).to be(true)
+      expect(ignored?(['*.md'], 'aws/NOTES.md')).to be(false)
+    end
+
+    it 'matches every file below a directory with a trailing /**' do
+      expect(ignored?(['docs/**'], 'docs/a.md')).to be(true)
+      expect(ignored?(['docs/**'], 'docs/a/b.md')).to be(true)
+      expect(ignored?(['docs/**'], 'aws/docs/a.md')).to be(false)
+    end
+
+    it 'matches files starting with a dot' do
+      expect(ignored?(['*'], '.terraform-version')).to be(true)
+      expect(ignored?(['**/*.md'], '.github/a.md')).to be(true)
+    end
+
+    it 'matches when any pattern matches' do
+      expect(ignored?(['*.txt', '**/*.md'], 'aws/a.md')).to be(true)
+      expect(ignored?(['*.txt', '**/*.md'], 'aws/main.tf')).to be(false)
+    end
+  end
+
   [nil, 'README.md', {}, [nil], [''], [1]].each do |value|
     it "rejects invalid ignore #{value.inspect}" do
       service['ignore'] = value

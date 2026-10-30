@@ -48,6 +48,14 @@ module Entities
       end
     end
 
+    def ignored?(service, relative_path)
+      service['ignore'].any? do |pattern|
+        # fnmatch reads a trailing ** as one segment, so "docs/**" would skip files nested deeper.
+        glob = pattern.sub(%r{/\*\*\z}, '/**/*')
+        File.fnmatch(glob, relative_path, File::FNM_PATHNAME | File::FNM_DOTMATCH | File::FNM_EXTGLOB)
+      end
+    end
+
     def target_attributes(stack, environment)
       stack.key?('environments') ? stack['environments'].fetch(environment) : stack['attributes']
     end

@@ -29,14 +29,48 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     expect(file_client).to have_received(:get_changed_files).with(base_ref: 'base', head_ref: 'head')
   end
 
-  it 'detects only declared stack paths without an implicit service root' do
-    changed_files.replace(['teams/platform/demo/README.md'])
+  it 'detects shared files next to declared environment directories' do
+    changed_files.replace(['teams/platform/demo/aws/modules/main.tf'])
+    expect(services).to eq(['demo'])
+  end
+
+  it 'detects files outside every stack path' do
+    changed_files.replace(['teams/platform/demo/Makefile'])
+    expect(services).to eq(['demo'])
+  end
+
+  it 'keeps omitting files whose stack targets are all excluded' do
+    changed_files.replace(['teams/platform/demo/aws/production/main.tf'])
     expect(services).to eq([])
   end
 
-  it 'ignores undeclared environments' do
-    changed_files.replace(['teams/platform/demo/aws/preview/main.tf'])
+  it 'skips ignored files' do
+    service['ignore'] = ['**/README.md']
+    changed_files.replace(['teams/platform/demo/README.md', 'teams/platform/demo/aws/README.md'])
     expect(services).to eq([])
+  end
+
+  it 'treats a trailing /** as every file below the directory' do
+    service['ignore'] = ['docs/**']
+    changed_files.replace(['teams/platform/demo/docs/a/b.md'])
+    expect(services).to eq([])
+  end
+
+  it 'treats files under a dot path as inside the stack' do
+    service['stacks'] = [{ 'id' => 'container', 'path' => '.', 'exclude' => [{ 'service' => 'demo' }] }]
+    changed_files.replace(['teams/platform/demo/Dockerfile'])
+    expect(services).to eq([])
+  end
+
+  it 'deduplicates services detected through overlapping roots' do
+    config_hash['services'] << { 'id' => 'other', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'kustomize', 'path' => 'k8s/{environment}' }] }
+    changed_files.replace(['teams/platform/demo/Makefile'])
+    expect(services).to eq(['demo'])
+  end
+
+  it 'treats undeclared environment directories as shared files' do
+    changed_files.replace(['teams/platform/demo/aws/preview/main.tf'])
+    expect(services).to eq(['demo'])
   end
 
   it 'evaluates every environment for paths without environment' do
@@ -70,10 +104,10 @@ RSpec.describe UseCases::LabelManagement::DetectChangedServices do
     expect(services).to eq(['api'])
   end
 
-  it 'ignores files placed at the environment position' do
+  it 'treats files placed at the environment position as shared files' do
     config_hash['services'] = [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'kubernetes', 'path' => 'kubernetes/overlays/{environment}' }] }]
     changed_files.replace(['dystopia/web/kubernetes/overlays/README.md', 'dystopia/api/kubernetes/overlays/develop/kustomization.yaml'])
-    expect(services).to eq(['api'])
+    expect(services).to contain_exactly('web', 'api')
   end
 
   it 'uses AND within conditions and OR across conditions' do

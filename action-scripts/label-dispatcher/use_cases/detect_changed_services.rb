@@ -10,38 +10,50 @@ module UseCases
         config = @config_client.load_workflow_config
         changed_files = @file_client.get_changed_files(base_ref: base_ref, head_ref: head_ref)
         candidates = {}
-        config.stacks.each do |stack|
-          stack['paths'].each do |pattern|
-            changed_files.each do |file|
-              captures = Entities::PatternMatcher.extract_prefix(pattern, file)
-              next unless captures
-              service = captures.fetch('service')
+        shared = []
+        changed_files.each do |file|
+          config.services.each do |service_config|
+            service_config['roots'].each_with_index do |root, root_index|
+              root_captures = Entities::PatternMatcher.extract_prefix(root, file)
+              next unless root_captures
+              service = root_captures.fetch('service')
               next if service.start_with?('.')
-              environments = if stack.key?('environments')
-                stack['environments'].keys
-              elsif stack['common']
-                [nil]
-              else
-                [captures.fetch('environment')]
-              end
-              environments &= [captures['environment']] if captures.key?('environment')
-              directory = Entities::PatternMatcher.expand(pattern, captures)
-              custom = captures.reject { |key, _| %w[service environment].include?(key) }
-              environments.each do |environment|
-                identity = [service, stack['id'], environment, directory]
-                if candidates.key?(identity) && candidates[identity][:captures] != custom
-                  raise "Conflicting captures for stack '#{stack['id']}' at '#{directory}'"
+              relative_path = file.delete_prefix("#{Entities::PatternMatcher.expand(root, root_captures)}/")
+              next if config.ignored?(service_config, relative_path)
+              in_stack = false
+              service_config['stacks'].each do |stack|
+                pattern = stack['paths'][root_index]
+                captures = Entities::PatternMatcher.extract_prefix(pattern, file)
+                next unless captures
+                environments = if stack.key?('environments')
+                  stack['environments'].keys
+                elsif stack['common']
+                  [nil]
+                else
+                  [captures.fetch('environment')]
                 end
-                candidates[identity] = { stack: stack, service: service, environment: environment, captures: custom }
+                environments &= [captures['environment']] if captures.key?('environment')
+                next if environments.empty?
+                in_stack = true
+                directory = Entities::PatternMatcher.expand(pattern, captures)
+                custom = captures.reject { |key, _| %w[service environment].include?(key) }
+                environments.each do |environment|
+                  identity = [service, stack['id'], environment, directory]
+                  if candidates.key?(identity) && candidates[identity][:captures] != custom
+                    raise "Conflicting captures for stack '#{stack['id']}' at '#{directory}'"
+                  end
+                  candidates[identity] = { stack: stack, service: service, environment: environment, captures: custom }
+                end
               end
+              shared << service unless in_stack
             end
           end
         end
 
-        services = candidates.values.filter_map do |candidate|
+        services = (shared + candidates.values.filter_map do |candidate|
           values = candidate.fetch(:captures).merge('service' => candidate.fetch(:service), 'environment' => candidate.fetch(:environment))
           candidate.fetch(:service) unless config.excluded?(candidate.fetch(:stack), values)
-        end.uniq
+        end).uniq
         labels = services.map { |service| Entities::DeployLabel.from_service(service: service, prefix: config.label_prefix) }
         Entities::Result.success(deploy_labels: labels, changed_files: changed_files, services_detected: services)
       rescue => error
