@@ -41,6 +41,51 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
     expect(described_class.instance_method(:present_deployment_matrix).parameters.map(&:last)).to eq(%i[deployment_targets deploy_labels target_environments pr_number])
   end
 
+  describe '#present_service_targets' do
+    let(:stack_config) do
+      Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [
+        { 'id' => 'aws', 'path' => 'aws' },
+        { 'id' => 'alb', 'path' => 'alb', 'exclude' => [{ 'service' => 'demo' }] }
+      ] }])
+    end
+    let(:included) { Entities::TargetCandidate.new(stack: stack_config.stacks[0], service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {}) }
+    let(:excluded) { Entities::TargetCandidate.new(stack: stack_config.stacks[1], service: 'demo', environment: nil, root: 'aws/alb', working_directory: 'aws/alb/alb', captures: {}) }
+    let(:included_item) { '{"service":"demo","environment":null,"stack":"aws","working_directory":"demo/aws"}' }
+    let(:excluded_item) { '{"service":"demo","environment":null,"stack":"alb","working_directory":"aws/alb/alb"}' }
+
+    it 'writes the included targets, their presence, and every candidate with its exclusion and root' do
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], candidates: [included, excluded]) }.to output.to_stdout
+      expect(File.read(@output_path).lines.map(&:strip)).to eq([
+        "targets=[#{included_item}]",
+        'has-targets=true',
+        "candidates=[{\"target\":#{included_item},\"excluded\":false,\"root\":\"demo\"},{\"target\":#{excluded_item},\"excluded\":true,\"root\":\"aws/alb\"}]"
+      ])
+    end
+
+    it 'writes false when every candidate is excluded' do
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], candidates: [excluded]) }.to output.to_stdout
+      expect(File.read(@output_path).lines.map(&:strip).first(2)).to eq(['targets=[]', 'has-targets=false'])
+    end
+
+    it 'writes empty outputs when no candidates exist' do
+      expect { presenter.present_service_targets(service: 'missing', target_environments: [], candidates: []) }.to output.to_stdout
+      expect(File.read(@output_path).lines.map(&:strip)).to eq(['targets=[]', 'has-targets=false', 'candidates=[]'])
+    end
+
+    it 'prints the shared text without color' do
+      expected = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], candidates: [included]).map { |line| "#{line}\n" }.join
+      expect { presenter.present_service_targets(service: 'demo', target_environments: [], candidates: [included]) }.to output(expected).to_stdout
+    end
+
+    it 'accepts only the service target fields' do
+      expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments candidates])
+    end
+
+    it 'raises when GITHUB_OUTPUT is not set' do
+      expect { described_class.new(output_path: nil).present_service_targets(service: 'demo', target_environments: [], candidates: []) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
+    end
+  end
+
   it 'prints the shared text without color' do
     expect { dispatch(presenter) }.to output(Interfaces::Presenters::TextFormat.label_dispatch(deploy_labels: [Entities::DeployLabel.new('deploy:demo')], labels_added: ['deploy:demo'], labels_removed: ['deploy:old'], changed_files: ['dystopia/demo/main.rb']).map { |line| "#{line}\n" }.join).to_stdout
   end

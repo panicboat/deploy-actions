@@ -36,6 +36,19 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
     expect(described_class.instance_method(:present_deployment_matrix).parameters.map(&:last)).to eq(%i[deployment_targets deploy_labels target_environments pr_number])
   end
 
+  it 'colors the heading of the service targets text' do
+    stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws' }] }]).stacks.first
+    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, root: 'demo', working_directory: 'demo/aws', captures: {})
+    lines = Interfaces::Presenters::TextFormat.service_targets(service: 'demo', target_environments: [], candidates: [candidate])
+    expect do
+      described_class.new.present_service_targets(service: 'demo', target_environments: [], candidates: [candidate])
+    end.to output("#{lines.first.colorize(:green)}\n#{lines.drop(1).map { |line| "#{line}\n" }.join}").to_stdout
+  end
+
+  it 'accepts only the service target fields' do
+    expect(described_class.instance_method(:present_service_targets).parameters.map(&:last)).to eq(%i[service target_environments candidates])
+  end
+
   it 'colors the validation heading by the result' do
     expect { described_class.new.present_config_validation_result(valid: true, summary: 'ok') }.to output("#{'✅ Configuration is valid'.colorize(:green)}\nSummary:\nok\n").to_stdout
     expect { described_class.new.present_config_validation_result(valid: false, errors: ['boom']) }.to output("#{'❌ Configuration validation failed'.colorize(:red)}\n  - boom\n").to_stdout

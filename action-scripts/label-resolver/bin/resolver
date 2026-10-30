@@ -20,6 +20,15 @@ class LabelResolverCLI < Thor
     exit 1 if result.failure?
   end
 
+  desc "targets SERVICE [ENVIRONMENTS]", "Resolve the targets of one service, or all, without a pull request (comma-separated environments, empty=all)"
+
+  def targets(service, environments = nil)
+    controller = LabelResolverContainer.resolve(:label_resolver_controller)
+
+    result = controller.targets(service: service, environments: parse_environments(environments))
+    exit 1 if result.failure?
+  end
+
   private
 
   def parse_environments(env_string)

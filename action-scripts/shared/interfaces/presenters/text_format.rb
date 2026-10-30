@@ -39,6 +39,22 @@ module Interfaces
         lines << ''
       end
 
+      def service_targets(service:, target_environments:, candidates:)
+        lines = ['🎯 Service Targets', "Service: #{service}"]
+        if target_environments.length > 1
+          lines << "Target Environments: #{target_environments.join(', ')}"
+        elsif target_environments.length == 1
+          lines << "Target Environment: #{target_environments.first}"
+        end
+        lines << "Targets: #{candidates.reject(&:excluded?).length} of #{candidates.length} candidates"
+        candidates.each do |candidate|
+          environment = candidate.environment && " (#{candidate.environment})"
+          lines << '' << "  #{candidate.service}:#{candidate.stack.id}#{environment} -> #{candidate.working_directory}"
+          lines << "    root: #{candidate.root}" << "    excluded: #{candidate.excluded?}"
+        end
+        lines
+      end
+
       def config_validation(valid:, errors:, summary:)
         return ['❌ Configuration validation failed', *errors.map { |error| "  - #{error}" }] unless valid
 

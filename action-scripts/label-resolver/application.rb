@@ -44,8 +44,10 @@ class LabelResolverContainer
     when :label_resolver_controller
       Interfaces::Controllers::LabelResolverController.new(
         presenter: resolve(:presenter),
-        get_labels: resolve(:get_labels),
-        generate_matrix: resolve(:generate_matrix)
+        # A builder instead of an instance keeps `targets` runnable without GitHub credentials.
+        get_labels: -> { resolve(:get_labels) },
+        generate_matrix: resolve(:generate_matrix),
+        list_candidates: resolve(:list_candidates)
       )
     else
       raise KeyError, "Unknown dependency: #{name}"

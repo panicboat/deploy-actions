@@ -36,6 +36,19 @@ bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
 - Multiple environments: `develop,staging` (comma-separated)
 - All environments: omit ENVIRONMENTS parameter
 
+Resolve the targets of one service, or of every service, without a pull request. This command does not call the GitHub API and needs no `GITHUB_TOKEN`.
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]
+```
+
+**Service Specification:**
+
+- Single service: a name matching `[a-zA-Z0-9_-]+`
+- Every service: `all`
+
+ENVIRONMENTS follows the same specification as `resolve`. A service name outside the pattern, or an environment that is neither declared nor discovered, fails with exit code 1.
+
 ### Examples
 
 Resolve deployments for develop environment.
@@ -54,6 +67,18 @@ Resolve deployment targets for all declared and discovered environments.
 
 ```bash
 bundle exec ruby label-resolver/bin/resolver resolve 123
+```
+
+Resolve the targets of one service for the develop environment without a pull request.
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets demo develop
+```
+
+Resolve the targets of every service for all environments.
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets all
 ```
 
 ### Workflow Integration
@@ -90,6 +115,12 @@ The resolver provides the following GitHub Actions outputs:
 
 - `targets`: JSON array of deployment targets for matrix strategy
 - `has-targets`: Boolean indicating if targets exist (`true`/`false`)
+
+The `targets` command provides the same two outputs, computed from the candidates that are not excluded, and one more:
+
+- `candidates`: JSON array of every candidate including the excluded ones, each in the form `{"target": <matrix item>, "excluded": <bool>, "root": "<root>"}`
+
+An unknown service is not an error: `targets` is `[]`, `has-targets` is `false`, and `candidates` is `[]`.
 
 ## Architecture
 
@@ -141,6 +172,7 @@ Selects requested environments from each stack's declared or discovered environm
 The resolver provides comprehensive error handling:
 
 - **Invalid Environment**: Clear error when target environment doesn't exist
+- **Invalid Service Name**: `targets` rejects a service name outside `[a-zA-Z0-9_-]+`
 - **Missing Labels**: Graceful handling of PRs without deploy labels
 - **Configuration Errors**: Detailed validation of workflow configuration
 - **Directory Detection**: Missing paths produce a valid empty result

@@ -2,6 +2,7 @@ require 'spec_helper'
 require 'thor'
 require 'open3'
 require 'tmpdir'
+require 'fileutils'
 
 RSpec.describe 'LabelResolverCLI' do
   let(:resolver_path) { File.expand_path('../../label-resolver/bin/resolver', __dir__) }
@@ -13,8 +14,8 @@ RSpec.describe 'LabelResolverCLI' do
     load resolver_path
   end
 
-  it 'registers only the resolve command' do
-    expect(LabelResolverCLI.all_commands.keys - Thor.all_commands.keys).to contain_exactly('resolve')
+  it 'registers only the resolve and targets commands' do
+    expect(LabelResolverCLI.all_commands.keys - Thor.all_commands.keys).to contain_exactly('resolve', 'targets')
   end
 
   [nil, '', '  '].each do |value|
@@ -53,6 +54,32 @@ RSpec.describe 'LabelResolverCLI' do
     end
   end
 
+  context 'with the targets command' do
+    let(:controller) { instance_double(Interfaces::Controllers::LabelResolverController) }
+
+    before { allow(LabelResolverContainer).to receive(:resolve).with(:label_resolver_controller).and_return(controller) }
+
+    it 'passes the service and the selected environments to the controller' do
+      expect(controller).to receive(:targets).with(service: 'demo', environments: %w[develop staging]).and_return(Entities::Result.success)
+      LabelResolverCLI.new.targets('demo', 'develop,staging')
+    end
+
+    it 'passes omitted environments as an empty selection' do
+      expect(controller).to receive(:targets).with(service: 'all', environments: []).and_return(Entities::Result.success)
+      LabelResolverCLI.new.targets('all')
+    end
+
+    it 'exits 1 when the controller returns a failure Result' do
+      allow(controller).to receive(:targets).and_return(Entities::Result.failure('boom'))
+      expect { LabelResolverCLI.new.targets('demo') }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+    end
+
+    it 'does not exit when the controller returns a success Result' do
+      allow(controller).to receive(:targets).and_return(Entities::Result.success)
+      expect { LabelResolverCLI.new.targets('demo') }.not_to raise_error
+    end
+  end
+
   context 'when run as a process' do
     around do |example|
       Dir.mktmpdir do |root|
@@ -84,6 +111,59 @@ RSpec.describe 'LabelResolverCLI' do
       expect(status.exitstatus).to eq(1)
       expect(stderr).to include('GITHUB_OUTPUT is not set')
       expect(stdout).not_to include('Failed to retrieve PR labels')
+    end
+
+    context 'with the targets command' do
+      before do
+        File.write(File.join(@root, 'workflow-config.yaml'), { 'services' => [{ 'id' => 'app', 'roots' => ['apps/{service}'], 'stacks' => [
+          { 'id' => 'container', 'path' => '.' },
+          { 'id' => 'kustomize', 'path' => 'overlays/{environment}' }
+        ] }] }.to_yaml)
+        %w[apps/demo apps/demo/overlays/develop apps/api].each { |path| FileUtils.mkdir_p(File.join(@root, path)) }
+      end
+
+      let(:output_path) { File.join(@root, 'github-output') }
+      let(:actions_env) { { 'GITHUB_ACTIONS' => 'true', 'GITHUB_OUTPUT' => output_path } }
+
+      it 'writes the outputs of a service without a pull request or GitHub credentials' do
+        stdout, stderr, status = run_resolver('targets', 'demo', 'develop', env: actions_env)
+        expect(status.exitstatus).to eq(0), stderr
+        outputs = File.read(output_path).lines.map(&:strip)
+        expect(outputs[0]).to eq('targets=[{"service":"demo","environment":null,"stack":"container","working_directory":"apps/demo"},{"service":"demo","environment":"develop","stack":"kustomize","working_directory":"apps/demo/overlays/develop"}]')
+        expect(outputs[1]).to eq('has-targets=true')
+        expect(outputs[2]).to start_with('candidates=[{"target":{"service":"demo"')
+        expect(stdout).to include('Service: demo')
+      end
+
+      it 'resolves every service for all' do
+        _stdout, stderr, status = run_resolver('targets', 'all', env: actions_env)
+        expect(status.exitstatus).to eq(0), stderr
+        expect(JSON.parse(File.read(output_path)[/^targets=(.*)$/, 1]).map { |item| item['service'] }).to eq(%w[api demo demo])
+      end
+
+      it 'writes empty outputs for an unknown service' do
+        _stdout, stderr, status = run_resolver('targets', 'missing', env: actions_env)
+        expect(status.exitstatus).to eq(0), stderr
+        expect(File.read(output_path).lines.map(&:strip)).to eq(['targets=[]', 'has-targets=false', 'candidates=[]'])
+      end
+
+      it 'exits 1 for an environment outside the union of declared and discovered environments' do
+        stdout, _stderr, status = run_resolver('targets', 'demo', 'preview', env: actions_env)
+        expect(status.exitstatus).to eq(1)
+        expect(stdout).to include('::error::Target environments not found in configuration: preview')
+        expect(File.exist?(output_path)).to be(false)
+      end
+
+      it 'exits 1 for a service name outside [a-zA-Z0-9_-]+' do
+        stdout, _stderr, status = run_resolver('targets', 'demo/aws', env: actions_env)
+        expect(status.exitstatus).to eq(1)
+        expect(stdout).to include('::error::', 'demo/aws')
+      end
+
+      it 'exits 1 when targets is called without a service' do
+        _stdout, _stderr, status = run_resolver('targets')
+        expect(status.exitstatus).to eq(1)
+      end
     end
   end
 end

@@ -36,6 +36,19 @@ bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
 - 複数環境: `develop,staging` (カンマ区切り)
 - 全環境: 環境一覧パラメータを省略
 
+Pull Request なしで、1 つのサービスまたは全サービスのデプロイ対象を解決します。このコマンドは GitHub API を呼ばず、`GITHUB_TOKEN` を必要としません。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets SERVICE [ENVIRONMENTS]
+```
+
+**サービス指定：**
+
+- 単一サービス: `[a-zA-Z0-9_-]+` に一致するサービス名
+- 全サービス: `all`
+
+ENVIRONMENTS の指定方法は `resolve` と同じです。パターンに合わないサービス名、および定義も探索もされていない環境は終了コード 1 で失敗します。
+
 ### 実行例
 
 `develop` 環境のデプロイ対象を解決します。
@@ -54,6 +67,18 @@ bundle exec ruby label-resolver/bin/resolver resolve 456 develop,staging
 
 ```bash
 bundle exec ruby label-resolver/bin/resolver resolve 123
+```
+
+Pull Request なしで、1 つのサービスの `develop` 環境のデプロイ対象を解決します。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets demo develop
+```
+
+全サービスの全環境のデプロイ対象を解決します。
+
+```bash
+bundle exec ruby label-resolver/bin/resolver targets all
 ```
 
 ### ワークフローへの組み込み
@@ -90,6 +115,12 @@ bundle exec ruby label-resolver/bin/resolver resolve 123
 
 - `targets`: マトリクス戦略用のデプロイメントターゲットの JSON 配列
 - `has-targets`: ターゲットが存在するかを示すブール値 (`true`/`false`)
+
+`targets` コマンドは、除外されていない candidate から求めた同じ 2 つの出力に加えて、次の出力を提供します：
+
+- `candidates`: 除外された対象を含む全 candidate の JSON 配列。各要素は `{"target": <matrix 項目>, "excluded": <bool>, "root": "<root>"}` の形式
+
+存在しないサービスはエラーになりません。`targets` は `[]`、`has-targets` は `false`、`candidates` は `[]` になります。
 
 ## アーキテクチャ
 
@@ -141,6 +172,7 @@ prefix と追加の prefix は設定で変更できます。ルートの [Labels
 リゾルバーは包括的なエラーハンドリングを提供します：
 
 - **無効な環境**: 対象環境が存在しない場合の明確なエラー
+- **無効なサービス名**: `targets` は `[a-zA-Z0-9_-]+` に一致しないサービス名を拒否
 - **ラベル不足**: デプロイラベルのない PR の適切な処理
 - **設定エラー**: ワークフロー設定の詳細な検証
 - **ディレクトリ検出**: 存在しないパスは正常な空の結果
