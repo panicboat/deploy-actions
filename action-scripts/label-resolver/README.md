@@ -6,7 +6,7 @@ A Ruby-based deployment resolution tool that converts PR labels into deployment 
 
 ## Overview
 
-The Label Resolver analyzes PR labels and generates deployment targets for specified environments. It validates deployment safety and creates deployment matrices for multi-service deployments, serving as the central orchestrator for deployment automation decisions.
+The Label Resolver analyzes PR labels and generates deployment targets for specified environments. It creates deployment matrices for multi-service deployments, serving as the central orchestrator for deployment automation decisions.
 
 ## Features
 
@@ -30,30 +30,6 @@ Resolve deployment from PR labels for specific environment(s).
 bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
 ```
 
-Inspect deployment target resolution.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver test PR_NUMBER [ENVIRONMENTS]
-```
-
-Simulate GitHub Actions environment.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER [ENVIRONMENTS]
-```
-
-Validate environment configuration.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver validate_env
-```
-
-Debug workflow step-by-step.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER [ENVIRONMENTS]
-```
-
 **Environment Specification:**
 
 - Single environment: `develop`
@@ -68,16 +44,10 @@ Resolve deployments for develop environment.
 bundle exec ruby label-resolver/bin/resolver resolve 123 develop
 ```
 
-Test multiple environments simultaneously.
+Resolve deployments for multiple environments simultaneously.
 
 ```bash
-bundle exec ruby label-resolver/bin/resolver test 456 develop,staging
-```
-
-Debug production deployment.
-
-```bash
-bundle exec ruby label-resolver/bin/resolver debug 789 production
+bundle exec ruby label-resolver/bin/resolver resolve 456 develop,staging
 ```
 
 Resolve deployment targets for all declared and discovered environments.
@@ -114,41 +84,27 @@ Multiple environment deployment.
     environments: "develop,staging"
 ```
 
-### Environment Variables
-
-The resolver sets the following environment variables for GitHub Actions:
-
-- `DEPLOYMENT_TARGETS`: JSON array of deployment targets
-- `DEPLOY_LABELS`: JSON array of deploy labels found
-- `HAS_TARGETS`: Boolean indicating if deployment targets exist
-- `SAFETY_STATUS`: Result of safety validation
-- `MERGED_PR_NUMBER`: PR number for deployment tracking
-
 ### Action Outputs
 
 The resolver provides the following GitHub Actions outputs:
 
 - `targets`: JSON array of deployment targets for matrix strategy
 - `has-targets`: Boolean indicating if targets exist (`true`/`false`)
-- `safety-status`: Result of safety validation (`passed`/`failed`)
 
 ## Architecture
 
 ### Components
 
 - **LabelResolverController**: Main orchestration logic
-- **DetermineTargetEnvironment**: Multi-environment validation
 - **GetLabels**: PR label extraction
-- **ValidateDeploymentSafety**: Safety checks (currently simplified)
-- **GenerateMatrix**: Deployment matrix generation for multiple environments
+- **GenerateMatrix**: Environment validation and deployment matrix generation for multiple environments
 
 ### Flow
 
 1. **Label Extraction**: Get deploy labels from PR
 2. **Environment Validation**: Validate all target environments exist
-3. **Safety Validation**: Perform deployment safety checks
-4. **Matrix Generation**: Create deployment targets for all environments based on directory structure
-5. **Output Generation**: Format results for GitHub Actions with simplified outputs
+3. **Matrix Generation**: Create deployment targets for all environments based on directory structure
+4. **Output Generation**: Format results for GitHub Actions with simplified outputs
 
 ## Configuration
 
@@ -209,8 +165,8 @@ export SOURCE_REPO_PATH=your_source_path
 export WORKFLOW_CONFIG_PATH=workflow-config.yaml
 ```
 
-Test with real PR.
+Resolve a real PR.
 
 ```bash
-bundle exec ruby label-resolver/bin/resolver debug 123 develop
+bundle exec ruby label-resolver/bin/resolver resolve 123 develop
 ```

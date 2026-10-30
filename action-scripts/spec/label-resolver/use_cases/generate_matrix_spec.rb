@@ -4,21 +4,22 @@ require 'fileutils'
 
 RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   let(:config_hash) { attributes_for(:workflow_config).fetch(:config_hash) }
-  let(:config) { Entities::WorkflowConfig.new(config_hash) }
+  let(:config) { Entities::WorkflowConfigParser.parse(config_hash) }
   let(:config_client) { instance_double(Infrastructure::ConfigClient, load_workflow_config: config) }
-  let(:file_client) { Infrastructure::FileSystemClient.new }
-  subject(:use_case) { described_class.new(config_client: config_client, file_client: file_client) }
+  let(:directory_scanner) { Infrastructure::DirectoryScanner.new(repository_root: @root) }
+  subject(:use_case) do
+    described_class.new(
+      config_client: config_client,
+      resolve_environments: UseCases::Shared::ResolveEnvironments.new(directory_scanner: directory_scanner),
+      enumerate_targets: UseCases::Shared::EnumerateTargets.new(directory_scanner: directory_scanner)
+    )
+  end
 
   around do |example|
-    original = ENV['SOURCE_REPO_PATH']
     Dir.mktmpdir do |root|
       @root = root
-      FileUtils.mkdir_p(File.join(root, '.git'))
-      ENV['SOURCE_REPO_PATH'] = root
       example.run
     end
-  ensure
-    ENV['SOURCE_REPO_PATH'] = original
   end
 
   def directory(path)
@@ -36,13 +37,31 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   def items(**options)
     result = generate(**options)
     expect(result).to be_success
-    result.deployment_targets.map(&:to_matrix_item)
+    result.value.map(&:to_matrix_item)
   end
 
   it 'attaches stack attributes to discovered environment targets' do
     config_hash.replace('services' => [{ 'id' => 'app', 'roots' => ['dystopia/{service}'], 'stacks' => [{ 'id' => 'kustomize', 'path' => 'overlays/{environment}', 'attributes' => { 'type' => 'kustomize' } }] }])
     directory('dystopia/demo/overlays/develop')
     expect(items).to eq([{ service: 'demo', environment: 'develop', stack: 'kustomize', working_directory: 'dystopia/demo/overlays/develop', type: 'kustomize' }])
+  end
+
+  it 'keeps the stack-major, environment, service, path order' do
+    use_service(roots: ['dystopia/{service}', 'components/{service}'], stacks: [
+      { 'id' => 'aws', 'path' => 'aws/{environment}', 'environments' => { 'production' => {}, 'develop' => {} } },
+      { 'id' => 'kubernetes', 'path' => 'k8s/{environment}' }
+    ])
+    %w[dystopia components].each { |root| %w[aws k8s].each { |stack| %w[production develop].each { |env| directory("#{root}/demo/#{stack}/#{env}") } } }
+    expect(items(environments: nil).map { |row| [row[:stack], row[:environment], row[:working_directory]] }).to eq([
+      ['aws', 'production', 'dystopia/demo/aws/production'],
+      ['aws', 'production', 'components/demo/aws/production'],
+      ['aws', 'develop', 'dystopia/demo/aws/develop'],
+      ['aws', 'develop', 'components/demo/aws/develop'],
+      ['kubernetes', 'production', 'dystopia/demo/k8s/production'],
+      ['kubernetes', 'production', 'components/demo/k8s/production'],
+      ['kubernetes', 'develop', 'dystopia/demo/k8s/develop'],
+      ['kubernetes', 'develop', 'components/demo/k8s/develop']
+    ])
   end
 
   it 'skips sibling directories of declared environments' do
@@ -156,7 +175,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
   it 'returns empty targets when inferred directories are absent' do
     use_service(roots: ['dystopia/{service}'], stacks: [{ 'id' => 'kubernetes', 'path' => 'overlays/{environment}' }])
-    expect(generate.data).to eq(deployment_targets: [], has_deployments: false, total_targets: 0)
+    expect(generate.value).to eq([])
   end
 
   it 'reuses an environment-less directory across its declared environments' do
@@ -247,25 +266,25 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
       result = generate
       expect(result).to be_failure
       expect(result.error_message).to include('Conflicting captures', 'teams/platform/demo/aws')
-      expect(result.data).not_to have_key(:deployment_targets)
+      expect(result.value).to be_nil
     end
   end
 
   it 'returns failures without partial targets for enumeration errors' do
     directory('dystopia/demo/aws/develop')
-    allow(file_client).to receive(:resolve_directories).and_call_original
-    allow(file_client).to receive(:resolve_directories).with(pattern: 'system-components/{service}/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }).and_raise(Errno::EACCES)
+    allow(directory_scanner).to receive(:resolve).and_call_original
+    allow(directory_scanner).to receive(:resolve).with(pattern: 'system-components/{service}/aws/{environment}', values: { 'service' => 'demo', 'environment' => 'develop' }, skip: Entities::Service.method(:hidden_captures?)).and_raise(Errno::EACCES)
     result = generate
     expect(result).to be_failure
     expect(result.error_message).to include('Permission denied')
-    expect(result.data).not_to have_key(:deployment_targets)
+    expect(result.value).to be_nil
   end
 
   it 'returns failures for unknown environments even when no directory exists' do
     result = generate(environments: ['preview'])
     expect(result).to be_failure
     expect(result.error_message).to include('preview')
-    expect(result.data).not_to have_key(:deployment_targets)
+    expect(result.value).to be_nil
   end
 
   it 'deduplicates requested environments' do
@@ -275,7 +294,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
 
   it 'returns successful empty targets when directories are absent' do
     result = generate
-    expect(result.data).to eq(deployment_targets: [], has_deployments: false, total_targets: 0)
+    expect(result.value).to eq([])
   end
 
   it 'returns no targets for empty or invalid labels' do
@@ -292,7 +311,7 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
     result = generate
     expect(result).to be_failure
     expect(result.error_message).to include('Permission denied')
-    expect(result.data).not_to have_key(:deployment_targets)
+    expect(result.value).to be_nil
   ensure
     File.chmod(0o755, path) if path
   end
@@ -300,10 +319,10 @@ RSpec.describe UseCases::LabelResolver::GenerateMatrix do
   it 'agrees with change detection for dot-prefixed environments and custom captures' do
     use_service(roots: ['teams/{team}/{service}'], stacks: [{ 'id' => 'terragrunt', 'path' => '{environment}', 'environments' => { '.preview' => { 'token' => nil } } }])
     directory('teams/.platform/demo/.preview')
-    allow(file_client).to receive(:get_changed_files).and_return(['teams/.platform/demo/.preview/main.tf'])
-    detector = UseCases::LabelManagement::DetectChangedServices.new(config_client: config_client, file_client: file_client)
-    detection = detector.execute
-    expect(detection.services_detected).to eq(['demo'])
+    git_client = instance_double(Infrastructure::GitClient, changed_files: ['teams/.platform/demo/.preview/main.tf'])
+    detector = UseCases::LabelManagement::DetectChangedServices.new(config_client: config_client, git_client: git_client)
+    detection = detector.execute.value
+    expect(detection.deploy_labels.map(&:service)).to eq(['demo'])
     expect(items(labels: detection.deploy_labels.map(&:to_s))).to eq([
       { service: 'demo', stack: 'terragrunt', environment: '.preview', working_directory: 'teams/.platform/demo/.preview', team: '.platform', token: nil }
     ])

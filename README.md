@@ -12,14 +12,13 @@ Deploy Actions converts file changes into deployment labels and converts those l
 
 ### 1. Config Manager (`action-scripts/config-manager/`)
 
-Validates stack definitions in `workflow-config.yaml` and provides configuration display, environment listing, service diagnosis using existing directories, and template generation.
+Validates stack definitions in `workflow-config.yaml` and reports the targets of a service found in existing directories, with their exclusion status.
 
 **Highlights:**
 
 - Configuration validation with detailed error reports
-- Environment listing and service diagnosis
+- Service diagnosis that lists each target and whether it is excluded
 - Stack path and exclusion validation
-- Template generation
 
 ### 2. Label Dispatcher (`label-dispatcher/`)
 
@@ -41,7 +40,7 @@ Generates a matrix for downstream Actions from `<prefix><service>` labels and th
 - Label-to-target resolution
 - Target selection from declared and discovered environments
 - Deployment-matrix generation
-- Safety validation
+- Exclusion of targets that match a stack's `exclude` conditions
 
 ## Composite Actions
 
@@ -55,6 +54,15 @@ Generates a matrix for downstream Actions from `<prefix><service>` labels and th
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+Outputs:
+
+| Output | Value |
+|---|---|
+| `labels-added` | JSON array of the labels added to the PR |
+| `labels-removed` | JSON array of the labels removed from the PR |
+| `services-detected` | JSON array of the services detected from the changes |
+| `has-changes` | `true` or `false` |
+
 ### Label Resolver
 
 `environments` is optional. Specify multiple environments as a comma-separated list; omit it to target all declared and discovered environments.
@@ -67,6 +75,13 @@ Generates a matrix for downstream Actions from `<prefix><service>` labels and th
     github-token: ${{ secrets.GITHUB_TOKEN }}
     environments: develop
 ```
+
+Outputs:
+
+| Output | Value |
+|---|---|
+| `targets` | JSON array of deployment targets (see [Matrix Output](#matrix-output)) |
+| `has-targets` | `true` or `false` |
 
 ## Configuration
 
@@ -362,7 +377,7 @@ The execution layer (`aws`, `kubernetes`, etc.) is intentionally not part of thi
 
 ## Matrix Output
 
-`label-resolver` writes a JSON array to `outputs.targets` and the `DEPLOYMENT_TARGETS` environment variable. Each target has the following four fixed keys, with attributes and captured arbitrary placeholders flattened into the same object.
+`label-resolver` writes a JSON array to `outputs.targets`. Each target has the following four fixed keys, with attributes and captured arbitrary placeholders flattened into the same object.
 
 | Key | Source |
 |---|---|
@@ -429,11 +444,30 @@ bundle exec rspec
 
 ### Component Testing
 
+Run commands from the `action-scripts` directory. `validate` and both `test` commands read only local files and never touch GitHub.
+
+| Command | Result |
+|---|---|
+| `bundle exec ruby config-manager/bin/config-manager validate` | Validates `workflow-config.yaml`; exits 1 on an invalid configuration |
+| `bundle exec ruby config-manager/bin/config-manager test SERVICE [ENVIRONMENT]` | Prints each target of the service and whether it is excluded |
+| `bundle exec ruby label-dispatcher/bin/dispatcher test [--base-ref=REF] [--head-ref=REF]` | Prints the labels a change would get |
+| `bundle exec ruby label-dispatcher/bin/dispatcher dispatch PR_NUMBER` | Detects changes from the PR's base and head and syncs the PR labels |
+| `bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]` | Resolves the PR's labels into targets; `ENVIRONMENTS` is comma-separated, and empty means all |
+
+To check locally what a change would do, use the two `test` commands:
+
 ```bash
-bundle exec ruby config-manager/bin/config-manager validate
 bundle exec ruby label-dispatcher/bin/dispatcher test
-bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER
+bundle exec ruby label-dispatcher/bin/dispatcher test --base-ref=main --head-ref=HEAD
+bundle exec ruby config-manager/bin/config-manager test api develop
 ```
+
+- Without refs, `dispatcher test` uses staged and unstaged changes.
+- With `--base-ref` and `--head-ref`, it diffs the two refs; with `--base-ref` alone, it diffs the base ref against the working tree; `--head-ref` alone is an error.
+- With refs, it stops with an error when a ref does not exist, without falling back to working-tree changes.
+- `dispatch` always syncs the labels of the PR, and `dispatch` and `resolve` need `GITHUB_TOKEN` and `GITHUB_REPOSITORY`.
+- The repository root is `SOURCE_REPO_PATH` when it holds `.git`; otherwise the search starts at the current directory itself and returns the nearest directory that holds `.git`.
+- `WORKFLOW_CONFIG_PATH` selects the configuration file, relative to the current directory, and defaults to `workflow-config.yaml`.
 
 ## License
 

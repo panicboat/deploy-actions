@@ -9,25 +9,6 @@ require 'factory_bot'
 # Load shared components
 require_relative '../shared/shared_loader'
 
-# Add Rails-like string extensions for tests
-class String
-  def present?
-    !empty?
-  end
-end
-
-class NilClass
-  def present?
-    false
-  end
-end
-
-class Array
-  def present?
-    !empty?
-  end
-end
-
 # Load all modules for testing
 [
   'config-manager/**/*.rb',

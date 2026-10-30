@@ -18,63 +18,42 @@ RSpec.describe Interfaces::Presenters::ConsolePresenter do
     expect(stdout).to include('Deploy Labels: deploy:demo', 'Changed Files: 1 files')
   end
 
+  it 'does not exit on errors' do
+    expect { described_class.new.present_error('boom') }.to output(/Error: boom/).to_stdout
+  end
+
+  it 'colors the heading of the shared text' do
+    expect do
+      described_class.new.present_label_dispatch_result(deploy_labels: [], labels_added: [], labels_removed: [], changed_files: [])
+    end.to output("#{'🏷️  Label Dispatch Results'.colorize(:blue)}\nDeploy Labels: \nChanged Files: 0 files\n").to_stdout
+  end
+
   it 'accepts only the dispatch result fields' do
     expect(described_class.instance_method(:present_label_dispatch_result).parameters.map(&:last)).to eq(%i[deploy_labels labels_added labels_removed changed_files])
   end
-  describe '#present_config_details' do
-    let(:config) do
-      Entities::WorkflowConfig.new(
-        'profiles' => { 'aws-develop' => { 'iam_role_plan' => 'arn:aws:iam::123456789012:role/plan' } },
-        'services' => [
-          { 'id' => 'app', 'roots' => ['dystopia/{service}', 'system-components/{service}'], 'ignore' => ['**/README.md'], 'stacks' => [
-            { 'id' => 'aws', 'path' => 'aws', 'attributes' => { 'type' => 'terragrunt' }, 'environments' => { 'develop' => { 'use' => ['aws-develop'], 'token' => nil } }, 'exclude' => [{ 'service' => 'demo' }] },
-            { 'id' => 'container', 'path' => '.', 'attributes' => { 'repository' => 'registry.example.com' } }
-          ] },
-          { 'id' => 'tools', 'roots' => ['tools/{service}'], 'stacks' => [{ 'id' => 'scripts', 'path' => '.' }] }
-        ]
-      )
-    end
-    let(:printed) do
-      original = $stdout
-      $stdout = StringIO.new
-      described_class.new.present_config_details(config: config)
-      $stdout.string
-    ensure
-      $stdout = original
-    end
 
-    def stack_section(id)
-      printed[/^  Stack '#{id}':\n(.*?)(?=^  Stack |^Service |\z)/m, 1]
-    end
+  it 'accepts only the matrix fields' do
+    expect(described_class.instance_method(:present_deployment_matrix).parameters.map(&:last)).to eq(%i[deployment_targets deploy_labels target_environments pr_number])
+  end
 
-    it 'shows each service with its roots and ignore patterns before its stacks' do
-      expect(printed).to include("Service 'app':\n  roots: dystopia/{service}, system-components/{service}\n  ignore: **/README.md\n  Stack 'aws':")
-    end
+  it 'colors the validation heading by the result' do
+    expect { described_class.new.present_config_validation_result(valid: true, summary: 'ok') }.to output("#{'✅ Configuration is valid'.colorize(:green)}\nSummary:\nok\n").to_stdout
+    expect { described_class.new.present_config_validation_result(valid: false, errors: ['boom']) }.to output("#{'❌ Configuration validation failed'.colorize(:red)}\n  - boom\n").to_stdout
+  end
 
-    it 'omits the ignore line for a service without ignore patterns' do
-      expect(printed).to include("Service 'tools':\n  roots: tools/{service}\n  Stack 'scripts':")
-    end
+  it 'accepts only the validation fields' do
+    expect(described_class.instance_method(:present_config_validation_result).parameters.map(&:last)).to eq(%i[valid errors summary])
+  end
 
-    it 'shows a dot path as a dot' do
-      expect(stack_section('container')).to include("    path: .\n")
-      expect(printed).not_to include("path: ''")
-    end
-
-    it 'shows the execution path of every root, the exclusion conditions, and the resolved environment attributes under the stack declaring them' do
-      expect(stack_section('aws')).to include('dystopia/{service}/aws', 'system-components/{service}/aws', 'type: terragrunt', 'develop', 'iam_role_plan: arn:aws:iam::123456789012:role/plan', 'token', 'exclude', 'service: demo')
-    end
-
-    it 'does not show one stack\'s attributes under another stack' do
-      expect(stack_section('container')).to include('repository: registry.example.com')
-      expect(stack_section('container')).not_to include('terragrunt', 'token', 'demo')
-      expect(stack_section('aws')).not_to include('repository')
-    end
+  it 'does not present service discovery results' do
+    expect(described_class.new).not_to respond_to(:present_service_discovery_result)
   end
 
   it 'shows complete diagnostic targets and their exclusion status' do
-    target = Entities::DeploymentTarget.new(service: 'demo', stack: 'aws', working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' }, attributes: { 'token' => nil })
+    stack = Entities::WorkflowConfigParser.parse('services' => [{ 'id' => 'app', 'roots' => ['teams/{team}/{service}'], 'stacks' => [{ 'id' => 'aws', 'path' => 'aws', 'attributes' => { 'token' => nil }, 'exclude' => [{ 'team' => 'platform' }] }] }]).stacks.first
+    candidate = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'teams/platform/demo/aws', captures: { 'team' => 'platform' })
     expect do
-      described_class.new.present_service_test_result(service_name: 'demo', matches: [{ target: target, excluded: true }])
+      described_class.new.present_service_test_result(service_name: 'demo', candidates: [candidate])
     end.to output(/stack: "aws".*working_directory: "teams\/platform\/demo\/aws".*token: nil.*team: "platform".*excluded: true/m).to_stdout
   end
 

@@ -16,72 +16,37 @@ end
 
 # Dependency injection container for label resolver
 class LabelResolverContainer
-  def self.configure
-    @container ||= build_container
-  end
-
   def self.resolve(name)
-    configure[name]
+    @entries ||= {}
+    @entries.fetch(name) { @entries[name] = build(name) }
   end
 
   private
 
-  def self.build_container
-    container = {}
-
-    # Infrastructure clients
-    container[:config_client] = Infrastructure::ConfigClient.new
-    container[:file_client] = Infrastructure::FileSystemClient.new
-
-    # GitHub client (only in GitHub Actions or with credentials)
-    if ENV['GITHUB_ACTIONS'] || (ENV['GITHUB_TOKEN'] && ENV['GITHUB_REPOSITORY'])
-      container[:github_client] = Infrastructure::GitHubClient.new(
-        token: ENV['GITHUB_TOKEN'] || raise('GITHUB_TOKEN is required'),
-        repository: ENV['GITHUB_REPOSITORY'] || raise('GITHUB_REPOSITORY is required')
+  def self.build(name)
+    case name
+    when :config_client then Composition.config_client
+    when :directory_scanner then Composition.directory_scanner
+    when :github_client then Composition.github_client
+    when :resolve_environments then UseCases::Shared::ResolveEnvironments.new(directory_scanner: resolve(:directory_scanner))
+    when :enumerate_targets then UseCases::Shared::EnumerateTargets.new(directory_scanner: resolve(:directory_scanner))
+    when :get_labels
+      UseCases::LabelResolver::GetLabels.new(github_client: resolve(:github_client), config_client: resolve(:config_client))
+    when :generate_matrix
+      UseCases::LabelResolver::GenerateMatrix.new(
+        config_client: resolve(:config_client),
+        resolve_environments: resolve(:resolve_environments),
+        enumerate_targets: resolve(:enumerate_targets)
       )
-    end
-
-    # Use cases
-    container[:determine_target_environment] = UseCases::LabelResolver::DetermineTargetEnvironment.new(
-      config_client: container[:config_client],
-      file_client: container[:file_client]
-    )
-
-    if container[:github_client]
-      container[:get_labels] = UseCases::LabelResolver::GetLabels.new(
-        github_client: container[:github_client],
-        config_client: container[:config_client]
+    when :presenter then Composition.presenter
+    when :label_resolver_controller
+      Interfaces::Controllers::LabelResolverController.new(
+        presenter: resolve(:presenter),
+        get_labels: resolve(:get_labels),
+        generate_matrix: resolve(:generate_matrix)
       )
+    else
+      raise KeyError, "Unknown dependency: #{name}"
     end
-
-    container[:validate_deployment_safety] = UseCases::LabelResolver::ValidateDeploymentSafety.new(
-      config_client: container[:config_client]
-    )
-
-    container[:generate_matrix] = UseCases::LabelResolver::GenerateMatrix.new(
-      config_client: container[:config_client],
-      file_client: container[:file_client]
-    )
-
-    # Presenters
-    container[:console_presenter] = Interfaces::Presenters::ConsolePresenter.new
-    container[:github_actions_presenter] = Interfaces::Presenters::GitHubActionsPresenter.new
-
-    # Controller
-    presenter = ENV['GITHUB_ACTIONS'] ? container[:github_actions_presenter] : container[:console_presenter]
-    container[:label_resolver_controller] = Interfaces::Controllers::LabelResolverController.new(
-      determine_target_environment_use_case: container[:determine_target_environment],
-      get_labels_use_case: container[:get_labels],
-      validate_deployment_safety_use_case: container[:validate_deployment_safety],
-      generate_matrix_use_case: container[:generate_matrix],
-      presenter: presenter
-    )
-
-    container
   end
-end
-
-# Loading completion log (development only)
-unless ENV['GITHUB_ACTIONS']
-  puts "✅ Label Resolver loaded".colorize(:green)
 end

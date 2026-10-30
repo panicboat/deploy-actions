@@ -6,7 +6,7 @@ PR ラベルを明示的な環境指定を使って GitHub Actions 自動化の�
 
 ## 概要
 
-Label Resolver は PR ラベルを分析し、指定された環境に対するデプロイメントターゲットを生成します。デプロイメントの安全性を検証し、マルチサービスデプロイメント用のデプロイメントマトリクスを作成し、デプロイメント自動化の意思決定の中心的なオーケストレーターとして機能します。
+Label Resolver は PR ラベルを分析し、指定された環境に対するデプロイメントターゲットを生成します。マルチサービスデプロイメント用のデプロイメントマトリクスを作成し、デプロイメント自動化の意思決定の中心的なオーケストレーターとして機能します。
 
 ## 機能
 
@@ -30,30 +30,6 @@ Label Resolver は `label-resolver/bin/resolver` を通じて CLI インター�
 bundle exec ruby label-resolver/bin/resolver resolve PR_NUMBER [ENVIRONMENTS]
 ```
 
-デプロイ対象の解決結果を確認します。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver test PR_NUMBER [ENVIRONMENTS]
-```
-
-GitHub Actions の実行環境をシミュレートします。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver simulate PR_NUMBER [ENVIRONMENTS]
-```
-
-実行環境の設定を検証します。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver validate_env
-```
-
-処理を段階ごとにデバッグします。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER [ENVIRONMENTS]
-```
-
 **環境指定：**
 
 - 単一環境: `develop`
@@ -68,16 +44,10 @@ bundle exec ruby label-resolver/bin/resolver debug PR_NUMBER [ENVIRONMENTS]
 bundle exec ruby label-resolver/bin/resolver resolve 123 develop
 ```
 
-複数環境のデプロイ対象をまとめて確認します。
+複数環境のデプロイ対象をまとめて解決します。
 
 ```bash
-bundle exec ruby label-resolver/bin/resolver test 456 develop,staging
-```
-
-`production` 環境のデプロイ対象の解決をデバッグします。
-
-```bash
-bundle exec ruby label-resolver/bin/resolver debug 789 production
+bundle exec ruby label-resolver/bin/resolver resolve 456 develop,staging
 ```
 
 定義環境と探索した環境すべてのデプロイ対象を解決します。
@@ -114,41 +84,27 @@ bundle exec ruby label-resolver/bin/resolver resolve 123
     environments: "develop,staging"
 ```
 
-### 環境変数
-
-リゾルバーは GitHub Actions 用に以下の環境変数を設定します：
-
-- `DEPLOYMENT_TARGETS`: デプロイメントターゲットの JSON 配列
-- `DEPLOY_LABELS`: 見つかったデプロイラベルの JSON 配列
-- `HAS_TARGETS`: デプロイメントターゲットが存在するかを示すブール値
-- `SAFETY_STATUS`: 安全性検証の結果
-- `MERGED_PR_NUMBER`: デプロイメント追跡用の PR 番号
-
 ### Action の出力
 
 リゾルバーは以下の GitHub Actions 出力を提供します：
 
 - `targets`: マトリクス戦略用のデプロイメントターゲットの JSON 配列
 - `has-targets`: ターゲットが存在するかを示すブール値 (`true`/`false`)
-- `safety-status`: 安全性検証の結果 (`passed`/`failed`)
 
 ## アーキテクチャ
 
 ### 構成要素
 
 - **LabelResolverController**: メインオーケストレーションロジック
-- **DetermineTargetEnvironment**: 複数環境検証
 - **GetLabels**: PR ラベル抽出
-- **ValidateDeploymentSafety**: 安全性チェック（現在簡素化）
-- **GenerateMatrix**: 複数環境用デプロイメントマトリクス生成
+- **GenerateMatrix**: 環境検証と複数環境用デプロイメントマトリクス生成
 
 ### 処理の流れ
 
 1. **ラベル抽出**: PR からデプロイラベルを取得
 2. **環境検証**: 全ての対象環境が存在することを検証
-3. **安全性検証**: デプロイメント安全性チェックを実行
-4. **マトリクス生成**: ディレクトリ構造に基づいて全環境のデプロイメントターゲットを作成
-5. **出力生成**: 簡素化された出力で GitHub Actions 用に結果をフォーマット
+3. **マトリクス生成**: ディレクトリ構造に基づいて全環境のデプロイメントターゲットを作成
+4. **出力生成**: 簡素化された出力で GitHub Actions 用に結果をフォーマット
 
 ## 設定
 
@@ -209,8 +165,8 @@ export SOURCE_REPO_PATH=your_source_path
 export WORKFLOW_CONFIG_PATH=workflow-config.yaml
 ```
 
-実際の PR を使ってデバッグします。
+実際の PR のデプロイ対象を解決します。
 
 ```bash
-bundle exec ruby label-resolver/bin/resolver debug 123 develop
+bundle exec ruby label-resolver/bin/resolver resolve 123 develop
 ```

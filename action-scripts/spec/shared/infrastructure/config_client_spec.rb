@@ -17,22 +17,21 @@ RSpec.describe Infrastructure::ConfigClient do
 
   it 'loads a configuration from the requested file' do
     config = client.load_workflow_config
-    expect(config.stacks.first).to include('id' => 'container', 'paths' => ['apps/{service}'])
-    expect(config.environment_names).to eq([])
+    expect(config.stacks.first).to have_attributes(id: 'container', paths: ['apps/{service}'])
+    expect(config.declared_environment_names).to eq([])
   end
 
   it 'keeps the parsed configuration cached until explicitly cleared' do
     first = client.load_workflow_config
     File.write(file.path, content.sub('registry.example.com/app', 'registry.example.com/other'))
     expect(client.load_workflow_config).to be(first)
-    expect(client.load_workflow_config.stacks.first['attributes']).to eq('repository' => 'registry.example.com/app')
+    expect(client.load_workflow_config.stacks.first.attributes).to eq('repository' => 'registry.example.com/app')
     client.clear_cache
-    expect(client.load_workflow_config.stacks.first['attributes']).to eq('repository' => 'registry.example.com/other')
+    expect(client.load_workflow_config.stacks.first.attributes).to eq('repository' => 'registry.example.com/other')
   end
 
-  it 'uses the environment-specified path when no path is passed' do
-    ENV['WORKFLOW_CONFIG_PATH'] = file.path
-    expect(described_class.new.load_workflow_config.stacks.first['id']).to eq('container')
+  it 'requires a configuration path' do
+    expect { described_class.new }.to raise_error(ArgumentError, /config_path/)
   end
 
   it 'loads anchors and merge keys' do
@@ -52,7 +51,7 @@ RSpec.describe Infrastructure::ConfigClient do
                   gcp_project: foo
     YAML
     config = described_class.new(config_path: file.path).load_workflow_config
-    expect(config.target_attributes(config.stacks.first, 'develop')).to eq('aws_region' => 'ap-northeast-1', 'gcp_project' => 'foo')
+    expect(config.stacks.first.target_attributes('develop')).to eq('aws_region' => 'ap-northeast-1', 'gcp_project' => 'foo')
   end
 
   it 'reports the missing file path' do

@@ -6,19 +6,15 @@ require 'bundler/setup'
 # External dependencies
 require 'yaml'
 require 'json'
-require 'octokit'
-require 'colorize'
 
 # Load shared components in Clean Architecture dependency order
 [
   'entities/**/*.rb',      # Domain layer (innermost)
+  'use_cases/**/*.rb',
   'infrastructure/**/*.rb', # Infrastructure layer
   'interfaces/**/*.rb'     # Interface layer (outermost)
 ].each do |pattern|
   Dir[File.expand_path("#{pattern}", __dir__)].sort.each { |file| require file }
 end
 
-# Loading completion log (development only)
-unless ENV['GITHUB_ACTIONS']
-  puts "✅ Shared components loaded".colorize(:green)
-end
+require_relative 'composition'

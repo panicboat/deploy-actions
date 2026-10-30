@@ -31,9 +31,6 @@ outputs:
   has-targets:
     description: 'Whether targets found'
     value: ${{ steps.extract.outputs.has-targets }}
-  safety-status:
-    description: 'Safety check status'
-    value: ${{ steps.extract.outputs.safety-status }}
 
 runs:
   using: 'composite'
@@ -86,7 +83,6 @@ runs:
         TARGET_ENVIRONMENTS: ${{ inputs.environments }}
         DEPLOYMENT_TARGETS: ${{ steps.extract.outputs.targets }}
         HAS_TARGETS: ${{ steps.extract.outputs.has-targets }}
-        SAFETY_STATUS: ${{ steps.extract.outputs.safety-status }}
       with:
         script: |
           core.info('📊 Label Resolver completed');
@@ -95,4 +91,3 @@ runs:
           core.info(`Target Environments: ${process.env.TARGET_ENVIRONMENTS || 'all'}`);
           core.info(`Deployment Targets: ${process.env.DEPLOYMENT_TARGETS || '[]'}`);
           core.info(`Has Targets: ${process.env.HAS_TARGETS || 'false'}`);
-          core.info(`Safety Status: ${process.env.SAFETY_STATUS || 'unknown'}`);

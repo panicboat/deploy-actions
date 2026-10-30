@@ -16,13 +16,9 @@ module UseCases
 
         deploy_labels = deploy_labels_strings.map { |label| Entities::DeployLabel.new(label, prefixes: prefixes) }.select(&:valid?)
 
-        Entities::Result.success(
-          pr_number: pr_number,
-          deploy_labels: deploy_labels,
-          raw_labels: deploy_labels_strings,
-        )
+        Entities::Result.success(deploy_labels)
       rescue => error
-        Entities::Result.failure(error_message: "Failed to retrieve PR labels: #{error.message}")
+        Entities::Result.failure("Failed to retrieve PR labels: #{error.message}")
       end
     end
   end

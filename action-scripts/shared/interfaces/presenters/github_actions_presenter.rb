@@ -1,202 +1,56 @@
 # GitHub Actions presenter for formatting output for GitHub Actions workflows
-# Handles environment variable setting and action outputs
 
 module Interfaces
   module Presenters
     class GitHubActionsPresenter
+      def initialize(output_path:)
+        @output_path = output_path
+      end
+
       # Present label dispatch results for GitHub Actions
       def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)
-        set_environment_variables(
-          'DEPLOY_LABELS' => deploy_labels.map(&:to_s).to_json,
-          'LABELS_ADDED' => labels_added.to_json,
-          'LABELS_REMOVED' => labels_removed.to_json,
-          'HAS_CHANGES' => deploy_labels.any?.to_s,
-          'CHANGED_FILES' => changed_files.to_json,
-          'SERVICES_DETECTED' => deploy_labels.map(&:service).uniq.to_json,
-        )
-
-        set_action_outputs(
-          'deploy-labels' => deploy_labels.map(&:to_s).to_json,
+        write_outputs(
           'labels-added' => labels_added.to_json,
           'labels-removed' => labels_removed.to_json,
           'services-detected' => deploy_labels.map(&:service).uniq.to_json,
           'has-changes' => deploy_labels.any?.to_s,
         )
 
-        puts "🏷️ Label Dispatch Completed"
-        puts "Deploy Labels: #{deploy_labels.map(&:to_s).join(', ')}"
-        puts "Labels Added: #{labels_added.join(', ')}" if labels_added.any?
-        puts "Labels Removed: #{labels_removed.join(', ')}" if labels_removed.any?
+        puts TextFormat.label_dispatch(deploy_labels: deploy_labels, labels_added: labels_added, labels_removed: labels_removed, changed_files: changed_files)
       end
 
       # Present deployment matrix for GitHub Actions
-      def present_deployment_matrix(
-        deployment_targets:,
-        deploy_labels:,
-        target_environment: nil,
-        target_environments: nil,
-        merged_pr_number: nil,
-        pr_number: nil,
-        safety_status: nil
-      )
-        matrix_items = deployment_targets.map(&:to_matrix_item)
-        environments = target_environments || (target_environment ? [target_environment] : [])
-
-        set_environment_variables(
-          'DEPLOYMENT_TARGETS' => matrix_items.to_json,
-          'HAS_TARGETS' => deployment_targets.any?.to_s,
-          'DEPLOY_LABELS' => deploy_labels.map(&:to_s).to_json,
-          'MERGED_PR_NUMBER' => merged_pr_number || pr_number,
-          'SAFETY_STATUS' => safety_status
+      def present_deployment_matrix(deployment_targets:, deploy_labels:, target_environments:, pr_number:)
+        write_outputs(
+          'targets' => deployment_targets.map(&:to_matrix_item).to_json,
+          'has-targets' => deployment_targets.any?.to_s
         )
 
-        set_action_outputs(
-          'targets' => matrix_items.to_json,
-          'has-targets' => deployment_targets.any?.to_s,
-          'safety-status' => safety_status
-        )
-
-        puts "🚀 Deployment Matrix Generated"
-        puts "Targets: #{deployment_targets.length} deployment(s)"
-        
-        if environments.length > 1
-          puts "Target Environments: #{environments.join(', ')}"
-        elsif environments.length == 1
-          puts "Target Environment: #{environments.first}"
-        end
-        
-        puts "PR: ##{merged_pr_number || pr_number}" if merged_pr_number || pr_number
-
-        # Group by environment for cleaner output
-        targets_by_env = deployment_targets.group_by(&:environment)
-        targets_by_env.each do |env, targets|
-          puts "  #{env}:"
-          targets.each do |target|
-            puts "    #{target.service}:#{target.stack} -> #{target.working_directory}"
-          end
-        end
+        puts TextFormat.deployment_matrix(deployment_targets: deployment_targets, deploy_labels: deploy_labels, target_environments: target_environments, pr_number: pr_number)
       end
-
 
       # Present configuration validation results for GitHub Actions
-      def present_config_validation_result(valid:, errors: [], config: nil, summary: nil)
-        set_environment_variables(
-          'CONFIG_VALID' => valid.to_s,
-          'CONFIG_ERRORS' => errors.to_json
-        )
-
-        set_action_outputs(
-          'config_valid' => valid.to_s
-        )
-
-        if valid
-          puts "✅ Configuration is valid"
-          if summary
-            puts "Summary:"
-            if summary.is_a?(String)
-              puts summary
-            else
-              summary.each { |key, value| puts "  #{key}: #{value}" }
-            end
-          end
-        else
-          puts "❌ Configuration validation failed"
-          errors.each { |error| puts "  - #{error}" }
-        end
+      def present_config_validation_result(valid:, errors: [], summary: nil)
+        puts TextFormat.config_validation(valid: valid, errors: errors, summary: summary)
+        errors.each { |error| puts "::error::#{error}" } unless valid
       end
 
-      def present_config_details(config:)
-        puts "Workflow Configuration"
-        puts "Environments: #{config.environment_names.join(', ')}"
-        config.services.each do |service|
-          puts "Service '#{service['id']}':"
-          puts "  roots: #{service['roots'].join(', ')}"
-          puts "  ignore: #{service['ignore'].join(', ')}" unless service['ignore'].empty?
-          service['stacks'].each do |stack|
-            puts "  Stack '#{stack['id']}':"
-            # Psych writes the root path as '' and would quote a bare dot, so the line is replaced as text.
-            details = stack.except('id', 'service_id', 'common').to_yaml.sub(/^path: ''$/, 'path: .')
-            puts details.lines.drop(1).map { |line| "    #{line}" }.join
-          end
-        end
-      end
-
-      def present_service_test_result(service_name:, matches:)
-        puts "Service Configuration Test"
-        puts "Service: #{service_name}"
-        matches.each do |match|
-          puts "Target:"
-          match.fetch(:target).to_matrix_item.each { |key, value| puts "  #{key}: #{value.inspect}" }
-          puts "  excluded: #{match.fetch(:excluded)}"
-        end
-      end
-
-      # Present diagnostic results
-      def present_diagnostic_results(results:)
-        puts "🏥 Diagnostic Results"
-        results.each do |result|
-          status_icon = case result[:status]
-                       when 'PASS' then '✅'
-                       when 'WARN' then '⚠️'
-                       when 'FAIL' then '❌'
-                       else '❓'
-                       end
-
-          puts "#{status_icon} #{result[:check]}: #{result[:details]}"
-        end
-      end
-
-      # Present config template
-      def present_config_template(template:)
-        puts "📋 Configuration Template"
-        puts ""
-        puts template
+      def present_service_test_result(service_name:, candidates:)
+        puts TextFormat.service_test_result(service_name: service_name, candidates: candidates)
       end
 
       # Present error results for GitHub Actions
-      def present_error(result)
-        set_environment_variables(
-          'ERROR_OCCURRED' => 'true',
-          'ERROR_MESSAGE' => result.error_message
-        )
-
-        puts "::error::#{result.error_message}"
-        exit 1
-      end
-
-      # Present service discovery results
-      def present_service_discovery_result(discovered_services:, method:)
-        puts "🔍 Service Discovery Results"
-        puts "Discovery Method: #{method}"
-        puts "Discovered Services: #{discovered_services.join(', ')}"
+      def present_error(message)
+        puts "::error::#{message}"
       end
 
       private
 
-      # Set GitHub Actions environment variables
-      def set_environment_variables(variables)
-        return unless ENV['GITHUB_ENV']
+      def write_outputs(outputs)
+        raise 'GITHUB_OUTPUT is not set' if @output_path.nil?
 
-        File.open(ENV['GITHUB_ENV'], 'a') do |f|
-          variables.each { |key, value| f.puts "#{key}=#{value}" }
-        end
-      end
-
-      # Set GitHub Actions step outputs
-      def set_action_outputs(outputs)
-        github_output = ENV['GITHUB_OUTPUT']
-        if github_output && File.exist?(github_output)
-          # Use new GITHUB_OUTPUT format
-          outputs.each do |key, value|
-            File.open(github_output, 'a') do |file|
-              file.puts "#{key}=#{value}"
-            end
-          end
-        else
-          # Fallback to legacy format for local testing
-          outputs.each do |key, value|
-            puts "::set-output name=#{key}::#{value}"
-          end
+        File.open(@output_path, 'a') do |file|
+          outputs.each { |key, value| file.puts "#{key}=#{value}" }
         end
       end
     end

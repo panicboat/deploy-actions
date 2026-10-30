@@ -2,13 +2,9 @@ source 'https://rubygems.org'
 
 # Core dependencies
 gem 'thor', '~> 1.5'           # CLI framework
-gem 'dry-container', '~> 0.11' # Dependency injection
-gem 'dry-auto_inject', '~> 1.2', '>= 1.2.1' # Auto injection
 
 # External APIs & Services
 gem 'octokit', '~> 10.0'       # GitHub API client
-gem 'aws-sdk-core', '~> 3.261' # AWS SDK core
-gem 'aws-sdk-sts', '~> 1.12'   # AWS STS for role assumption
 
 # Configuration & Data
 gem 'yaml', '~> 0.4'           # YAML parsing
@@ -16,7 +12,6 @@ gem 'json', '~> 3.1'          # JSON handling
 
 # Utilities
 gem 'colorize', '~> 1.1'       # Colored terminal output
-gem 'activesupport', '~> 8.1', '>= 8.1.4'  # Utility methods
 gem "faraday-retry", "~> 2.4"  # Faraday middleware for retries
 
 # Development dependencies
@@ -24,7 +19,6 @@ group :development do
   gem 'rubocop', '~> 1.92', '>= 1.92.1'          # Code style checker
   gem 'rubocop-rspec', '~> 3.10', '>= 3.10.2'     # RSpec style checker
   gem 'pry', '~> 0.16', '>= 0.16.1'               # Debugging
-  gem 'guard-rspec', '~> 4.7', '>= 4.7.3'       # Automated testing
 end
 
 # Test dependencies

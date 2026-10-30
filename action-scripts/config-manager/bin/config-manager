@@ -1,91 +1,31 @@
 #!/usr/bin/env ruby
 
 # CLI interface for configuration management functionality
-# Provides commands for validating and managing workflow configuration
 
 require_relative '../application'
 require 'thor'
 
 class ConfigManagerCLI < Thor
+  # Thor exits 0 on a missing service name unless this is true.
+  def self.exit_on_failure?
+    true
+  end
+
   desc "validate", "Validate workflow configuration file"
 
   def validate
     controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.validate_configuration
+    result = controller.validate
+    exit 1 if result.failure?
   end
 
-  desc "show", "Show parsed configuration in readable format"
-
-  def show
-    controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.show_configuration
-  end
-
-  desc "test SERVICE_NAME [ENVIRONMENT]", "Test service configuration for specific service and environment"
+  desc "test SERVICE [ENVIRONMENT]", "Show the targets of a service and whether each is excluded"
 
   def test(service_name, environment = nil)
     controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.test_service_configuration(
-      service_name: service_name,
-      environment: environment
-    )
+    result = controller.test_service(service_name: service_name, environment: environment)
+    exit 1 if result.failure?
   end
-
-  desc "diagnostics", "Run comprehensive diagnostic checks"
-
-  def diagnostics
-    controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.run_diagnostics
-  end
-
-  desc "template", "Generate configuration template with examples"
-
-  def template
-    controller = ConfigManagerContainer.resolve(:config_manager_controller)
-    controller.generate_config_template
-  end
-
-  desc "check_file", "Check if configuration file exists and is readable"
-
-  def check_file
-    config_path = 'workflow-config.yaml'
-
-    if File.exist?(config_path)
-      puts "✅ Configuration file exists: #{config_path}"
-
-      begin
-        content = File.read(config_path)
-        puts "✅ File is readable (#{content.length} bytes)"
-
-        require 'yaml'
-        YAML.safe_load(content, aliases: true)
-        puts "✅ File contains valid YAML"
-      rescue => error
-        puts "❌ File is not valid YAML: #{error.message}"
-        exit 1
-      end
-    else
-      puts "❌ Configuration file not found: #{config_path}"
-      puts "   Use 'config-manager template' to generate a template"
-      exit 1
-    end
-  end
-
-  desc "environments", "List all configured environments"
-
-  def environments
-    begin
-      config_client = ConfigManagerContainer.resolve(:config_client)
-      config = config_client.load_workflow_config
-      file_client = ConfigManagerContainer.resolve(:file_client)
-      puts "Configured Environments:"
-      file_client.environment_names(config: config).each { |name| puts "  #{name}" }
-    rescue => error
-      puts "❌ Failed to load environments: #{error.message}"
-      exit 1
-    end
-  end
-
 end
 
 ConfigManagerCLI.start(ARGV) if $PROGRAM_NAME == __FILE__
