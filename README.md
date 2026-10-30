@@ -47,7 +47,7 @@ Generates a matrix for downstream Actions from `<prefix><service>` labels and th
 ### Label Dispatcher
 
 ```yaml
-- uses: panicboat/deploy-actions/label-dispatcher@v1
+- uses: panicboat/deploy-actions/label-dispatcher@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
@@ -68,7 +68,7 @@ Outputs:
 `environments` is optional. Specify multiple environments as a comma-separated list; omit it to target all declared and discovered environments.
 
 ```yaml
-- uses: panicboat/deploy-actions/label-resolver@v1
+- uses: panicboat/deploy-actions/label-resolver@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
@@ -79,7 +79,7 @@ Outputs:
 Set `service` to resolve a service, or `all`, without a pull request. `pr-number` is then ignored, and `ref` selects the ref of the source repository to check out.
 
 ```yaml
-- uses: panicboat/deploy-actions/label-resolver@v1
+- uses: panicboat/deploy-actions/label-resolver@v0.1.0
   with:
     repository: ${{ github.repository }}
     service: api
@@ -365,7 +365,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     steps:
-      - uses: panicboat/deploy-actions/label-dispatcher@v1
+      - uses: panicboat/deploy-actions/label-dispatcher@v0.1.0
         with:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
@@ -386,7 +386,7 @@ jobs:
     if: contains(github.event.label.name, 'deploy:')
     steps:
       - id: resolve
-        uses: panicboat/deploy-actions/label-resolver@v1
+        uses: panicboat/deploy-actions/label-resolver@v0.1.0
         with:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}

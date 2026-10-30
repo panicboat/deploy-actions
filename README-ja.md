@@ -47,7 +47,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 ### Label Dispatcher
 
 ```yaml
-- uses: panicboat/deploy-actions/label-dispatcher@v1
+- uses: panicboat/deploy-actions/label-dispatcher@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
@@ -68,7 +68,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 `environments` は任意の入力で、複数環境はカンマ区切りで指定します。省略すると定義環境と探索した環境をすべて対象にします。
 
 ```yaml
-- uses: panicboat/deploy-actions/label-resolver@v1
+- uses: panicboat/deploy-actions/label-resolver@v0.1.0
   with:
     pr-number: ${{ github.event.pull_request.number }}
     repository: ${{ github.repository }}
@@ -79,7 +79,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 `service` を指定すると、pull request なしで service（または `all`）の対象を解決します。このとき `pr-number` は無視され、`ref` で checkout する source repository の ref を選べます。
 
 ```yaml
-- uses: panicboat/deploy-actions/label-resolver@v1
+- uses: panicboat/deploy-actions/label-resolver@v0.1.0
   with:
     repository: ${{ github.repository }}
     service: api
@@ -365,7 +365,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     steps:
-      - uses: panicboat/deploy-actions/label-dispatcher@v1
+      - uses: panicboat/deploy-actions/label-dispatcher@v0.1.0
         with:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
@@ -386,7 +386,7 @@ jobs:
     if: contains(github.event.label.name, 'deploy:')
     steps:
       - id: resolve
-        uses: panicboat/deploy-actions/label-resolver@v1
+        uses: panicboat/deploy-actions/label-resolver@v0.1.0
         with:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
