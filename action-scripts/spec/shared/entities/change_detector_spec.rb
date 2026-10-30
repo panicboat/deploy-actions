@@ -169,4 +169,22 @@ RSpec.describe Entities::ChangeDetector do
     changed_files.replace(['README.md'])
     expect(services).to eq([])
   end
+
+  describe 'candidate roots' do
+    def candidate_roots
+      built = nil
+      allow(Entities::TargetCandidates).to receive(:new).and_wrap_original { |original, *args| built = original.call(*args) }
+      services
+      built.to_a.map(&:root)
+    end
+
+    { 0 => ['.', 'Dockerfile'], 1 => ['aws', 'aws/main.tf'], 2 => ['aws/{environment}', 'aws/develop/main.tf'] }.each do |length, (path, file)|
+      it "records the matched root for a stack path of length #{length}" do
+        service['roots'] = ['dystopia/{service}', 'teams/{team}/{service}']
+        service['stacks'] = [{ 'id' => 'terragrunt', 'path' => path }]
+        changed_files.replace(["dystopia/demo/#{file}", "teams/platform/api/#{file}"])
+        expect(candidate_roots).to eq(%w[dystopia/demo teams/platform/api])
+      end
+    end
+  end
 end
