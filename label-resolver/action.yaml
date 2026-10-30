@@ -11,7 +11,7 @@ inputs:
     description: 'Repository name (owner/repo)'
     required: true
   ref:
-    description: 'Ref of the source repository to check out; default is the event ref'
+    description: 'Ref of the source repository to check out; defaults to the event ref for the triggering repository and to the default branch for another repository'
     required: false
   pr-number:
     description: 'PR number (from prepare job output or event)'

@@ -95,7 +95,7 @@ Inputs:
 | `pr-number` | Unless `service` is set | Pull request whose labels are resolved; ignored when `service` is set |
 | `service` | No | Service name or `all`; resolves its targets without a pull request |
 | `environments` | No | Comma-separated environments; empty means all declared and discovered environments |
-| `ref` | No | Ref of the source repository to check out; defaults to the event's ref |
+| `ref` | No | Ref of the source repository to check out; defaults to the event's ref for the triggering repository and to the default branch for another repository |
 | `github-token` | No | Token for checking out the repository and reading the PR; defaults to `${{ github.token }}` |
 | `config-path` | No | Path to the configuration file; defaults to `workflow-config.yaml` |
 

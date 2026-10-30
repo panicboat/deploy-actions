@@ -95,7 +95,7 @@ PR の変更ファイルを検出し、変更があったサービスに対し�
 | `pr-number` | `service` 未指定なら必須 | ラベルを解決する pull request。`service` を指定すると無視される |
 | `service` | 任意 | service 名または `all`。pull request なしでその対象を解決する |
 | `environments` | 任意 | カンマ区切りの環境。空なら定義環境と探索した環境をすべて対象にする |
-| `ref` | 任意 | checkout する source repository の ref。既定はイベントの ref |
+| `ref` | 任意 | checkout する source repository の ref。既定は、ワークフローを起動したリポジトリならイベントの ref、別のリポジトリならそのデフォルトブランチ |
 | `github-token` | 任意 | リポジトリの checkout と PR の読み取りに使う token。既定は `${{ github.token }}` |
 | `config-path` | 任意 | 設定ファイルのパス。既定は `workflow-config.yaml` |
 
