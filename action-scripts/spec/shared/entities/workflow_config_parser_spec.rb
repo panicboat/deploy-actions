@@ -14,7 +14,6 @@ RSpec.describe Entities::WorkflowConfigParser do
 
   it 'joins every root with the stack path' do
     expect(config.stacks.first.paths).to eq(['dystopia/{service}/aws/{environment}', 'system-components/{service}/aws/{environment}'])
-    expect(config.stacks.first.service_id).to eq('app')
   end
 
   it 'uses the root itself for a dot path and marks it common' do
@@ -234,7 +233,7 @@ RSpec.describe Entities::WorkflowConfigParser do
 
   it 'lists stacks of every service in order' do
     config_hash['services'] << { 'id' => 'kubernetes', 'roots' => ['kubernetes/{service}'], 'stacks' => [{ 'id' => 'helmfile', 'path' => '{environment}' }] }
-    expect(config.stacks.map { |entry| [entry.service_id, entry.id] }).to eq([%w[app aws], %w[kubernetes helmfile]])
+    expect(config.stacks.map(&:id)).to eq(%w[aws helmfile])
   end
 
   it 'collects environment names from every stack without duplicates' do
@@ -247,7 +246,6 @@ RSpec.describe Entities::WorkflowConfigParser do
     expect(config.stacks.first.path).to eq('aws/{environment}')
     expect(config.stacks.first.paths.first).to eq('dystopia/{service}/aws/{environment}')
     expect(stack['path']).to eq('./aws/./{environment}/')
-    expect(stack).not_to have_key('service_id')
   end
 
   it 'normalizes a dot path to an empty path' do

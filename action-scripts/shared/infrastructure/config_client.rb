@@ -20,9 +20,5 @@ module Infrastructure
     rescue StandardError => error
       raise "Failed to load configuration from #{@config_path}: #{error.message}"
     end
-
-    def clear_cache
-      @config_cache = nil
-    end
   end
 end

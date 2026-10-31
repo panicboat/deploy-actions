@@ -21,13 +21,11 @@ RSpec.describe Infrastructure::ConfigClient do
     expect(config.declared_environment_names).to eq([])
   end
 
-  it 'keeps the parsed configuration cached until explicitly cleared' do
+  it 'keeps the parsed configuration cached' do
     first = client.load_workflow_config
     File.write(file.path, content.sub('registry.example.com/app', 'registry.example.com/other'))
     expect(client.load_workflow_config).to be(first)
     expect(client.load_workflow_config.stacks.first.attributes).to eq('repository' => 'registry.example.com/app')
-    client.clear_cache
-    expect(client.load_workflow_config.stacks.first.attributes).to eq('repository' => 'registry.example.com/other')
   end
 
   it 'requires a configuration path' do
