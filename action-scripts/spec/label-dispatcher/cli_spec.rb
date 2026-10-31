@@ -77,14 +77,19 @@ RSpec.describe 'LabelDispatcherCLI' do
       %w[apps/a.b/main.rb apps/api/main.rb].each { |path| File.write(File.join(@root, path), "2\n") }
       git.call('add', '-A')
       git.call('commit', '-q', '-m', 'change')
-      output_path = File.join(@root, 'github-output')
 
-      stdout, stderr, status = run_dispatcher('test', '--base-ref=HEAD~1', '--head-ref=HEAD', env: { 'GITHUB_ACTIONS' => '1', 'GITHUB_OUTPUT' => output_path })
+      stdout, stderr, status = run_dispatcher('test', '--base-ref=HEAD~1', '--head-ref=HEAD')
 
       expect(status.exitstatus).to eq(0), stderr
       expect(stdout).to include('Deploy Labels: deploy:api').and(include('apps/a.b/main.rb'))
       expect(stdout).not_to include('deploy:a.b')
-      expect(File.read(output_path).lines.map(&:strip)).to include('services-detected=["api"]', 'has-changes=true')
+    end
+
+    it 'writes no step outputs in GitHub Actions' do
+      output_path = File.join(@root, 'github-output')
+      _stdout, stderr, status = run_dispatcher('test', env: { 'GITHUB_ACTIONS' => 'true', 'GITHUB_OUTPUT' => output_path })
+      expect(status.exitstatus).to eq(0), stderr
+      expect(File.exist?(output_path)).to be(false)
     end
 
     it 'exits 1 when test cannot diff the base ref' do

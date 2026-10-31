@@ -16,14 +16,14 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
     presenter.present_label_dispatch_result(deploy_labels: [Entities::DeployLabel.new('deploy:demo')], labels_added: ['deploy:demo'], labels_removed: ['deploy:old'], changed_files: ['dystopia/demo/main.rb'])
   end
 
-  it 'writes public dispatch outputs without global service exclusion fields' do
+  it 'writes no outputs for a dispatch result' do
     expect { dispatch(presenter) }.to output.to_stdout
-    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('labels-added=["deploy:demo"]', 'labels-removed=["deploy:old"]', 'services-detected=["demo"]', 'has-changes=true')
+    expect(File.read(@output_path)).to eq('')
   end
 
-  it 'writes false and empty outputs when no labels are detected' do
+  it 'writes no outputs when no labels are detected' do
     expect { presenter.present_label_dispatch_result(deploy_labels: [], labels_added: [], labels_removed: [], changed_files: []) }.to output.to_stdout
-    expect(File.read(@output_path).lines.map(&:strip)).to contain_exactly('labels-added=[]', 'labels-removed=[]', 'services-detected=[]', 'has-changes=false')
+    expect(File.read(@output_path)).to eq('')
   end
 
   it 'writes the matrix outputs' do
@@ -90,8 +90,8 @@ RSpec.describe Interfaces::Presenters::GitHubActionsPresenter do
     expect { presenter.present_error('boom') }.to output("::error::boom\n").to_stdout
   end
 
-  it 'raises when GITHUB_OUTPUT is not set' do
-    expect { dispatch(described_class.new(output_path: nil)) }.to raise_error(RuntimeError, 'GITHUB_OUTPUT is not set')
+  it 'presents a dispatch result without an output file' do
+    expect { dispatch(described_class.new(output_path: nil)) }.to output(/Label Dispatch Results/).to_stdout
   end
 
   it 'does not write GITHUB_ENV' do

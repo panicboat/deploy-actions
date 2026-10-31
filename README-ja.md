@@ -104,7 +104,7 @@ jobs:
 詳しいルールは各ツールの README にあります。
 
 - [Config Manager](action-scripts/config-manager/README-ja.md): `workflow-config.yaml` の全フィールド、検証ルール、各ツールが読む環境変数。
-- [Label Dispatcher](action-scripts/label-dispatcher/README-ja.md): どの変更でサービスにラベルが付くか、`ignore`、ラベルの prefix、action の入出力。
+- [Label Dispatcher](action-scripts/label-dispatcher/README-ja.md): どの変更でサービスにラベルが付くか、`ignore`、ラベルの prefix、action の入力。
 - [Label Resolver](action-scripts/label-resolver/README-ja.md): ターゲットの作られ方、環境の選択、matrix の形式、Pull Request なしでのサービスの解決、action の入出力。
 
 複数の stack と profile を使った実例は [action-scripts/workflow-config.yaml](action-scripts/workflow-config.yaml) にあります。

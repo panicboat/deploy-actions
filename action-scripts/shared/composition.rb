@@ -35,7 +35,7 @@ module Composition
     return Interfaces::Presenters::ConsolePresenter.new unless github_actions?
 
     output_path = github_output_path
-    # Checked before the command runs so dispatch cannot change labels and then fail to write outputs.
+    # Checked when the presenter is built, not at the first output write, so a misconfigured step fails before the command does any work.
     raise 'GITHUB_OUTPUT is not set' if output_path.nil?
 
     Interfaces::Presenters::GitHubActionsPresenter.new(output_path: output_path)

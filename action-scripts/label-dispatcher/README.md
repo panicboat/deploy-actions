@@ -27,15 +27,6 @@ Inputs:
 
 Labels added with `GITHUB_TOKEN` do not start other workflows, so pass a GitHub App token or a personal access token when a `labeled` workflow runs the resolver.
 
-Outputs:
-
-| Output | Value |
-|---|---|
-| `labels-added` | JSON array of the labels the PR did not have before the run |
-| `labels-removed` | JSON array of the labels the run took off the PR and did not add back |
-| `services-detected` | JSON array of the services detected from the changes |
-| `has-changes` | `true` when at least one service was detected, otherwise `false` |
-
 ## Change Detection
 
 A service gets a label when a changed file sits below one of its roots. The dispatcher compares the pull request's base and head with a three-dot diff, then evaluates every changed file against every root in this order:

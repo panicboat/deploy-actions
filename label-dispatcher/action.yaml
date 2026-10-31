@@ -21,20 +21,6 @@ inputs:
     required: false
     default: 'workflow-config.yaml'
 
-outputs:
-  labels-added:
-    description: 'Labels that were added to the PR'
-    value: ${{ steps.dispatch.outputs.labels-added }}
-  labels-removed:
-    description: 'Labels that were removed from the PR'
-    value: ${{ steps.dispatch.outputs.labels-removed }}
-  services-detected:
-    description: 'Services detected from the changes'
-    value: ${{ steps.dispatch.outputs.services-detected }}
-  has-changes:
-    description: 'Whether any changes were detected'
-    value: ${{ steps.dispatch.outputs.has-changes }}
-
 runs:
   using: 'composite'
   steps:
@@ -64,7 +50,6 @@ runs:
         SOURCE_REPO_PATH: ${{ github.workspace }}/source-repo
 
     - name: Dispatch labels
-      id: dispatch
       shell: bash
       working-directory: ${{ github.action_path }}/../action-scripts
       run: |

@@ -104,7 +104,7 @@ jobs:
 Each tool's README holds the detailed rules:
 
 - [Config Manager](action-scripts/config-manager/README.md): every field of `workflow-config.yaml`, its validation rules, and the environment variables the tools read.
-- [Label Dispatcher](action-scripts/label-dispatcher/README.md): which changes label a service, `ignore`, label prefixes, and the action's inputs and outputs.
+- [Label Dispatcher](action-scripts/label-dispatcher/README.md): which changes label a service, `ignore`, label prefixes, and the action's inputs.
 - [Label Resolver](action-scripts/label-resolver/README.md): how targets are built, environment selection, the matrix format, resolving a service without a pull request, and the action's inputs and outputs.
 
 [action-scripts/workflow-config.yaml](action-scripts/workflow-config.yaml) is a working configuration with several stacks and profiles.
