@@ -16,7 +16,7 @@ gem "faraday-retry", "~> 2.4"  # Faraday middleware for retries
 
 # Development dependencies
 group :development do
-  gem 'rubocop', '~> 1.92', '>= 1.92.1'          # Code style checker
+  gem 'rubocop', '~> 1.92', '>= 1.92.2'          # Code style checker
   gem 'rubocop-rspec', '~> 3.10', '>= 3.10.2'     # RSpec style checker
   gem 'pry', '~> 0.16', '>= 0.16.1'               # Debugging
 end
