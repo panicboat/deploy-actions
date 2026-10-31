@@ -3,7 +3,7 @@ require 'spec_helper'
 RSpec.describe Entities::Stack do
   def stack(path: 'aws/{environment}', attributes: {}, environments: nil, exclude: [])
     described_class.new(
-      id: 'aws', service_id: 'app', path: path, paths: ["apps/{service}/#{path}"],
+      id: 'aws', path: path, paths: ["apps/{service}/#{path}"],
       attributes: attributes, environments: environments, exclude: exclude
     )
   end

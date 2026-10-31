@@ -109,7 +109,6 @@ module Entities
       environments = environment_layers&.to_h { |name, entry_layers| [name, merge_layers(entry_layers, "#{position}.environments.#{name}")] }
       Stack.new(
         id: stack['id'],
-        service_id: context.id,
         path: path,
         paths: context.roots.map { |root| normalize_path("#{root}/#{path}") },
         attributes: attributes,

@@ -2,7 +2,7 @@ require 'spec_helper'
 
 RSpec.describe Entities::TargetCandidate do
   def candidate(attributes: {}, exclude: [], captures: {})
-    stack = Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: attributes, environments: nil, exclude: exclude)
+    stack = Entities::Stack.new(id: 'aws', path: 'aws', paths: ['{service}/aws'], attributes: attributes, environments: nil, exclude: exclude)
     described_class.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: captures)
   end
 

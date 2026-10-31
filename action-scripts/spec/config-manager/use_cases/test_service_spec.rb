@@ -139,7 +139,7 @@ RSpec.describe UseCases::ConfigManagement::TestService do
   end
 
   it 'fails for an attribute that references a placeholder with no value' do
-    stack = Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [])
+    stack = Entities::Stack.new(id: 'aws', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [])
     unbuildable = Entities::TargetCandidate.new(stack: stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {})
     list_candidates = instance_double(UseCases::Shared::ListCandidates, execute: Entities::Result.success([unbuildable]))
 

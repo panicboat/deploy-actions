@@ -1,5 +1,5 @@
 module Entities
-  Stack = Data.define(:id, :service_id, :path, :paths, :attributes, :environments, :exclude) do
+  Stack = Data.define(:id, :path, :paths, :attributes, :environments, :exclude) do
     def initialize(**fields)
       super(**Ractor.make_shareable(fields, copy: true))
     end

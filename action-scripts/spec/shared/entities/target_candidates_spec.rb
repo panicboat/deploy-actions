@@ -3,7 +3,7 @@ require 'spec_helper'
 RSpec.describe Entities::TargetCandidates do
   let(:stack) do
     Entities::Stack.new(
-      id: 'aws', service_id: 'app', path: '{environment}', paths: ['teams/{team}/{service}/aws/{environment}'],
+      id: 'aws', path: '{environment}', paths: ['teams/{team}/{service}/aws/{environment}'],
       attributes: { 'owner' => '{team}' }, environments: nil, exclude: [{ 'team' => 'sandbox' }]
     )
   end

@@ -11,7 +11,7 @@ RSpec.describe UseCases::LabelResolver::ListServiceTargets do
   end
   let(:included) { Entities::TargetCandidate.new(stack: stack_config.stacks[0], service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {}) }
   let(:excluded) { Entities::TargetCandidate.new(stack: stack_config.stacks[1], service: 'demo', environment: nil, working_directory: 'demo/alb', captures: {}) }
-  let(:unbuildable_stack) { Entities::Stack.new(id: 'aws', service_id: 'app', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [{ 'service' => 'demo' }]) }
+  let(:unbuildable_stack) { Entities::Stack.new(id: 'aws', path: 'aws', paths: ['{service}/aws'], attributes: { 'repository' => 'ghcr.io/{team}/{service}' }, environments: nil, exclude: [{ 'service' => 'demo' }]) }
   let(:unbuildable) { Entities::TargetCandidate.new(stack: unbuildable_stack, service: 'demo', environment: nil, working_directory: 'demo/aws', captures: {}) }
 
   context 'with a stubbed candidate list' do
