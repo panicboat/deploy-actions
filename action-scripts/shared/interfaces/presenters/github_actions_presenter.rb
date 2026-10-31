@@ -6,13 +6,6 @@ module Interfaces
       end
 
       def present_label_dispatch_result(deploy_labels:, labels_added:, labels_removed:, changed_files:)
-        write_outputs(
-          'labels-added' => labels_added.to_json,
-          'labels-removed' => labels_removed.to_json,
-          'services-detected' => deploy_labels.map(&:service).uniq.to_json,
-          'has-changes' => deploy_labels.any?.to_s,
-        )
-
         puts TextFormat.label_dispatch(deploy_labels: deploy_labels, labels_added: labels_added, labels_removed: labels_removed, changed_files: changed_files)
       end
 

@@ -27,15 +27,6 @@ action は `repository` を全履歴つきで自分で checkout するので、j
 
 `GITHUB_TOKEN` で付けたラベルでは他の workflow が起動しません。`labeled` で動く workflow から resolver を実行するなら、GitHub App のトークンか個人アクセストークンを渡します。
 
-出力:
-
-| 出力 | 値 |
-|---|---|
-| `labels-added` | 実行前の PR になかったラベルの JSON 配列 |
-| `labels-removed` | 実行で PR から外し、付け直さなかったラベルの JSON 配列 |
-| `services-detected` | 変更から検出したサービスの JSON 配列 |
-| `has-changes` | サービスを 1 つ以上検出したら `true`、それ以外は `false` |
-
 ## Change Detection
 
 変更ファイルがいずれかの root の下にあれば、そのサービスにラベルが付きます。dispatcher は Pull Request の base と head を three-dot diff で比較し、すべての変更ファイルをすべての root に対して次の順で評価します。
