@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/panicboat/deploy-actions/compare/v0.2.0...v0.3.0) (2026-10-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* remove the outputs of the label dispatcher ([#384](https://github.com/panicboat/deploy-actions/issues/384))
+
+### Features
+
+* remove the outputs of the label dispatcher ([#384](https://github.com/panicboat/deploy-actions/issues/384)) ([26bfa09](https://github.com/panicboat/deploy-actions/commit/26bfa099028029c13275bb490a9ec4967fe2fc82))
+
 ## [0.2.0](https://github.com/panicboat/deploy-actions/compare/v0.1.1...v0.2.0) (2026-10-30)
 
 
