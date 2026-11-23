@@ -144,7 +144,7 @@ DEPENDENCIES
   rubocop-rspec (~> 3.10, >= 3.10.2)
   thor (~> 1.5)
   vcr (~> 6.4, >= 6.4.1)
-  webmock (~> 3.37)
+  webmock (~> 3.38)
   yaml (~> 0.4)
 
 BUNDLED WITH
