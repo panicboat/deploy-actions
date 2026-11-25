@@ -8,7 +8,7 @@ gem 'octokit', '~> 10.0'       # GitHub API client
 
 # Configuration & Data
 gem 'yaml', '~> 0.4'           # YAML parsing
-gem 'json', '~> 3.1'          # JSON handling
+gem 'json', '~> 3.2'          # JSON handling
 
 # Utilities
 gem 'colorize', '~> 1.1'       # Colored terminal output
